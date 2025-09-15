@@ -10,7 +10,7 @@ env:
 
 jobs:
   build:
-    runs-on: windows-2025
+    runs-on: windows-latest
     outputs:
       nbgv: ${{ steps.nbgv.outputs.SemVer2 }}
     steps:
@@ -25,9 +25,17 @@ jobs:
       uses: actions/setup-dotnet@v4.3.1
       with:
         dotnet-version: |
-            6.0.x
-            7.0.x
             8.0.x
+            9.0.x
+            10.0.x
+        dotnet-quality: 'preview'
+        cache: true
+        cache-dependency-path: |
+          **/Directory.Packages.props
+          **/*.sln
+          **/*.csproj
+          **/global.json
+          **/nuget.config
 
     - name: NBGV
       id: nbgv
