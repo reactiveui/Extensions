@@ -28,15 +28,14 @@ jobs:
             8.0.x
             9.0.x
             10.0.x
-
-    - name: Get Latest Visual Studio Version
-      shell: bash
-      run: |
-            dotnet tool update -g dotnet-vs
-            vs where release
-            vs update release Enterprise
-            vs modify release Enterprise +mobile +desktop +uwp +web
-            vs where release
+        dotnet-quality: 'preview'
+        cache: true
+        cache-dependency-path: |
+          **/Directory.Packages.props
+          **/*.sln
+          **/*.csproj
+          **/global.json
+          **/nuget.config
 
     - name: NBGV
       id: nbgv
