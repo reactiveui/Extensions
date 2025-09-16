@@ -4,13 +4,13 @@
     <Company>ReactiveUI Association Inc</Company>
     <Copyright>Copyright (c) ReactiveUI Association Inc © $([System.DateTime]::Now.ToString('yyyy'))</Copyright>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <PackageProjectUrl>https://github.com/reactivemarbles/Mvvm</PackageProjectUrl>
-    <PackageDescription>Common base classes for the MVVM pattern for Reactive Marbles.</PackageDescription>
+    <PackageProjectUrl>https://github.com/reactiveui/Extensions</PackageProjectUrl>
+    <PackageDescription>A focused collection of high–value Reactive Extensions (Rx) operators that do not ship with System.Reactive but are commonly needed when building reactive .NET applications.</PackageDescription>
     <PackageIcon>logo.png</PackageIcon>
     <Owners>glennawatson;rlittlesii;chrispulman</Owners>
     <PackageTags>system.reactive;propertychanged;inpc;reactive;functional;mvvm</PackageTags>
-    <PackageReleaseNotes>https://github.com/reactivemarbles/Mvvm/releases</PackageReleaseNotes>
-    <RepositoryUrl>https://github.com/reactivemarbles/Mvvm</RepositoryUrl>
+    <PackageReleaseNotes>https://github.com/ReactiveUI/Extensions/releases</PackageReleaseNotes>
+    <RepositoryUrl>https://github.com/ReactiveUI/Extensions</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
     <Nullable>enable</Nullable>

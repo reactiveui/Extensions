@@ -1,4 +1,4 @@
-# ReactiveMarbles.Extensions
+# ReactiveUI.Extensions
 
 A focused collection of high–value Reactive Extensions (Rx) operators that do **not** ship with `System.Reactive` but are commonly needed when building reactive .NET applications.
 
@@ -34,7 +34,7 @@ Supported Target Frameworks: `.NET Standard 2.0`, `.NET 8`, `.NET 9`, `.NET 10`.
 ## Installation
 ```bash
 # Package coming soon (example)
-dotnet add package ReactiveMarbles.Extensions
+dotnet add package ReactiveUI.Extensions
 ```
 Reference the project directly while developing locally.
 
@@ -43,7 +43,7 @@ Reference the project directly while developing locally.
 ```csharp
 using System;
 using System.Reactive.Linq;
-using ReactiveMarbles.Extensions;
+using ReactiveUI.Extensions;
 
 var source = Observable.Interval(TimeSpan.FromMilliseconds(120))
                        .Take(10)
@@ -280,4 +280,4 @@ Issues / PRs welcome. Please keep additions dependency–free and focused on broad
 - Added flow control (`Conflate`, `ThrottleFirst`, `DebounceImmediate`).
 
 ---
-Happy reactive coding! ??
+Happy reactive coding!

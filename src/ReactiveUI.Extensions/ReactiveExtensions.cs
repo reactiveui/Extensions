@@ -1,23 +1,8 @@
-// Copyright (c) 2019-2023 ReactiveUI Association Incorporated. All rights reserved.
+// Copyright (c) 2019-2025 ReactiveUI Association Incorporated. All rights reserved.
 // ReactiveUI Association Incorporated licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using System;
-using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.Linq;
-using System.Reactive;
-using System.Reactive.Concurrency;
-using System.Reactive.Disposables;
-using System.Reactive.Linq;
-using System.Reactive.Subjects;
-using System.Text;
-using System.Text.RegularExpressions;
-using System.Threading;
-using System.Threading.Tasks;
-using ReactiveMarbles.Extensions.Internal;
-
-namespace ReactiveMarbles.Extensions;
+namespace ReactiveUI.Extensions;
 
 /// <summary>
 /// Extension methods for <see cref="System.Reactive"/>.
@@ -1022,7 +1007,7 @@ public static class ReactiveExtensions
         return Observable.Create<T>(obs =>
         {
             object gate = new();
-            DateTimeOffset last = DateTimeOffset.MinValue;
+            var last = DateTimeOffset.MinValue;
             return source.Subscribe(
                 x =>
                 {
@@ -1064,7 +1049,7 @@ public static class ReactiveExtensions
             object gate = new();
             var isFirst = true;
             T? lastValue = default;
-            bool hasValue = false;
+            var hasValue = false;
 
             void Emit()
             {
@@ -1175,7 +1160,7 @@ public static class ReactiveExtensions
         return Observable.Create<IList<T>>(observer =>
         {
             object gate = new();
-            List<T> buffer = new();
+            List<T> buffer = [];
             SerialDisposable timer = new();
 
             void Flush()
@@ -1186,7 +1171,7 @@ public static class ReactiveExtensions
                     if (buffer.Count > 0)
                     {
                         toEmit = buffer;
-                        buffer = new();
+                        buffer = [];
                     }
                 }
 
