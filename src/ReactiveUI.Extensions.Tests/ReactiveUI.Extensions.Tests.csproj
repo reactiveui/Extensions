@@ -21,7 +21,7 @@
   </ItemGroup>
   
   <ItemGroup>
-    <ProjectReference Include="..\ReactiveMarbles.Extensions\ReactiveMarbles.Extensions.csproj" />
+    <ProjectReference Include="..\ReactiveUI.Extensions\ReactiveUI.Extensions.csproj" />
   </ItemGroup>
 
 </Project>

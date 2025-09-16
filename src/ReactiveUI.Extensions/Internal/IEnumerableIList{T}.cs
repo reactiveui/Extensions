@@ -1,10 +1,8 @@
-﻿// Copyright (c) 2019-2023 ReactiveUI Association Incorporated. All rights reserved.
+﻿// Copyright (c) 2019-2025 ReactiveUI Association Incorporated. All rights reserved.
 // ReactiveUI Association Incorporated licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using System.Collections.Generic;
-
-namespace ReactiveMarbles.Extensions.Internal;
+namespace ReactiveUI.Extensions.Internal;
 
 /// <summary>
 /// A enumerable that also contains the enumerable list.

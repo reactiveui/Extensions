@@ -1,11 +1,11 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio Version 17
-VisualStudioVersion = 17.5.33627.172
+# Visual Studio Version 18
+VisualStudioVersion = 18.0.11010.61 d18.0
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ReactiveMarbles.Extensions", "ReactiveMarbles.Extensions\ReactiveMarbles.Extensions.csproj", "{19AA5FBF-A095-4459-A523-03E5221AEF0F}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ReactiveUI.Extensions", "ReactiveUI.Extensions\ReactiveUI.Extensions.csproj", "{19AA5FBF-A095-4459-A523-03E5221AEF0F}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ReactiveMarbles.Extensions.Tests", "ReactiveMarbles.Extensions.Tests\ReactiveMarbles.Extensions.Tests.csproj", "{C93089AE-DB49-416A-85C7-54E295C79F87}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ReactiveUI.Extensions.Tests", "ReactiveUI.Extensions.Tests\ReactiveUI.Extensions.Tests.csproj", "{C93089AE-DB49-416A-85C7-54E295C79F87}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "SolutionConfig", "SolutionConfig", "{6E16912A-E6EE-4DED-8748-E0FDF948371F}"
 	ProjectSection(SolutionItems) = preProject
@@ -18,7 +18,6 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "SolutionConfig", "SolutionC
 		directory.packages.props = directory.packages.props
 		..\LICENSE = ..\LICENSE
 		..\README.md = ..\README.md
-		..\.github\workflows\release.yml = ..\.github\workflows\release.yml
 		stylecop.json = stylecop.json
 		..\version.json = ..\version.json
 	EndProjectSection
