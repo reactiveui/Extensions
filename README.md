@@ -278,6 +278,7 @@ Issues / PRs welcome. Please keep additions dependency–free and focused on broad
 - Added liveness operators (`Heartbeat`, `DetectStale`, `BufferUntilInactive`).
 - Added resilience (`RetryWithBackoff`, expanded `OnErrorRetry` overloads).
 - Added flow control (`Conflate`, `ThrottleFirst`, `DebounceImmediate`).
+- Removed DisposeWith extension use System.Reactive.Disposables.Fluent from System.Reactive.
 
 ---
 Happy reactive coding!
