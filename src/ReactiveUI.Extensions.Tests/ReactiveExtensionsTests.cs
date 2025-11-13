@@ -275,7 +275,7 @@ public class ReactiveExtensionsTests
     [Test]
     public void CatchIgnore_OnError_ReturnsEmpty()
     {
-        var subject = new Subject<int>();
+        using var subject = new Subject<int>();
         var results = new List<int>();
         var completed = false;
         using var sub = subject.CatchIgnore().Subscribe(results.Add, _ => { }, () => completed = true);
