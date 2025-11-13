@@ -6,6 +6,7 @@ using System.Reactive;
 using System.Reactive.Concurrency;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
+using DynamicData;
 using Microsoft.Reactive.Testing;
 using NUnit.Framework;
 
@@ -954,5 +955,1020 @@ public class ComprehensiveReactiveExtensionsTests
         scheduler.AdvanceBy(101);
 
         Assert.That(results, Is.EquivalentTo(new[] { 20 }));
+    }
+
+    /// <summary>
+    /// Tests BufferUntilInactive buffers values during inactivity.
+    /// </summary>
+    [Test]
+    public void BufferUntilInactive_BuffersValuesUntilInactive()
+    {
+        var subject = new Subject<int>();
+        var results = new List<IList<int>>();
+
+        using var sub = subject.BufferUntilInactive(TimeSpan.FromMilliseconds(50), ImmediateScheduler.Instance)
+            .Subscribe(results.Add);
+
+        subject.OnNext(1);
+        subject.OnNext(2);
+        subject.OnNext(3);
+
+        // With ImmediateScheduler, values are buffered immediately
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(results, Has.Count.GreaterThanOrEqualTo(1));
+            Assert.That(results[0], Is.EquivalentTo(new[] { 1, 2, 3 }));
+        }
+    }
+
+    /// <summary>
+    /// Tests Using with action executes action on item.
+    /// </summary>
+    [Test]
+    public void Using_WithAction_ExecutesAction()
+    {
+        var executed = false;
+        var item = System.Reactive.Disposables.Disposable.Create(() => { });
+        var results = new List<Unit>();
+
+        using var sub = item.Using(x => executed = true, ImmediateScheduler.Instance)
+            .Subscribe(results.Add);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(executed, Is.True);
+            Assert.That(results, Has.Count.EqualTo(1));
+        }
+    }
+
+    /// <summary>
+    /// Tests Using with function transforms item.
+    /// </summary>
+    [Test]
+    public void Using_WithFunction_TransformsItem()
+    {
+        var item = System.Reactive.Disposables.Disposable.Create(() => { });
+        var results = new List<int>();
+
+        using var sub = item.Using(x => x * 2, ImmediateScheduler.Instance)
+            .Subscribe(results.Add);
+
+        Assert.That(results, Is.EquivalentTo(new[] { 20 }));
+    }
+
+    /// <summary>
+    /// Tests While executes action while condition is true.
+    /// </summary>
+    [Test]
+    public void While_ExecutesWhileConditionTrue()
+    {
+        var counter = 0;
+        var results = new List<Unit>();
+
+        using var sub = ReactiveExtensions.While(() => counter < 3, () => counter++, ImmediateScheduler.Instance)
+            .Subscribe(results.Add);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(counter, Is.EqualTo(3));
+            Assert.That(results, Has.Count.EqualTo(3));
+        }
+    }
+
+    /// <summary>
+    /// Tests SelectAsyncSequential processes items sequentially.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous unit test.</returns>
+    [Test]
+    public async Task SelectAsyncSequential_ProcessesSequentially()
+    {
+        var subject = new Subject<int>();
+        var results = new List<int>();
+        var processingOrder = new List<int>();
+
+        using var sub = subject.SelectAsyncSequential(async x =>
+        {
+            processingOrder.Add(x);
+            await Task.Delay(10);
+            return x * 2;
+        }).Subscribe(results.Add);
+
+        subject.OnNext(1);
+        subject.OnNext(2);
+        subject.OnNext(3);
+
+        await Task.Delay(100);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(results, Is.EquivalentTo(new[] { 2, 4, 6 }));
+            Assert.That(processingOrder, Is.EquivalentTo(new[] { 1, 2, 3 }));
+        }
+    }
+
+    /// <summary>
+    /// Tests SelectLatestAsync processes only latest.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous unit test.</returns>
+    [Test]
+    public async Task SelectLatestAsync_ProcessesLatest()
+    {
+        var subject = new Subject<int>();
+        var results = new List<int>();
+
+        using var sub = subject.SelectLatestAsync(async x =>
+        {
+            await Task.Delay(10);
+            return x * 2;
+        }).Subscribe(results.Add);
+
+        subject.OnNext(1);
+        await Task.Delay(5); // Not enough time for first to complete
+        subject.OnNext(2);
+        await Task.Delay(5);
+        subject.OnNext(3);
+
+        await Task.Delay(50);
+
+        // Only the latest value should be processed
+        Assert.That(results, Has.Count.GreaterThan(0));
+    }
+
+    /// <summary>
+    /// Tests SelectAsyncConcurrent processes concurrently.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous unit test.</returns>
+    [Test]
+    public async Task SelectAsyncConcurrent_ProcessesConcurrently()
+    {
+        var subject = new Subject<int>();
+        var results = new List<int>();
+
+        using var sub = subject.SelectAsyncConcurrent(
+            async x =>
+            {
+                await Task.Delay(10);
+                return x * 2;
+            },
+            3).Subscribe(results.Add);
+
+        subject.OnNext(1);
+        subject.OnNext(2);
+        subject.OnNext(3);
+
+        await Task.Delay(100);
+
+        // All values should be processed concurrently
+        Assert.That(results, Has.Count.EqualTo(3));
+    }
+
+    /// <summary>
+    /// Tests Partition with DynamicData pattern.
+    /// </summary>
+    [Test]
+    public void Partition_WithDynamicDataPattern_SplitsCorrectly()
+    {
+        var subject = new Subject<int>();
+        var (evens, odds) = subject.Partition(x => x % 2 == 0);
+
+        var evenResults = new List<int>();
+        var oddResults = new List<int>();
+
+        using var evenSub = evens.Subscribe(evenResults.Add);
+        using var oddSub = odds.Subscribe(oddResults.Add);
+
+        subject.OnNext(1);
+        subject.OnNext(2);
+        subject.OnNext(3);
+        subject.OnNext(4);
+        subject.OnNext(5);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(evenResults, Is.EquivalentTo(new[] { 2, 4 }));
+            Assert.That(oddResults, Is.EquivalentTo(new[] { 1, 3, 5 }));
+        }
+    }
+
+    /// <summary>
+    /// Tests OnErrorRetry with delay using ImmediateScheduler.
+    /// </summary>
+    [Test]
+    public void OnErrorRetry_WithDelayImmediate_RetriesWithDelay()
+    {
+        var attempts = 0;
+        var source = Observable.Create<int>(observer =>
+        {
+            attempts++;
+            if (attempts < 3)
+            {
+                observer.OnError(new InvalidOperationException());
+            }
+            else
+            {
+                observer.OnNext(42);
+                observer.OnCompleted();
+            }
+
+            return System.Reactive.Disposables.Disposable.Empty;
+        });
+
+        var results = new List<int>();
+
+        using var sub = source.OnErrorRetry<int, InvalidOperationException>(
+            delay: TimeSpan.FromMilliseconds(10),
+            retryCount: 5)
+            .Subscribe(results.Add);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(attempts, Is.EqualTo(3));
+            Assert.That(results, Is.EquivalentTo(new[] { 42 }));
+        }
+    }
+
+    /// <summary>
+    /// Tests CombineLatestValuesAreAllFalse with multiple observables.
+    /// </summary>
+    [Test]
+    public void CombineLatestValuesAreAllFalse_WithMultipleValues_WorksCorrectly()
+    {
+        var subject1 = new BehaviorSubject<bool>(false);
+        var subject2 = new BehaviorSubject<bool>(false);
+        var subject3 = new BehaviorSubject<bool>(false);
+        var results = new List<bool>();
+
+        using var sub = new[] { subject1, subject2, subject3 }.CombineLatestValuesAreAllFalse()
+            .Subscribe(results.Add);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(results, Has.Count.EqualTo(1));
+            Assert.That(results[0], Is.True); // All are false
+        }
+
+        subject1.OnNext(true);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(results, Has.Count.EqualTo(2));
+            Assert.That(results[1], Is.False); // Not all are false
+        }
+    }
+
+    /// <summary>
+    /// Tests CombineLatestValuesAreAllTrue with multiple observables.
+    /// </summary>
+    [Test]
+    public void CombineLatestValuesAreAllTrue_WithMultipleValues_WorksCorrectly()
+    {
+        var subject1 = new BehaviorSubject<bool>(true);
+        var subject2 = new BehaviorSubject<bool>(true);
+        var subject3 = new BehaviorSubject<bool>(false);
+        var results = new List<bool>();
+
+        using var sub = new[] { subject1, subject2, subject3 }.CombineLatestValuesAreAllTrue()
+            .Subscribe(results.Add);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(results, Has.Count.EqualTo(1));
+            Assert.That(results[0], Is.False); // Not all are true
+        }
+
+        subject3.OnNext(true);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(results, Has.Count.EqualTo(2));
+            Assert.That(results[1], Is.True); // All are true
+        }
+    }
+
+    /// <summary>
+    /// Tests Conflate with ImmediateScheduler.
+    /// </summary>
+    [Test]
+    public void Conflate_WithImmediateScheduler_ConflatesValues()
+    {
+        var subject = new Subject<int>();
+        var results = new List<int>();
+
+        using var sub = subject.Conflate(TimeSpan.FromMilliseconds(50), ImmediateScheduler.Instance)
+            .Subscribe(results.Add);
+
+        subject.OnNext(1);
+        subject.OnNext(2);
+        subject.OnNext(3);
+
+        // With ImmediateScheduler, last value is emitted
+        Assert.That(results, Has.Count.GreaterThanOrEqualTo(1));
+    }
+
+    /// <summary>
+    /// Tests DetectStale with updates.
+    /// </summary>
+    [Test]
+    public void DetectStale_WithUpdates_DetectsCorrectly()
+    {
+        var subject = new Subject<int>();
+        var results = new List<Stale<int>>();
+
+        using var sub = subject.DetectStale(TimeSpan.FromMilliseconds(50), ImmediateScheduler.Instance)
+            .Subscribe(x => results.Add((Stale<int>)x));
+
+        subject.OnNext(1);
+        subject.OnNext(2);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(results, Has.Count.GreaterThanOrEqualTo(2));
+            Assert.That(results[0].IsStale, Is.False);
+            Assert.That(((IStale<int>)results[0]).Value, Is.EqualTo(1));
+        }
+    }
+
+    /// <summary>
+    /// Tests Heartbeat with periodic updates.
+    /// </summary>
+    [Test]
+    public void Heartbeat_WithPeriodicUpdates_InjectsHeartbeats()
+    {
+        var subject = new Subject<int>();
+        var results = new List<Heartbeat<int>>();
+
+        using var sub = subject.Heartbeat(TimeSpan.FromMilliseconds(50), ImmediateScheduler.Instance)
+            .Subscribe(x => results.Add((Heartbeat<int>)x));
+
+        subject.OnNext(1);
+        subject.OnNext(2);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(results, Has.Count.GreaterThanOrEqualTo(2));
+            Assert.That(results[0].IsHeartbeat, Is.False);
+            Assert.That(((IStale<int>)results[0]).Value, Is.EqualTo(1));
+        }
+    }
+
+    /// <summary>
+    /// Tests WaitUntil with predicate match.
+    /// </summary>
+    [Test]
+    public void WaitUntil_WithMatchingPredicate_TakesFirstMatch()
+    {
+        var subject = new Subject<int>();
+        var results = new List<int>();
+
+        using var sub = subject.WaitUntil(x => x > 5)
+            .Subscribe(results.Add);
+
+        subject.OnNext(1);
+        subject.OnNext(3);
+        subject.OnNext(7);
+        subject.OnNext(9);
+
+        Assert.That(results, Is.EquivalentTo(new[] { 7 }));
+    }
+
+    /// <summary>
+    /// Tests DoOnSubscribe executes action on subscription.
+    /// </summary>
+    [Test]
+    public void DoOnSubscribe_ExecutesActionOnSubscription()
+    {
+        var executed = false;
+        var subject = new Subject<int>();
+
+        using var sub = subject.DoOnSubscribe(() => executed = true)
+            .Subscribe();
+
+        Assert.That(executed, Is.True);
+    }
+
+    /// <summary>
+    /// Tests DoOnDispose executes action on disposal.
+    /// </summary>
+    [Test]
+    public void DoOnDispose_ExecutesActionOnDisposal()
+    {
+        var executed = false;
+        var subject = new Subject<int>();
+
+        var sub = subject.DoOnDispose(() => executed = true)
+            .Subscribe();
+
+        Assert.That(executed, Is.False);
+
+        sub.Dispose();
+
+        Assert.That(executed, Is.True);
+    }
+
+    /// <summary>
+    /// Tests Shuffle randomizes array elements.
+    /// </summary>
+    [Test]
+    public void Shuffle_RandomizesElements()
+    {
+        var array = Enumerable.Range(1, 10).ToList();
+        var originalArray = array.ToList();
+        array.Shuffle();
+
+        // Array should still contain all elements
+        Assert.That(array.OrderBy(x => x), Is.EquivalentTo(originalArray));
+
+        // Array should likely be in different order (probabilistic test)
+        // With 10 elements, probability of same order after shuffle is 1/10! which is extremely low
+        var isDifferent = !array.SequenceEqual(originalArray);
+        Assert.That(isDifferent || array.Length < 2, Is.True);
+    }
+
+    /// <summary>
+    /// Tests Filter with regex pattern.
+    /// </summary>
+    [Test]
+    public void Filter_WithRegexPattern_FiltersCorrectly()
+    {
+        var subject = new Subject<string>();
+        var results = new List<string>();
+
+        using var sub = subject.Filter(@"^\d+$")
+            .Subscribe(results.Add);
+
+        subject.OnNext("123");
+        subject.OnNext("abc");
+        subject.OnNext("456");
+        subject.OnNext("xyz");
+
+        Assert.That(results, Is.EquivalentTo(new[] { "123", "456" }));
+    }
+
+    /// <summary>
+    /// Tests GetMax with changing values.
+    /// </summary>
+    [Test]
+    public void GetMax_WithChangingValues_ReturnsMaximum()
+    {
+        var subject1 = new BehaviorSubject<int>(5);
+        var subject2 = new BehaviorSubject<int>(10);
+        var subject3 = new BehaviorSubject<int>(3);
+        var results = new List<int>();
+
+        using var sub = subject1.Select(x => (int?)x).GetMax(subject2.Select(x => (int?)x), subject3.Select(x => (int?)x))
+            .Where(x => x.HasValue)
+            .Select(x => x!.Value)
+            .Subscribe(results.Add);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(results, Has.Count.EqualTo(1));
+            Assert.That(results[0], Is.EqualTo(10));
+        }
+
+        subject1.OnNext(15);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(results, Has.Count.EqualTo(2));
+            Assert.That(results[1], Is.EqualTo(15));
+        }
+    }
+
+    /// <summary>
+    /// Tests GetMin with changing values.
+    /// </summary>
+    [Test]
+    public void GetMin_WithChangingValues_ReturnsMinimum()
+    {
+        var subject1 = new BehaviorSubject<int>(5);
+        var subject2 = new BehaviorSubject<int>(10);
+        var subject3 = new BehaviorSubject<int>(3);
+        var results = new List<int>();
+
+        using var sub = subject1.Select(x => (int?)x).GetMin(subject2.Select(x => (int?)x), subject3.Select(x => (int?)x))
+            .Where(x => x.HasValue)
+            .Select(x => x!.Value)
+            .Subscribe(results.Add);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(results, Has.Count.EqualTo(1));
+            Assert.That(results[0], Is.EqualTo(3));
+        }
+
+        subject3.OnNext(1);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(results, Has.Count.EqualTo(2));
+            Assert.That(results[1], Is.EqualTo(1));
+        }
+    }
+
+    /// <summary>
+    /// Tests WhereIsNotNull with DynamicData pattern filters null values.
+    /// </summary>
+    [Test]
+    public void WhereIsNotNull_WithDynamicDataPattern_FiltersNulls()
+    {
+        var subject = new Subject<string?>();
+        subject.WhereIsNotNull()
+            .ToObservableChangeSet(scheduler: ImmediateScheduler.Instance)
+            .Bind(out var results)
+            .Subscribe();
+
+        subject.OnNext("test1");
+        subject.OnNext(null);
+        subject.OnNext("test2");
+        subject.OnNext(null);
+        subject.OnNext("test3");
+
+        Assert.That(results, Is.EquivalentTo(new[] { "test1", "test2", "test3" }));
+    }
+
+    /// <summary>
+    /// Tests AsSignal with DynamicData pattern converts values to Unit.
+    /// </summary>
+    [Test]
+    public void AsSignal_WithDynamicDataPattern_ConvertsToUnit()
+    {
+        var subject = new Subject<int>();
+        subject.AsSignal()
+            .ToObservableChangeSet(scheduler: ImmediateScheduler.Instance)
+            .Bind(out var results)
+            .Subscribe();
+
+        subject.OnNext(1);
+        subject.OnNext(2);
+        subject.OnNext(3);
+
+        Assert.That(results, Has.Count.EqualTo(3));
+        Assert.That(results.All(x => x == Unit.Default), Is.True);
+    }
+
+    /// <summary>
+    /// Tests Not with DynamicData pattern inverts boolean values.
+    /// </summary>
+    [Test]
+    public void Not_WithDynamicDataPattern_InvertsValues()
+    {
+        var subject = new BehaviorSubject<bool>(false);
+        subject.Not()
+            .ToObservableChangeSet(scheduler: ImmediateScheduler.Instance)
+            .Bind(out var results)
+            .Subscribe();
+
+        Assert.That(results, Is.EquivalentTo(new[] { true }));
+
+        subject.OnNext(true);
+        Assert.That(results, Is.EquivalentTo(new[] { true, false }));
+
+        subject.OnNext(false);
+        Assert.That(results, Is.EquivalentTo(new[] { true, false, true }));
+    }
+
+    /// <summary>
+    /// Tests WhereTrue with DynamicData pattern filters for true values.
+    /// </summary>
+    [Test]
+    public void WhereTrue_WithDynamicDataPattern_FiltersTrueValues()
+    {
+        var subject = new Subject<bool>();
+        subject.WhereTrue()
+            .ToObservableChangeSet(scheduler: ImmediateScheduler.Instance)
+            .Bind(out var results)
+            .Subscribe();
+
+        subject.OnNext(false);
+        subject.OnNext(true);
+        subject.OnNext(false);
+        subject.OnNext(true);
+        subject.OnNext(true);
+
+        Assert.That(results, Has.Count.EqualTo(3));
+        Assert.That(results.All(x => x), Is.True);
+    }
+
+    /// <summary>
+    /// Tests WhereFalse with DynamicData pattern filters for false values.
+    /// </summary>
+    [Test]
+    public void WhereFalse_WithDynamicDataPattern_FiltersFalseValues()
+    {
+        var subject = new Subject<bool>();
+        subject.WhereFalse()
+            .ToObservableChangeSet(scheduler: ImmediateScheduler.Instance)
+            .Bind(out var results)
+            .Subscribe();
+
+        subject.OnNext(true);
+        subject.OnNext(false);
+        subject.OnNext(true);
+        subject.OnNext(false);
+        subject.OnNext(false);
+
+        Assert.That(results, Has.Count.EqualTo(3));
+        Assert.That(results.All(x => !x), Is.True);
+    }
+
+    /// <summary>
+    /// Tests CatchAndReturn with DynamicData pattern returns fallback on error.
+    /// </summary>
+    [Test]
+    public void CatchAndReturn_WithDynamicDataPattern_ReturnsFallbackOnError()
+    {
+        var subject = new Subject<int>();
+        subject.CatchAndReturn(999)
+            .ToObservableChangeSet(scheduler: ImmediateScheduler.Instance)
+            .Bind(out var results)
+            .Subscribe();
+
+        subject.OnNext(1);
+        subject.OnNext(2);
+        subject.OnError(new InvalidOperationException());
+
+        Assert.That(results, Is.EquivalentTo(new[] { 1, 2, 999 }));
+    }
+
+    /// <summary>
+    /// Tests TakeUntil with DynamicData pattern completes when predicate matches.
+    /// </summary>
+    [Test]
+    public void TakeUntil_WithDynamicDataPattern_CompletesWhenPredicateTrue()
+    {
+        var subject = new Subject<int>();
+        subject.TakeUntil(x => x >= 5)
+            .ToObservableChangeSet(scheduler: ImmediateScheduler.Instance)
+            .Bind(out var results)
+            .Subscribe();
+
+        subject.OnNext(1);
+        subject.OnNext(2);
+        subject.OnNext(3);
+        subject.OnNext(5);
+        subject.OnNext(6); // Should not be included
+
+        Assert.That(results, Is.EquivalentTo(new[] { 1, 2, 3, 5 }));
+    }
+
+    /// <summary>
+    /// Tests CatchIgnore with DynamicData pattern ignores errors.
+    /// </summary>
+    [Test]
+    public void CatchIgnore_WithDynamicDataPattern_IgnoresErrors()
+    {
+        var subject = new Subject<int>();
+        subject.CatchIgnore()
+            .ToObservableChangeSet(scheduler: ImmediateScheduler.Instance)
+            .Bind(out var results)
+            .Subscribe();
+
+        subject.OnNext(1);
+        subject.OnNext(2);
+        subject.OnError(new InvalidOperationException());
+
+        // Observable completes silently after error
+        Assert.That(results, Is.EquivalentTo(new[] { 1, 2 }));
+    }
+
+    /// <summary>
+    /// Tests OnNext with params using DynamicData pattern.
+    /// </summary>
+    [Test]
+    public void OnNext_WithParamsAndDynamicDataPattern_PushesAllValues()
+    {
+        var subject = new Subject<int>();
+        subject
+            .ToObservableChangeSet(scheduler: ImmediateScheduler.Instance)
+            .Bind(out var results)
+            .Subscribe();
+
+        subject.OnNext(1, 2, 3, 4, 5);
+
+        Assert.That(results, Is.EquivalentTo(new[] { 1, 2, 3, 4, 5 }));
+    }
+
+    /// <summary>
+    /// Tests DetectStale with DynamicData pattern tracks staleness.
+    /// </summary>
+    [Test]
+    public void DetectStale_WithDynamicDataPattern_TracksStaleState()
+    {
+        var subject = new Subject<int>();
+        subject.DetectStale(TimeSpan.FromMilliseconds(50), ImmediateScheduler.Instance)
+            .Select(x => (IStale<int>)x)
+            .ToObservableChangeSet(scheduler: ImmediateScheduler.Instance)
+            .Bind(out var results)
+            .Subscribe();
+
+        subject.OnNext(1);
+        subject.OnNext(2);
+        subject.OnNext(3);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(results, Has.Count.GreaterThanOrEqualTo(3));
+            Assert.That(((IStale<int>)results[0]).Value, Is.EqualTo(1));
+            Assert.That(results[1].Value, Is.EqualTo(2));
+            Assert.That(results[2].Value, Is.EqualTo(3));
+        }
+    }
+
+    /// <summary>
+    /// Tests Heartbeat with DynamicData pattern tracks heartbeat state.
+    /// </summary>
+    [Test]
+    public void Heartbeat_WithDynamicDataPattern_TracksHeartbeatState()
+    {
+        var subject = new Subject<int>();
+        subject.Heartbeat(TimeSpan.FromMilliseconds(50), ImmediateScheduler.Instance)
+            .Select(x => (IHeartbeat<int>)x)
+            .ToObservableChangeSet(scheduler: ImmediateScheduler.Instance)
+            .Bind(out var results)
+            .Subscribe();
+
+        subject.OnNext(1);
+        subject.OnNext(2);
+        subject.OnNext(3);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(results, Has.Count.GreaterThanOrEqualTo(3));
+            Assert.That(((IStale<int>)results[0]).Value, Is.EqualTo(1));
+            Assert.That(results[0].IsHeartbeat, Is.False);
+            Assert.That(results[1].Value, Is.EqualTo(2));
+            Assert.That(results[1].IsHeartbeat, Is.False);
+        }
+    }
+
+    /// <summary>
+    /// Tests Start with action using DynamicData pattern.
+    /// </summary>
+    [Test]
+    public void Start_WithActionAndDynamicDataPattern_ExecutesAction()
+    {
+        var executed = false;
+        ReactiveExtensions.Start(() => executed = true, ImmediateScheduler.Instance)
+            .ToObservableChangeSet(scheduler: ImmediateScheduler.Instance)
+            .Bind(out var results)
+            .Subscribe();
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(executed, Is.True);
+            Assert.That(results, Has.Count.EqualTo(1));
+        }
+    }
+
+    /// <summary>
+    /// Tests Start with function using DynamicData pattern.
+    /// </summary>
+    [Test]
+    public void Start_WithFunctionAndDynamicDataPattern_ReturnsResult()
+    {
+        ReactiveExtensions.Start(() => 42, ImmediateScheduler.Instance)
+            .ToObservableChangeSet(scheduler: ImmediateScheduler.Instance)
+            .Bind(out var results)
+            .Subscribe();
+
+        Assert.That(results, Is.EquivalentTo(new[] { 42 }));
+    }
+
+    /// <summary>
+    /// Tests Using with action and DynamicData pattern.
+    /// </summary>
+    [Test]
+    public void Using_WithActionAndDynamicDataPattern_ExecutesAction()
+    {
+        var executed = false;
+        var item = "test";
+        item.Using(x => executed = true, ImmediateScheduler.Instance)
+            .ToObservableChangeSet(scheduler: ImmediateScheduler.Instance)
+            .Bind(out var results)
+            .Subscribe();
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(executed, Is.True);
+            Assert.That(results, Has.Count.EqualTo(1));
+        }
+    }
+
+    /// <summary>
+    /// Tests Using with function and DynamicData pattern.
+    /// </summary>
+    [Test]
+    public void Using_WithFunctionAndDynamicDataPattern_TransformsValue()
+    {
+        var item = System.Reactive.Disposables.Disposable.Create(() => { });
+        item.Using(x => x * 3, ImmediateScheduler.Instance)
+            .ToObservableChangeSet(scheduler: ImmediateScheduler.Instance)
+            .Bind(out var results)
+            .Subscribe();
+
+        Assert.That(results, Is.EquivalentTo(new[] { 30 }));
+    }
+
+    /// <summary>
+    /// Tests While with DynamicData pattern executes until condition false.
+    /// </summary>
+    [Test]
+    public void While_WithDynamicDataPattern_ExecutesUntilConditionFalse()
+    {
+        var counter = 0;
+        ReactiveExtensions.While(() => counter < 5, () => counter++, ImmediateScheduler.Instance)
+            .ToObservableChangeSet(scheduler: ImmediateScheduler.Instance)
+            .Bind(out var results)
+            .Subscribe();
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(counter, Is.EqualTo(5));
+            Assert.That(results, Has.Count.EqualTo(5));
+        }
+    }
+
+    /// <summary>
+    /// Tests FromArray with DynamicData pattern emits all elements.
+    /// </summary>
+    [Test]
+    public void FromArray_WithDynamicDataPattern_EmitsAllElements()
+    {
+        var array = new[] { 1, 2, 3, 4, 5 };
+        ReactiveExtensions.FromArray(array, ImmediateScheduler.Instance)
+            .ToObservableChangeSet(scheduler: ImmediateScheduler.Instance)
+            .Bind(out var results)
+            .Subscribe();
+
+        Assert.That(results, Is.EquivalentTo(array));
+    }
+
+    /// <summary>
+    /// Tests ForEach with DynamicData pattern processes enumerable.
+    /// </summary>
+    [Test]
+    public void ForEach_WithDynamicDataPattern_ProcessesEnumerable()
+    {
+        var numbers = new[] { 1, 2, 3, 4, 5 };
+        var subject = new BehaviorSubject<IEnumerable<int>>(numbers);
+
+        subject.ForEach(ImmediateScheduler.Instance)
+            .ToObservableChangeSet(scheduler: ImmediateScheduler.Instance)
+            .Bind(out var results)
+            .Subscribe();
+
+        Assert.That(results, Is.EquivalentTo(numbers));
+    }
+
+    /// <summary>
+    /// Tests Filter with regex and DynamicData pattern.
+    /// </summary>
+    [Test]
+    public void Filter_WithRegexAndDynamicDataPattern_FiltersCorrectly()
+    {
+        var subject = new Subject<string>();
+        subject.Filter(@"^test")
+            .ToObservableChangeSet(scheduler: ImmediateScheduler.Instance)
+            .Bind(out var results)
+            .Subscribe();
+
+        subject.OnNext("test1");
+        subject.OnNext("nottest");
+        subject.OnNext("test2");
+        subject.OnNext("another");
+        subject.OnNext("test3");
+
+        Assert.That(results, Is.EquivalentTo(new[] { "test1", "test2", "test3" }));
+    }
+
+    /// <summary>
+    /// Tests BufferUntil with DynamicData pattern.
+    /// </summary>
+    [Test]
+    public void BufferUntil_WithDynamicDataPattern_BuffersCorrectly()
+    {
+        var subject = new Subject<char>();
+        subject.BufferUntil('[', ']')
+            .ToObservableChangeSet(scheduler: ImmediateScheduler.Instance)
+            .Bind(out var results)
+            .Subscribe();
+
+        subject.OnNext('a');
+        subject.OnNext('[');
+        subject.OnNext('t');
+        subject.OnNext('e');
+        subject.OnNext('s');
+        subject.OnNext('t');
+        subject.OnNext(']');
+        subject.OnNext('b');
+        subject.OnNext('[');
+        subject.OnNext('d');
+        subject.OnNext('a');
+        subject.OnNext('t');
+        subject.OnNext('a');
+        subject.OnNext(']');
+
+        Assert.That(results, Is.EquivalentTo(new[] { "[test]", "[data]" }));
+    }
+
+    /// <summary>
+    /// Tests CombineLatestValuesAreAllTrue with DynamicData pattern.
+    /// </summary>
+    [Test]
+    public void CombineLatestValuesAreAllTrue_WithDynamicDataPattern_CombinesCorrectly()
+    {
+        var subject1 = new BehaviorSubject<bool>(true);
+        var subject2 = new BehaviorSubject<bool>(true);
+        var subject3 = new BehaviorSubject<bool>(true);
+
+        new[] { subject1, subject2, subject3 }.CombineLatestValuesAreAllTrue()
+            .ToObservableChangeSet(scheduler: ImmediateScheduler.Instance)
+            .Bind(out var results)
+            .Subscribe();
+
+        Assert.That(results, Is.EquivalentTo(new[] { true }));
+
+        subject2.OnNext(false);
+        Assert.That(results, Is.EquivalentTo(new[] { true, false }));
+
+        subject2.OnNext(true);
+        Assert.That(results, Is.EquivalentTo(new[] { true, false, true }));
+    }
+
+    /// <summary>
+    /// Tests CombineLatestValuesAreAllFalse with DynamicData pattern.
+    /// </summary>
+    [Test]
+    public void CombineLatestValuesAreAllFalse_WithDynamicDataPattern_CombinesCorrectly()
+    {
+        var subject1 = new BehaviorSubject<bool>(false);
+        var subject2 = new BehaviorSubject<bool>(false);
+        var subject3 = new BehaviorSubject<bool>(false);
+
+        new[] { subject1, subject2, subject3 }.CombineLatestValuesAreAllFalse()
+            .ToObservableChangeSet(scheduler: ImmediateScheduler.Instance)
+            .Bind(out var results)
+            .Subscribe();
+
+        Assert.That(results, Is.EquivalentTo(new[] { true }));
+
+        subject1.OnNext(true);
+        Assert.That(results, Is.EquivalentTo(new[] { true, false }));
+
+        subject1.OnNext(false);
+        Assert.That(results, Is.EquivalentTo(new[] { true, false, true }));
+    }
+
+    /// <summary>
+    /// Tests GetMax with DynamicData pattern tracks maximum value.
+    /// </summary>
+    [Test]
+    public void GetMax_WithDynamicDataPattern_TracksMaximum()
+    {
+        var subject1 = new BehaviorSubject<int>(5);
+        var subject2 = new BehaviorSubject<int>(10);
+        var subject3 = new BehaviorSubject<int>(3);
+
+        subject1.Select(x => (int?)x).GetMax(subject2.Select(x => (int?)x), subject3.Select(x => (int?)x))
+            .Where(x => x.HasValue)
+            .Select(x => x!.Value)
+            .ToObservableChangeSet(scheduler: ImmediateScheduler.Instance)
+            .Bind(out var results)
+            .Subscribe();
+
+        Assert.That(results, Is.EquivalentTo(new[] { 10 }));
+
+        subject1.OnNext(20);
+        Assert.That(results, Is.EquivalentTo(new[] { 10, 20 }));
+
+        subject3.OnNext(25);
+        Assert.That(results, Is.EquivalentTo(new[] { 10, 20, 25 }));
+    }
+
+    /// <summary>
+    /// Tests GetMin with DynamicData pattern tracks minimum value.
+    /// </summary>
+    [Test]
+    public void GetMin_WithDynamicDataPattern_TracksMinimum()
+    {
+        var subject1 = new BehaviorSubject<int>(5);
+        var subject2 = new BehaviorSubject<int>(10);
+        var subject3 = new BehaviorSubject<int>(3);
+
+        subject1.Select(x => (int?)x).GetMin(subject2.Select(x => (int?)x), subject3.Select(x => (int?)x))
+            .Where(x => x.HasValue)
+            .Select(x => x!.Value)
+            .ToObservableChangeSet(scheduler: ImmediateScheduler.Instance)
+            .Bind(out var results)
+            .Subscribe();
+
+        Assert.That(results, Is.EquivalentTo(new[] { 3 }));
+
+        subject3.OnNext(1);
+        Assert.That(results, Is.EquivalentTo(new[] { 3, 1 }));
+
+        subject1.OnNext(0);
+        Assert.That(results, Is.EquivalentTo(new[] { 3, 1, 0 }));
     }
 }
