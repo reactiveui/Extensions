@@ -876,7 +876,7 @@ public class ReactiveExtensionsTests
 
         var ex = Assert.Throws<InvalidOperationException>(() =>
         {
-            var unused = stale.Update;
+            _ = stale.Update;
         });
 
         Assert.That(ex, Is.Not.Null);
