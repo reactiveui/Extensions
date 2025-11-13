@@ -19,7 +19,14 @@ internal struct EnumeratorIList<T>(IList<T> list) : IEnumerator<T>
         return _index < list.Count;
     }
 
-    public readonly void Dispose() => list.Clear();
+    public readonly void Dispose()
+    {
+        // Only clear if the list is not read-only (e.g., not an array)
+        if (!list.IsReadOnly)
+        {
+            list.Clear();
+        }
+    }
 
     public void Reset() => _index = -1;
 }
