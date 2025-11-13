@@ -13,9 +13,23 @@ Ensure that .NET 8, 9, and/or 10 are installed:
 # Check installed versions
 dotnet --list-sdks
 
-# If .NET 10 is not installed and is available, install it
-# Note: .NET 10 was released recently - check if it's available
-# Installation methods vary by Linux distribution
+# If any required version is missing, use the dotnet-install script
+# Note: Microsoft changed the install script domain from dot.net to dotnet.microsoft.com
+# See: https://devblogs.microsoft.com/dotnet/critical-dotnet-install-links-are-changing/
+
+# Download and run the install script (for Linux/macOS)
+curl -sSL https://dotnet.microsoft.com/download/dotnet/scripts/v1/dotnet-install.sh | bash /dev/stdin --channel 8.0
+curl -sSL https://dotnet.microsoft.com/download/dotnet/scripts/v1/dotnet-install.sh | bash /dev/stdin --channel 9.0
+curl -sSL https://dotnet.microsoft.com/download/dotnet/scripts/v1/dotnet-install.sh | bash /dev/stdin --channel 10.0
+
+# Or download the script first and run it
+# wget https://dotnet.microsoft.com/download/dotnet/scripts/v1/dotnet-install.sh
+# chmod +x dotnet-install.sh
+# ./dotnet-install.sh --channel 8.0
+# ./dotnet-install.sh --channel 9.0
+# ./dotnet-install.sh --channel 10.0
+
+# For more details, see: https://learn.microsoft.com/en-us/dotnet/core/tools/dotnet-install-script
 ```
 
 ### 2. Unshallow the Git Repository
