@@ -2,6 +2,8 @@
 // ReactiveUI Association Incorporated licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
+using System.Reactive.Threading.Tasks;
+
 namespace ReactiveUI.Extensions;
 
 /// <summary>
@@ -13,15 +15,14 @@ public static class ReactiveExtensions
     private static readonly ConcurrentDictionary<TimeSpan, Lazy<IConnectableObservable<DateTime>>> _timerList = new();
 
     /// <summary>
-    /// Returns only values that are not null.
-    /// Converts the nullability.
+    /// Emits true once predicate has ever been satisfied; remains true afterwards.
     /// </summary>
-    /// <typeparam name="T">The type of value emitted by the observable.</typeparam>
-    /// <param name="observable">The observable that can contain nulls.</param>
-    /// <returns>A non nullable version of the observable that only emits valid values.</returns>
-    public static IObservable<T> WhereIsNotNull<T>(this IObservable<T> observable) =>
-        observable
-            .Where(x => x is not null)!;
+    /// <typeparam name="T">Element type.</typeparam>
+    /// <param name="source">Source sequence.</param>
+    /// <param name="predicate">Predicate.</param>
+    /// <returns>Boolean sequence indicating any match.</returns>
+    public static IObservable<bool> AnyTrue<T>(this IObservable<T> source, Func<T, bool> predicate) =>
+        source.Scan(false, (acc, x) => acc || predicate(x)).DistinctUntilChanged();
 
     /// <summary>
     /// Change the source observable type to <see cref="Unit"/>.
@@ -33,32 +34,6 @@ public static class ReactiveExtensions
     public static IObservable<Unit> AsSignal<T>(this IObservable<T> observable) =>
         observable
             .Select(_ => Unit.Default);
-
-    /// <summary>
-    /// Synchronized timer all instances of this with the same TimeSpan use the same timer.
-    /// </summary>
-    /// <param name="timeSpan">The time span.</param>
-    /// <returns>An observable sequence producing the shared DateTime ticks.</returns>
-    public static IObservable<DateTime> SyncTimer(TimeSpan timeSpan)
-    {
-        var lazy = _timerList.GetOrAdd(
-            timeSpan,
-            ts => new Lazy<IConnectableObservable<DateTime>>(
-                () =>
-                {
-                    var published = Observable
-                        .Timer(TimeSpan.Zero, ts)
-                        .Timestamp()
-                        .Select(x => x.Timestamp.DateTime)
-                        .Publish();
-
-                    // Connect immediately so subsequent subscribers share.
-                    published.Connect();
-
-                    return published;
-                }));
-        return lazy.Value;
-    }
 
     /// <summary>
     /// Buffers until Start char and End char are found.
@@ -101,6 +76,89 @@ public static class ReactiveExtensions
         });
 
     /// <summary>
+    /// Buffers items until inactivity period elapses then emits and resets buffer.
+    /// </summary>
+    /// <typeparam name="T">Element type.</typeparam>
+    /// <param name="source">Source sequence.</param>
+    /// <param name="inactivityPeriod">Inactivity period.</param>
+    /// <param name="scheduler">Scheduler.</param>
+    /// <returns>Sequence of buffered lists.</returns>
+    public static IObservable<IList<T>> BufferUntilInactive<T>(this IObservable<T> source, TimeSpan inactivityPeriod, IScheduler? scheduler = null)
+    {
+        scheduler ??= Scheduler.Default;
+        return Observable.Create<IList<T>>(observer =>
+        {
+            object gate = new();
+            List<T> buffer = [];
+            SerialDisposable timer = new();
+
+            void Flush()
+            {
+                List<T>? toEmit = null;
+                lock (gate)
+                {
+                    if (buffer.Count > 0)
+                    {
+                        toEmit = buffer;
+                        buffer = [];
+                    }
+                }
+
+                if (toEmit != null)
+                {
+                    observer.OnNext(toEmit);
+                }
+            }
+
+            void ScheduleFlush() => timer.Disposable = scheduler.Schedule(inactivityPeriod, Flush);
+
+            var subscription = source.Subscribe(
+                x =>
+                {
+                    lock (gate)
+                    {
+                        buffer.Add(x);
+                        ScheduleFlush();
+                    }
+                },
+                ex =>
+                {
+                    Flush();
+                    observer.OnError(ex);
+                },
+                () =>
+                {
+                    Flush();
+                    observer.OnCompleted();
+                });
+
+            return new CompositeDisposable(subscription, timer);
+        });
+    }
+
+    /// <summary>
+    /// Catches any error and returns a fallback value then completes.
+    /// </summary>
+    /// <typeparam name="T">Element type.</typeparam>
+    /// <param name="source">Source sequence.</param>
+    /// <param name="fallback">Fallback value.</param>
+    /// <returns>Sequence producing either original values or fallback on error then completing.</returns>
+    public static IObservable<T> CatchAndReturn<T>(this IObservable<T> source, T fallback) =>
+        source.Catch(Observable.Return(fallback));
+
+    /// <summary>
+    /// Catches a specific exception type mapping it to a fallback value.
+    /// </summary>
+    /// <typeparam name="T">Element type.</typeparam>
+    /// <typeparam name="TException">Exception type.</typeparam>
+    /// <param name="source">Source sequence.</param>
+    /// <param name="fallbackFactory">Factory producing fallback from the exception.</param>
+    /// <returns>Recovered sequence.</returns>
+    public static IObservable<T> CatchAndReturn<T, TException>(this IObservable<T> source, Func<TException, T> fallbackFactory)
+        where TException : Exception =>
+        source.Catch<T, TException>(ex => Observable.Return(fallbackFactory(ex)));
+
+    /// <summary>
     /// Catch exception and return Observable.Empty.
     /// </summary>
     /// <typeparam name="TSource">The type of the source.</typeparam>
@@ -140,82 +198,6 @@ public static class ReactiveExtensions
     /// <returns>A sequence that emits true when all latest booleans are true.</returns>
     public static IObservable<bool> CombineLatestValuesAreAllTrue(this IEnumerable<IObservable<bool>> sources) =>
         sources.CombineLatest(xs => xs.All(x => x));
-
-    /// <summary>
-    /// Gets the maximum from all sources.
-    /// </summary>
-    /// <typeparam name="T">The Value Type.</typeparam>
-    /// <param name="this">The first observable.</param>
-    /// <param name="sources">Other sources.</param>
-    /// <returns>A sequence emitting the maximum of the latest values.</returns>
-    public static IObservable<T?> GetMax<T>(this IObservable<T?> @this, params IObservable<T?>[] sources)
-        where T : struct
-    {
-        List<IObservable<T?>> source = [@this, .. sources];
-        return source.CombineLatest().Select(x => x.Max());
-    }
-
-    /// <summary>
-    /// Gets the minimum from all sources.
-    /// </summary>
-    /// <typeparam name="T">The Value Type.</typeparam>
-    /// <param name="this">The first observable.</param>
-    /// <param name="sources">Other sources.</param>
-    /// <returns>A sequence emitting the minimum of the latest values.</returns>
-    public static IObservable<T?> GetMin<T>(this IObservable<T?> @this, params IObservable<T?>[] sources)
-        where T : struct
-    {
-        List<IObservable<T?>> source = [@this, .. sources];
-        return source.CombineLatest().Select(x => x.Min());
-    }
-
-    /// <summary>
-    /// Detects when a stream becomes inactive for some period of time.
-    /// </summary>
-    /// <typeparam name="T">update type.</typeparam>
-    /// <param name="source">source stream.</param>
-    /// <param name="stalenessPeriod">If source stream does not OnNext any update during this period, it is declared stale.</param>
-    /// <param name="scheduler">The scheduler.</param>
-    /// <returns>Observable stale markers or updates.</returns>
-    public static IObservable<IStale<T>> DetectStale<T>(this IObservable<T> source, TimeSpan stalenessPeriod, IScheduler scheduler) =>
-        Observable.Create<IStale<T>>(observer =>
-        {
-            SerialDisposable timerSubscription = new();
-            object observerLock = new();
-
-            void ScheduleStale() =>
-                    timerSubscription!.Disposable = Observable.Timer(stalenessPeriod, scheduler)
-                    .Subscribe(_ =>
-                    {
-                        lock (observerLock)
-                        {
-                            observer.OnNext(new Stale<T>());
-                        }
-                    });
-
-            var sourceSubscription = source.Subscribe(
-                x =>
-                {
-                    (timerSubscription?.Disposable)?.Dispose();
-
-                    lock (observerLock)
-                    {
-                        observer.OnNext(new Stale<T>(x));
-                    }
-
-                    ScheduleStale();
-                },
-                observer.OnError,
-                observer.OnCompleted);
-
-            ScheduleStale();
-
-            return new CompositeDisposable
-            {
-                sourceSubscription,
-                timerSubscription,
-            };
-        });
 
     /// <summary>
     /// Applies a conflation algorithm to an observable stream. Anytime the stream OnNext twice
@@ -298,6 +280,242 @@ public static class ReactiveExtensions
         });
 
     /// <summary>
+    /// Debounces with an immediate first emission then standard debounce behavior.
+    /// </summary>
+    /// <typeparam name="T">Element type.</typeparam>
+    /// <param name="source">Source sequence.</param>
+    /// <param name="dueTime">Debounce time.</param>
+    /// <param name="scheduler">Scheduler (optional).</param>
+    /// <returns>Debounced sequence.</returns>
+    public static IObservable<T> DebounceImmediate<T>(this IObservable<T> source, TimeSpan dueTime, IScheduler? scheduler = null)
+    {
+        scheduler ??= Scheduler.Default;
+        return Observable.Create<T>(obs =>
+        {
+            SerialDisposable timer = new();
+            object gate = new();
+            var isFirst = true;
+            T? lastValue = default;
+            var hasValue = false;
+
+            void Emit()
+            {
+                if (hasValue)
+                {
+                    obs.OnNext(lastValue!);
+                    hasValue = false;
+                }
+            }
+
+            var subscription = source.Subscribe(
+                v =>
+                {
+                    lock (gate)
+                    {
+                        if (isFirst)
+                        {
+                            isFirst = false;
+                            obs.OnNext(v);
+                            return;
+                        }
+
+                        lastValue = v;
+                        hasValue = true;
+                        timer.Disposable = scheduler.Schedule(dueTime, Emit);
+                    }
+                },
+                ex =>
+                {
+                    lock (gate)
+                    {
+                        Emit();
+                    }
+
+                    obs.OnError(ex);
+                },
+                () =>
+                {
+                    lock (gate)
+                    {
+                        Emit();
+                    }
+
+                    obs.OnCompleted();
+                });
+            return new CompositeDisposable(subscription, timer);
+        });
+    }
+
+    /// <summary>
+    /// Detects when a stream becomes inactive for some period of time.
+    /// </summary>
+    /// <typeparam name="T">update type.</typeparam>
+    /// <param name="source">source stream.</param>
+    /// <param name="stalenessPeriod">If source stream does not OnNext any update during this period, it is declared stale.</param>
+    /// <param name="scheduler">The scheduler.</param>
+    /// <returns>Observable stale markers or updates.</returns>
+    public static IObservable<IStale<T>> DetectStale<T>(this IObservable<T> source, TimeSpan stalenessPeriod, IScheduler scheduler) =>
+        Observable.Create<IStale<T>>(observer =>
+        {
+            SerialDisposable timerSubscription = new();
+            object observerLock = new();
+
+            void ScheduleStale() =>
+                    timerSubscription!.Disposable = Observable.Timer(stalenessPeriod, scheduler)
+                    .Subscribe(_ =>
+                    {
+                        lock (observerLock)
+                        {
+                            observer.OnNext(new Stale<T>());
+                        }
+                    });
+
+            var sourceSubscription = source.Subscribe(
+                x =>
+                {
+                    (timerSubscription?.Disposable)?.Dispose();
+
+                    lock (observerLock)
+                    {
+                        observer.OnNext(new Stale<T>(x));
+                    }
+
+                    ScheduleStale();
+                },
+                observer.OnError,
+                observer.OnCompleted);
+
+            ScheduleStale();
+
+            return new CompositeDisposable
+            {
+                sourceSubscription,
+                timerSubscription,
+            };
+        });
+
+    /// <summary>
+    /// Distinct until changed by key selector.
+    /// </summary>
+    /// <typeparam name="TSource">Source type.</typeparam>
+    /// <typeparam name="TKey">Key type.</typeparam>
+    /// <param name="source">Source sequence.</param>
+    /// <param name="keySelector">Key selector.</param>
+    /// <returns>Sequence with distinct successive keys.</returns>
+    public static IObservable<TSource> DistinctUntilChangedBy<TSource, TKey>(this IObservable<TSource> source, Func<TSource, TKey> keySelector) =>
+        source.Scan((HasValue: false, Prev: default(TKey)!, Current: default(TSource)!, Emit: false), (acc, next) =>
+        {
+            var key = keySelector(next);
+            var emit = !acc.HasValue || !EqualityComparer<TKey>.Default.Equals(acc.Prev, key);
+            return (true, key, next, emit);
+        })
+        .Where(x => x.Emit)
+        .Select(x => x.Current);
+
+    /// <summary>
+    /// Executes an action when subscription is disposed.
+    /// </summary>
+    /// <typeparam name="T">Element type.</typeparam>
+    /// <param name="source">Source sequence.</param>
+    /// <param name="disposeAction">Action to run on dispose.</param>
+    /// <returns>Original sequence with dispose side-effect.</returns>
+    public static IObservable<T> DoOnDispose<T>(this IObservable<T> source, Action disposeAction) =>
+        Observable.Create<T>(o =>
+        {
+            var disp = source.Subscribe(o);
+            return Disposable.Create(() =>
+            {
+                try
+                {
+                    disp.Dispose();
+                }
+                finally
+                {
+                    disposeAction();
+                }
+            });
+        });
+
+    /// <summary>
+    /// Executes an action at subscription time.
+    /// </summary>
+    /// <typeparam name="T">Element type.</typeparam>
+    /// <param name="source">Source sequence.</param>
+    /// <param name="action">Action to run on subscribe.</param>
+    /// <returns>Original sequence with subscribe side-effect.</returns>
+    public static IObservable<T> DoOnSubscribe<T>(this IObservable<T> source, Action action) =>
+        Observable.Create<T>(o =>
+        {
+            action();
+            return source.Subscribe(o);
+        });
+
+    /// <summary>
+    /// Filters strings by regex.
+    /// </summary>
+    /// <param name="source">Source sequence.</param>
+    /// <param name="regexPattern">Regex pattern.</param>
+    /// <returns>Filtered sequence.</returns>
+    public static IObservable<string> Filter(this IObservable<string> source, string regexPattern) =>
+        source.Where(f => Regex.IsMatch(f, regexPattern));
+
+    /// <summary>
+    /// Returns a Task for the first element of the sequence.
+    /// </summary>
+    /// <typeparam name="T">Element type.</typeparam>
+    /// <param name="source">Source sequence.</param>
+    /// <returns>Task producing first value.</returns>
+    public static Task<T> FirstValueAsync<T>(this IObservable<T> source) => source.FirstAsync().ToTask();
+
+    /// <summary>
+    /// Flattens a sequence of enumerables into individual values.
+    /// </summary>
+    /// <typeparam name="T">Element type.</typeparam>
+    /// <param name="source">Source of enumerables.</param>
+    /// <param name="scheduler">Scheduler (optional).</param>
+    /// <returns>A flattened observable.</returns>
+    public static IObservable<T> ForEach<T>(this IObservable<IEnumerable<T>> source, IScheduler? scheduler = null) =>
+        Observable.Create<T>(observer => source.ObserveOnSafe(scheduler).Subscribe(values => FastForEach(observer, values)));
+
+    /// <summary>
+    /// Emits each element of an IEnumerable.
+    /// </summary>
+    /// <typeparam name="T">Element type.</typeparam>
+    /// <param name="source">Source enumerable.</param>
+    /// <param name="scheduler">Scheduler (optional).</param>
+    /// <returns>Observable of elements.</returns>
+    public static IObservable<T> FromArray<T>(this IEnumerable<T> source, IScheduler? scheduler = null) =>
+        Observable.Create<T>(observer => scheduler.ScheduleSafe(() => FastForEach(observer, source)));
+
+    /// <summary>
+    /// Gets the maximum from all sources.
+    /// </summary>
+    /// <typeparam name="T">The Value Type.</typeparam>
+    /// <param name="this">The first observable.</param>
+    /// <param name="sources">Other sources.</param>
+    /// <returns>A sequence emitting the maximum of the latest values.</returns>
+    public static IObservable<T?> GetMax<T>(this IObservable<T?> @this, params IObservable<T?>[] sources)
+        where T : struct
+    {
+        List<IObservable<T?>> source = [@this, .. sources];
+        return source.CombineLatest().Select(x => x.Max());
+    }
+
+    /// <summary>
+    /// Gets the minimum from all sources.
+    /// </summary>
+    /// <typeparam name="T">The Value Type.</typeparam>
+    /// <param name="this">The first observable.</param>
+    /// <param name="sources">Other sources.</param>
+    /// <returns>A sequence emitting the minimum of the latest values.</returns>
+    public static IObservable<T?> GetMin<T>(this IObservable<T?> @this, params IObservable<T?>[] sources)
+        where T : struct
+    {
+        List<IObservable<T?>> source = [@this, .. sources];
+        return source.CombineLatest().Select(x => x.Min());
+    }
+
+    /// <summary>
     /// Injects heartbeats in a stream when the source stream becomes quiet.
     /// </summary>
     /// <typeparam name="T">Update type.</typeparam>
@@ -346,23 +564,29 @@ public static class ReactiveExtensions
         });
 
     /// <summary>
-    /// Executes with limited concurrency.
+    /// Returns a Task for the last element of the sequence.
     /// </summary>
-    /// <typeparam name="T">The result type.</typeparam>
-    /// <param name="taskFunctions">Tasks to execute.</param>
-    /// <param name="maxConcurrency">Maximum concurrency.</param>
-    /// <returns>A sequence of task results.</returns>
-    public static IObservable<T> WithLimitedConcurrency<T>(this IEnumerable<Task<T>> taskFunctions, int maxConcurrency) =>
-        new ConcurrencyLimiter<T>(taskFunctions, maxConcurrency).IObservable;
+    /// <typeparam name="T">Element type.</typeparam>
+    /// <param name="source">Source sequence.</param>
+    /// <returns>Task producing last value.</returns>
+    public static Task<T> LastValueAsync<T>(this IObservable<T> source) => source.LastAsync().ToTask();
 
     /// <summary>
-    /// Pushes multiple values to an observer.
+    /// Maps every source element to a constant value.
     /// </summary>
-    /// <typeparam name="T">Type of value.</typeparam>
-    /// <param name="observer">Observer to push to.</param>
-    /// <param name="events">Values to push.</param>
-    public static void OnNext<T>(this IObserver<T?> observer, params T?[] events) =>
-        FastForEach(observer, events!);
+    /// <typeparam name="TSource">Source type.</typeparam>
+    /// <typeparam name="TResult">Result type.</typeparam>
+    /// <param name="source">Source sequence.</param>
+    /// <param name="value">Constant value.</param>
+    /// <returns>Sequence of constant values.</returns>
+    public static IObservable<TResult> MapTo<TSource, TResult>(this IObservable<TSource> source, TResult value) => source.Select(_ => value);
+
+    /// <summary>
+    /// Emits the boolean negation of the source sequence.
+    /// </summary>
+    /// <param name="source">Boolean source.</param>
+    /// <returns>Negated boolean sequence.</returns>
+    public static IObservable<bool> Not(this IObservable<bool> source) => source.Select(b => !b);
 
     /// <summary>
     /// If the scheduler is not null observes on that scheduler.
@@ -375,114 +599,148 @@ public static class ReactiveExtensions
         scheduler == null ? source : source.ObserveOn(scheduler);
 
     /// <summary>
-    /// Invokes the action asynchronously surfacing the result through a Unit observable.
+    /// Repeats the source until it terminates successfully (alias of Retry).
     /// </summary>
-    /// <param name="action">Action to run.</param>
-    /// <param name="scheduler">Scheduler (optional).</param>
-    /// <returns>A sequence producing Unit upon completion.</returns>
-    public static IObservable<Unit> Start(Action action, IScheduler? scheduler) =>
-        scheduler == null ? Observable.Start(action) : Observable.Start(action, scheduler);
+    /// <typeparam name="TSource">Element type.</typeparam>
+    /// <param name="source">Source sequence.</param>
+    /// <returns>Retried sequence.</returns>
+    public static IObservable<TSource?> OnErrorRetry<TSource>(this IObservable<TSource?> source) => source.Retry();
 
     /// <summary>
-    /// Invokes the specified function asynchronously surfacing the result.
+    /// When caught exception, do onError action and repeat observable sequence.
     /// </summary>
-    /// <typeparam name="TResult">Result type.</typeparam>
-    /// <param name="function">Function to run.</param>
-    /// <param name="scheduler">Scheduler.</param>
-    /// <returns>A sequence producing the function result.</returns>
-    public static IObservable<TResult> Start<TResult>(Func<TResult> function, IScheduler? scheduler) =>
-        scheduler == null ? Observable.Start(function) : Observable.Start(function, scheduler);
+    /// <typeparam name="TSource">The type of the source.</typeparam>
+    /// <typeparam name="TException">The type of the exception.</typeparam>
+    /// <param name="source">The source.</param>
+    /// <param name="onError">The on error.</param>
+    /// <returns>A sequence that retries on error with optional delay.</returns>
+    public static IObservable<TSource?> OnErrorRetry<TSource, TException>(this IObservable<TSource?> source, Action<TException> onError)
+        where TException : Exception => source.OnErrorRetry(onError, TimeSpan.Zero);
 
     /// <summary>
-    /// Flattens a sequence of enumerables into individual values.
+    /// When caught exception, do onError action and repeat observable sequence after delay time.
+    /// </summary>
+    /// <typeparam name="TSource">The type of the source.</typeparam>
+    /// <typeparam name="TException">The type of the exception.</typeparam>
+    /// <param name="source">The source.</param>
+    /// <param name="onError">The on error.</param>
+    /// <param name="delay">The delay.</param>
+    /// <returns>A sequence that retries on error with optional delay.</returns>
+    public static IObservable<TSource?> OnErrorRetry<TSource, TException>(this IObservable<TSource?> source, Action<TException> onError, TimeSpan delay)
+        where TException : Exception => source.OnErrorRetry(onError, int.MaxValue, delay);
+
+    /// <summary>
+    /// When caught exception, do onError action and repeat observable sequence during within retryCount.
+    /// </summary>
+    /// <typeparam name="TSource">The type of the source.</typeparam>
+    /// <typeparam name="TException">The type of the exception.</typeparam>
+    /// <param name="source">The source.</param>
+    /// <param name="onError">The on error.</param>
+    /// <param name="retryCount">The retry count.</param>
+    /// <returns>A sequence that retries on error with optional delay.</returns>
+    public static IObservable<TSource?> OnErrorRetry<TSource, TException>(this IObservable<TSource?> source, Action<TException> onError, int retryCount)
+        where TException : Exception => source.OnErrorRetry(onError, retryCount, TimeSpan.Zero);
+
+    /// <summary>
+    /// When caught exception, do onError action and repeat observable sequence after delay time
+    /// during within retryCount.
+    /// </summary>
+    /// <typeparam name="TSource">The type of the source.</typeparam>
+    /// <typeparam name="TException">The type of the exception.</typeparam>
+    /// <param name="source">The source.</param>
+    /// <param name="onError">The on error.</param>
+    /// <param name="retryCount">The retry count.</param>
+    /// <param name="delay">The delay.</param>
+    /// <returns>A sequence that retries on error with optional delay.</returns>
+    public static IObservable<TSource?> OnErrorRetry<TSource, TException>(this IObservable<TSource?> source, Action<TException> onError, int retryCount, TimeSpan delay)
+        where TException : Exception => source.OnErrorRetry(onError, retryCount, delay, Scheduler.Default);
+
+    /// <summary>
+    /// When caught exception, do onError action and repeat observable sequence after delay
+    /// time(work on delayScheduler) during within retryCount.
+    /// </summary>
+    /// <typeparam name="TSource">The type of the source.</typeparam>
+    /// <typeparam name="TException">The type of the exception.</typeparam>
+    /// <param name="source">The source.</param>
+    /// <param name="onError">The on error.</param>
+    /// <param name="retryCount">The retry count.</param>
+    /// <param name="delay">The delay.</param>
+    /// <param name="delayScheduler">The delay scheduler.</param>
+    /// <returns>A sequence that retries on error with optional delay.</returns>
+    public static IObservable<TSource?> OnErrorRetry<TSource, TException>(this IObservable<TSource?> source, Action<TException> onError, int retryCount, TimeSpan delay, IScheduler delayScheduler)
+        where TException : Exception => Observable.Defer(() =>
+        {
+            var dueTime = (delay.Ticks < 0) ? TimeSpan.Zero : delay;
+            var empty = Observable.Empty<TSource?>();
+            var count = 0;
+            IObservable<TSource?>? self = null;
+            self = source.Catch((TException ex) =>
+            {
+                onError(ex);
+
+                return (++count < retryCount)
+                        ? (dueTime == TimeSpan.Zero)
+                            ? self!.SubscribeOn(Scheduler.CurrentThread)
+                            : empty.Delay(dueTime, delayScheduler).Concat(self!).SubscribeOn(Scheduler.CurrentThread)
+                        : Observable.Throw<TSource?>(ex);
+            });
+            return self;
+        });
+
+    /// <summary>
+    /// Pushes multiple values to an observer.
+    /// </summary>
+    /// <typeparam name="T">Type of value.</typeparam>
+    /// <param name="observer">Observer to push to.</param>
+    /// <param name="events">Values to push.</param>
+    public static void OnNext<T>(this IObserver<T?> observer, params T?[] events) =>
+        FastForEach(observer, events!);
+
+    /// <summary>
+    /// Partitions a sequence into two based on predicate.
     /// </summary>
     /// <typeparam name="T">Element type.</typeparam>
-    /// <param name="source">Source of enumerables.</param>
-    /// <param name="scheduler">Scheduler (optional).</param>
-    /// <returns>A flattened observable.</returns>
-    public static IObservable<T> ForEach<T>(this IObservable<IEnumerable<T>> source, IScheduler? scheduler = null) =>
-        Observable.Create<T>(observer => source.ObserveOnSafe(scheduler).Subscribe(values => FastForEach(observer, values)));
-
-    /// <summary>
-    /// Schedules an action immediately if scheduler null, else on scheduler.
-    /// </summary>
-    /// <param name="scheduler">Scheduler.</param>
-    /// <param name="action">Action.</param>
-    /// <returns>Disposable for the scheduled action.</returns>
-    public static IDisposable ScheduleSafe(this IScheduler? scheduler, Action action)
+    /// <param name="source">Source sequence.</param>
+    /// <param name="predicate">Predicate.</param>
+    /// <returns>Tuple of (trueSequence, falseSequence).</returns>
+    public static (IObservable<T> True, IObservable<T> False) Partition<T>(this IObservable<T> source, Func<T, bool> predicate)
     {
-        if (scheduler == null)
-        {
-            action();
-            return Disposable.Empty;
-        }
-
-        return scheduler.Schedule(action);
+        var published = source.Publish().RefCount();
+        return (published.Where(predicate), published.Where(x => !predicate(x)));
     }
 
     /// <summary>
-    /// Schedules an action after a due time.
-    /// </summary>
-    /// <param name="scheduler">Scheduler.</param>
-    /// <param name="dueTime">Delay.</param>
-    /// <param name="action">Action.</param>
-    /// <returns>Disposable for the scheduled action.</returns>
-    public static IDisposable ScheduleSafe(this IScheduler? scheduler, TimeSpan dueTime, Action action)
-    {
-        if (scheduler == null)
-        {
-            Thread.Sleep(dueTime);
-            action();
-            return Disposable.Empty;
-        }
-
-        return scheduler.Schedule(dueTime, action);
-    }
-
-    /// <summary>
-    /// Emits each element of an IEnumerable.
+    /// Retries with exponential backoff.
     /// </summary>
     /// <typeparam name="T">Element type.</typeparam>
-    /// <param name="source">Source enumerable.</param>
+    /// <param name="source">Source sequence.</param>
+    /// <param name="maxRetries">Maximum number of retries.</param>
+    /// <param name="initialDelay">Initial backoff delay.</param>
+    /// <param name="backoffFactor">Multiplier for each retry (default 2).</param>
+    /// <param name="maxDelay">Optional maximum delay.</param>
     /// <param name="scheduler">Scheduler (optional).</param>
-    /// <returns>Observable of elements.</returns>
-    public static IObservable<T> FromArray<T>(this IEnumerable<T> source, IScheduler? scheduler = null) =>
-        Observable.Create<T>(observer => scheduler.ScheduleSafe(() => FastForEach(observer, source)));
+    /// <returns>Retried sequence with backoff.</returns>
+    public static IObservable<T> RetryWithBackoff<T>(this IObservable<T> source, int maxRetries, TimeSpan initialDelay, double backoffFactor = 2.0, TimeSpan? maxDelay = null, IScheduler? scheduler = null) =>
+        Observable.Defer(() =>
+        {
+            scheduler ??= Scheduler.Default;
+            var attempt = 0;
+            return source.Catch<T, Exception>(ex =>
+            {
+                if (attempt++ >= maxRetries)
+                {
+                    return Observable.Throw<T>(ex);
+                }
 
-    /// <summary>
-    /// Using helper with Action.
-    /// </summary>
-    /// <typeparam name="T">Disposable type.</typeparam>
-    /// <param name="obj">Object to use.</param>
-    /// <param name="action">Action to run.</param>
-    /// <param name="scheduler">Scheduler.</param>
-    /// <returns>Completion signal.</returns>
-    public static IObservable<Unit> Using<T>(this T obj, Action<T> action, IScheduler? scheduler = null)
-        where T : IDisposable =>
-        Observable.Using(() => obj, id => Start(() => action?.Invoke(id), scheduler));
+                var nextDelay = TimeSpan.FromMilliseconds(initialDelay.TotalMilliseconds * Math.Pow(backoffFactor, attempt - 1));
+                if (maxDelay.HasValue && nextDelay > maxDelay.Value)
+                {
+                    nextDelay = maxDelay.Value;
+                }
 
-    /// <summary>
-    /// Using helper with Func.
-    /// </summary>
-    /// <typeparam name="T">Disposable type.</typeparam>
-    /// <typeparam name="TResult">Result type.</typeparam>
-    /// <param name="obj">Object to use.</param>
-    /// <param name="function">Function to invoke.</param>
-    /// <param name="scheduler">Scheduler.</param>
-    /// <returns>Observable of result.</returns>
-    public static IObservable<TResult> Using<T, TResult>(this T obj, Func<T, TResult> function, IScheduler? scheduler = null)
-        where T : IDisposable =>
-        Observable.Using(() => obj, id => Start(() => function.Invoke(id), scheduler));
-
-    /// <summary>
-    /// While construct.
-    /// </summary>
-    /// <param name="condition">Condition to evaluate.</param>
-    /// <param name="action">Action to execute.</param>
-    /// <param name="scheduler">Scheduler.</param>
-    /// <returns>Observable representing the loop.</returns>
-    public static IObservable<Unit> While(Func<bool> condition, Action action, IScheduler? scheduler = null) =>
-        Observable.While(condition, Start(action, scheduler));
+                return Observable.Timer(nextDelay, scheduler).Select(_ => default(T)!).IgnoreElements().Concat(source).RetryWithBackoff(maxRetries - attempt, initialDelay, backoffFactor, maxDelay, scheduler);
+            });
+        });
 
     /// <summary>
     /// Schedules a single value after a delay.
@@ -639,13 +897,85 @@ public static class ReactiveExtensions
         Observable.Create<T>(observer => source.Subscribe(value => scheduler.Schedule(dueTime, () => observer.OnNext(function(value)))));
 
     /// <summary>
-    /// Filters strings by regex.
+    /// Schedules an action immediately if scheduler null, else on scheduler.
     /// </summary>
+    /// <param name="scheduler">Scheduler.</param>
+    /// <param name="action">Action.</param>
+    /// <returns>Disposable for the scheduled action.</returns>
+    public static IDisposable ScheduleSafe(this IScheduler? scheduler, Action action)
+    {
+        if (scheduler == null)
+        {
+            action();
+            return Disposable.Empty;
+        }
+
+        return scheduler.Schedule(action);
+    }
+
+    /// <summary>
+    /// Schedules an action after a due time.
+    /// </summary>
+    /// <param name="scheduler">Scheduler.</param>
+    /// <param name="dueTime">Delay.</param>
+    /// <param name="action">Action.</param>
+    /// <returns>Disposable for the scheduled action.</returns>
+    public static IDisposable ScheduleSafe(this IScheduler? scheduler, TimeSpan dueTime, Action action)
+    {
+        if (scheduler == null)
+        {
+            Thread.Sleep(dueTime);
+            action();
+            return Disposable.Empty;
+        }
+
+        return scheduler.Schedule(dueTime, action);
+    }
+
+    /// <summary>
+    /// Projects each element to a task with limited concurrency.
+    /// </summary>
+    /// <typeparam name="TSource">Source type.</typeparam>
+    /// <typeparam name="TResult">Result type.</typeparam>
     /// <param name="source">Source sequence.</param>
-    /// <param name="regexPattern">Regex pattern.</param>
-    /// <returns>Filtered sequence.</returns>
-    public static IObservable<string> Filter(this IObservable<string> source, string regexPattern) =>
-        source.Where(f => Regex.IsMatch(f, regexPattern));
+    /// <param name="selector">Task selector.</param>
+    /// <param name="maxConcurrency">Max concurrency.</param>
+    /// <returns>Merged sequence of task results.</returns>
+    public static IObservable<TResult> SelectAsyncConcurrent<TSource, TResult>(this IObservable<TSource> source, Func<TSource, Task<TResult>> selector, int maxConcurrency) =>
+        source.Select(x => Observable.FromAsync(() => selector(x))).Merge(maxConcurrency);
+
+    /// <summary>
+    /// Projects each element to a task executed sequentially.
+    /// </summary>
+    /// <typeparam name="TSource">Source element type.</typeparam>
+    /// <typeparam name="TResult">Result type.</typeparam>
+    /// <param name="source">Source sequence.</param>
+    /// <param name="selector">Task selector.</param>
+    /// <returns>Sequence of results preserving order.</returns>
+    public static IObservable<TResult> SelectAsyncSequential<TSource, TResult>(this IObservable<TSource> source, Func<TSource, Task<TResult>> selector) =>
+        source.Select(x => Observable.FromAsync(() => selector(x))).Concat();
+
+    /// <summary>
+    /// Projects each element to an observable and switches to latest.
+    /// </summary>
+    /// <typeparam name="TSource">Source element type.</typeparam>
+    /// <typeparam name="TResult">Result element type.</typeparam>
+    /// <param name="source">Source sequence.</param>
+    /// <param name="selector">Selector producing inner observable.</param>
+    /// <returns>Sequence of latest inner observable values.</returns>
+    public static IObservable<TResult> SelectLatest<TSource, TResult>(this IObservable<TSource> source, Func<TSource, IObservable<TResult>> selector) =>
+        source.Select(selector).Switch();
+
+    /// <summary>
+    /// Projects each element to a task but only latest result is emitted.
+    /// </summary>
+    /// <typeparam name="TSource">Source type.</typeparam>
+    /// <typeparam name="TResult">Result type.</typeparam>
+    /// <param name="source">Source sequence.</param>
+    /// <param name="selector">Task selector.</param>
+    /// <returns>Sequence of latest task results.</returns>
+    public static IObservable<TResult> SelectLatestAsync<TSource, TResult>(this IObservable<TSource> source, Func<TSource, Task<TResult>> selector) =>
+        source.Select(x => Observable.FromAsync(() => selector(x))).Switch();
 
     /// <summary>
     /// Randomly shuffles arrays emitted by the source.
@@ -669,123 +999,73 @@ public static class ReactiveExtensions
         }));
 
     /// <summary>
-    /// Repeats the source until it terminates successfully (alias of Retry).
+    /// Invokes the action asynchronously surfacing the result through a Unit observable.
     /// </summary>
-    /// <typeparam name="TSource">Element type.</typeparam>
-    /// <param name="source">Source sequence.</param>
-    /// <returns>Retried sequence.</returns>
-    public static IObservable<TSource?> OnErrorRetry<TSource>(this IObservable<TSource?> source) => source.Retry();
+    /// <param name="action">Action to run.</param>
+    /// <param name="scheduler">Scheduler (optional).</param>
+    /// <returns>A sequence producing Unit upon completion.</returns>
+    public static IObservable<Unit> Start(Action action, IScheduler? scheduler) =>
+        scheduler == null ? Observable.Start(action) : Observable.Start(action, scheduler);
 
     /// <summary>
-    /// When caught exception, do onError action and repeat observable sequence.
+    /// Invokes the specified function asynchronously surfacing the result.
     /// </summary>
-    /// <typeparam name="TSource">The type of the source.</typeparam>
-    /// <typeparam name="TException">The type of the exception.</typeparam>
-    /// <param name="source">The source.</param>
+    /// <typeparam name="TResult">Result type.</typeparam>
+    /// <param name="function">Function to run.</param>
+    /// <param name="scheduler">Scheduler.</param>
+    /// <returns>A sequence producing the function result.</returns>
+    public static IObservable<TResult> Start<TResult>(Func<TResult> function, IScheduler? scheduler) =>
+        scheduler == null ? Observable.Start(function) : Observable.Start(function, scheduler);
+
+    /// <summary>
+    /// Subscribes allowing asynchronous operations to be executed without blocking the source.
+    /// </summary>
+    /// <typeparam name="T">The type of the elements in the source sequence.</typeparam>
+    /// <param name="source">Observable sequence to subscribe to.</param>
+    /// <param name="onNext">Action to invoke for each element in the observable sequence.</param>
+    /// <returns><see cref="IDisposable"/> object used to unsubscribe from the observable sequence.</returns>
+    public static IDisposable SubscribeAsync<T>(this IObservable<T> source, Func<T, Task> onNext) =>
+            source.Select(o => Observable.FromAsync(() => onNext(o))).Concat().Subscribe();
+
+    /// <summary>
+    /// Subscribes allowing asynchronous operations to be executed without blocking the source.
+    /// </summary>
+    /// <typeparam name="T">The type of the elements in the source sequence.</typeparam>
+    /// <param name="source">Observable sequence to subscribe to.</param>
+    /// <param name="onNext">Action to invoke for each element in the observable sequence.</param>
+    /// <param name="onCompleted">The on completed.</param>
+    /// <returns>
+    ///   <see cref="IDisposable" /> object used to unsubscribe from the observable sequence.
+    /// </returns>
+    public static IDisposable SubscribeAsync<T>(this IObservable<T> source, Func<T, Task> onNext, Action onCompleted) =>
+            source.Select(o => Observable.FromAsync(() => onNext(o))).Concat().Subscribe(_ => { }, onCompleted);
+
+    /// <summary>
+    /// Subscribes allowing asynchronous operations to be executed without blocking the source.
+    /// </summary>
+    /// <typeparam name="T">The type of the elements in the source sequence.</typeparam>
+    /// <param name="source">Observable sequence to subscribe to.</param>
+    /// <param name="onNext">Action to invoke for each element in the observable sequence.</param>
     /// <param name="onError">The on error.</param>
-    /// <returns>A sequence that retries on error with optional delay.</returns>
-    public static IObservable<TSource?> OnErrorRetry<TSource, TException>(this IObservable<TSource?> source, Action<TException> onError)
-        where TException : Exception => source.OnErrorRetry(onError, TimeSpan.Zero);
+    /// <returns>
+    ///   <see cref="IDisposable" /> object used to unsubscribe from the observable sequence.
+    /// </returns>
+    public static IDisposable SubscribeAsync<T>(this IObservable<T> source, Func<T, Task> onNext, Action<Exception> onError) =>
+            source.Select(o => Observable.FromAsync(() => onNext(o))).Concat().Subscribe(_ => { }, onError);
 
     /// <summary>
-    /// When caught exception, do onError action and repeat observable sequence after delay time.
+    /// Subscribes allowing asynchronous operations to be executed without blocking the source.
     /// </summary>
-    /// <typeparam name="TSource">The type of the source.</typeparam>
-    /// <typeparam name="TException">The type of the exception.</typeparam>
-    /// <param name="source">The source.</param>
+    /// <typeparam name="T">The type of the elements in the source sequence.</typeparam>
+    /// <param name="source">Observable sequence to subscribe to.</param>
+    /// <param name="onNext">Action to invoke for each element in the observable sequence.</param>
     /// <param name="onError">The on error.</param>
-    /// <param name="delay">The delay.</param>
-    /// <returns>A sequence that retries on error with optional delay.</returns>
-    public static IObservable<TSource?> OnErrorRetry<TSource, TException>(this IObservable<TSource?> source, Action<TException> onError, TimeSpan delay)
-        where TException : Exception => source.OnErrorRetry(onError, int.MaxValue, delay);
-
-    /// <summary>
-    /// When caught exception, do onError action and repeat observable sequence during within retryCount.
-    /// </summary>
-    /// <typeparam name="TSource">The type of the source.</typeparam>
-    /// <typeparam name="TException">The type of the exception.</typeparam>
-    /// <param name="source">The source.</param>
-    /// <param name="onError">The on error.</param>
-    /// <param name="retryCount">The retry count.</param>
-    /// <returns>A sequence that retries on error with optional delay.</returns>
-    public static IObservable<TSource?> OnErrorRetry<TSource, TException>(this IObservable<TSource?> source, Action<TException> onError, int retryCount)
-        where TException : Exception => source.OnErrorRetry(onError, retryCount, TimeSpan.Zero);
-
-    /// <summary>
-    /// When caught exception, do onError action and repeat observable sequence after delay time
-    /// during within retryCount.
-    /// </summary>
-    /// <typeparam name="TSource">The type of the source.</typeparam>
-    /// <typeparam name="TException">The type of the exception.</typeparam>
-    /// <param name="source">The source.</param>
-    /// <param name="onError">The on error.</param>
-    /// <param name="retryCount">The retry count.</param>
-    /// <param name="delay">The delay.</param>
-    /// <returns>A sequence that retries on error with optional delay.</returns>
-    public static IObservable<TSource?> OnErrorRetry<TSource, TException>(this IObservable<TSource?> source, Action<TException> onError, int retryCount, TimeSpan delay)
-        where TException : Exception => source.OnErrorRetry(onError, retryCount, delay, Scheduler.Default);
-
-    /// <summary>
-    /// When caught exception, do onError action and repeat observable sequence after delay
-    /// time(work on delayScheduler) during within retryCount.
-    /// </summary>
-    /// <typeparam name="TSource">The type of the source.</typeparam>
-    /// <typeparam name="TException">The type of the exception.</typeparam>
-    /// <param name="source">The source.</param>
-    /// <param name="onError">The on error.</param>
-    /// <param name="retryCount">The retry count.</param>
-    /// <param name="delay">The delay.</param>
-    /// <param name="delayScheduler">The delay scheduler.</param>
-    /// <returns>A sequence that retries on error with optional delay.</returns>
-    public static IObservable<TSource?> OnErrorRetry<TSource, TException>(this IObservable<TSource?> source, Action<TException> onError, int retryCount, TimeSpan delay, IScheduler delayScheduler)
-        where TException : Exception => Observable.Defer(() =>
-        {
-            var dueTime = (delay.Ticks < 0) ? TimeSpan.Zero : delay;
-            var empty = Observable.Empty<TSource?>();
-            var count = 0;
-            IObservable<TSource?>? self = null;
-            self = source.Catch((TException ex) =>
-            {
-                onError(ex);
-
-                return (++count < retryCount)
-                        ? (dueTime == TimeSpan.Zero)
-                            ? self!.SubscribeOn(Scheduler.CurrentThread)
-                            : empty.Delay(dueTime, delayScheduler).Concat(self!).SubscribeOn(Scheduler.CurrentThread)
-                        : Observable.Throw<TSource?>(ex);
-            });
-            return self;
-        });
-
-    /// <summary>
-    /// Takes elements until predicate returns true for an element (inclusive) then completes.
-    /// </summary>
-    /// <typeparam name="TSource">Element type.</typeparam>
-    /// <param name="source">Source sequence.</param>
-    /// <param name="predicate">Predicate for completion.</param>
-    /// <returns>Sequence that completes when predicate satisfied.</returns>
-    public static IObservable<TSource> TakeUntil<TSource>(this IObservable<TSource> source, Func<TSource, bool> predicate) =>
-        Observable.Create<TSource>(observer =>
-            source.Subscribe(
-                item =>
-                {
-                    observer.OnNext(item);
-                    if (predicate?.Invoke(item) ?? default)
-                    {
-                        observer.OnCompleted();
-                    }
-                },
-                observer.OnError,
-                observer.OnCompleted));
-
-    /// <summary>
-    /// Wraps values with a synchronization disposable that completes when disposed.
-    /// </summary>
-    /// <typeparam name="T">Element type.</typeparam>
-    /// <param name="source">Source sequence.</param>
-    /// <returns>Sequence of (value, sync handle).</returns>
-    public static IObservable<(T Value, IDisposable Sync)> SynchronizeSynchronous<T>(this IObservable<T> source) =>
-        Observable.Create<(T Value, IDisposable Sync)>(observer => source.Subscribe(item => new Continuation().Lock(item, observer).Wait()));
+    /// <param name="onCompleted">The on completed.</param>
+    /// <returns>
+    ///   <see cref="IDisposable" /> object used to unsubscribe from the observable sequence.
+    /// </returns>
+    public static IDisposable SubscribeAsync<T>(this IObservable<T> source, Func<T, Task> onNext, Action<Exception> onError, Action onCompleted) =>
+            source.Select(o => Observable.FromAsync(() => onNext(o))).Concat().Subscribe(_ => { }, onError, onCompleted);
 
     /// <summary>
     /// Subscribes to the specified source synchronously.
@@ -857,6 +1137,14 @@ public static class ReactiveExtensions
              });
 
     /// <summary>
+    /// Suppresses any error and completes silently.
+    /// </summary>
+    /// <typeparam name="T">Element type.</typeparam>
+    /// <param name="source">Source sequence.</param>
+    /// <returns>Error-suppressed sequence.</returns>
+    public static IObservable<T> SuppressErrors<T>(this IObservable<T> source) => source.Catch(Observable.Empty<T>());
+
+    /// <summary>
     /// Synchronizes the asynchronous operations in downstream operations.
     /// Use SubscribeSynchronus instead for a simpler version.
     /// Call Sync.Dispose() to release the lock in the downstream methods.
@@ -868,130 +1156,60 @@ public static class ReactiveExtensions
         Observable.Create<(T Value, IDisposable Sync)>(observer => source.Select(item => Observable.FromAsync(() => new Continuation().Lock(item, observer))).Concat().Subscribe());
 
     /// <summary>
-    /// Subscribes allowing asynchronous operations to be executed without blocking the source.
-    /// </summary>
-    /// <typeparam name="T">The type of the elements in the source sequence.</typeparam>
-    /// <param name="source">Observable sequence to subscribe to.</param>
-    /// <param name="onNext">Action to invoke for each element in the observable sequence.</param>
-    /// <returns><see cref="IDisposable"/> object used to unsubscribe from the observable sequence.</returns>
-    public static IDisposable SubscribeAsync<T>(this IObservable<T> source, Func<T, Task> onNext) =>
-            source.Select(o => Observable.FromAsync(() => onNext(o))).Concat().Subscribe();
-
-    /// <summary>
-    /// Subscribes allowing asynchronous operations to be executed without blocking the source.
-    /// </summary>
-    /// <typeparam name="T">The type of the elements in the source sequence.</typeparam>
-    /// <param name="source">Observable sequence to subscribe to.</param>
-    /// <param name="onNext">Action to invoke for each element in the observable sequence.</param>
-    /// <param name="onCompleted">The on completed.</param>
-    /// <returns>
-    ///   <see cref="IDisposable" /> object used to unsubscribe from the observable sequence.
-    /// </returns>
-    public static IDisposable SubscribeAsync<T>(this IObservable<T> source, Func<T, Task> onNext, Action onCompleted) =>
-            source.Select(o => Observable.FromAsync(() => onNext(o))).Concat().Subscribe(_ => { }, onCompleted);
-
-    /// <summary>
-    /// Subscribes allowing asynchronous operations to be executed without blocking the source.
-    /// </summary>
-    /// <typeparam name="T">The type of the elements in the source sequence.</typeparam>
-    /// <param name="source">Observable sequence to subscribe to.</param>
-    /// <param name="onNext">Action to invoke for each element in the observable sequence.</param>
-    /// <param name="onError">The on error.</param>
-    /// <returns>
-    ///   <see cref="IDisposable" /> object used to unsubscribe from the observable sequence.
-    /// </returns>
-    public static IDisposable SubscribeAsync<T>(this IObservable<T> source, Func<T, Task> onNext, Action<Exception> onError) =>
-            source.Select(o => Observable.FromAsync(() => onNext(o))).Concat().Subscribe(_ => { }, onError);
-
-    /// <summary>
-    /// Subscribes allowing asynchronous operations to be executed without blocking the source.
-    /// </summary>
-    /// <typeparam name="T">The type of the elements in the source sequence.</typeparam>
-    /// <param name="source">Observable sequence to subscribe to.</param>
-    /// <param name="onNext">Action to invoke for each element in the observable sequence.</param>
-    /// <param name="onError">The on error.</param>
-    /// <param name="onCompleted">The on completed.</param>
-    /// <returns>
-    ///   <see cref="IDisposable" /> object used to unsubscribe from the observable sequence.
-    /// </returns>
-    public static IDisposable SubscribeAsync<T>(this IObservable<T> source, Func<T, Task> onNext, Action<Exception> onError, Action onCompleted) =>
-            source.Select(o => Observable.FromAsync(() => onNext(o))).Concat().Subscribe(_ => { }, onError, onCompleted);
-
-    /// <summary>
-    /// Emits the boolean negation of the source sequence.
-    /// </summary>
-    /// <param name="source">Boolean source.</param>
-    /// <returns>Negated boolean sequence.</returns>
-    public static IObservable<bool> Not(this IObservable<bool> source) => source.Select(b => !b);
-
-    /// <summary>
-    /// Filters to true values only.
-    /// </summary>
-    /// <param name="source">Boolean source.</param>
-    /// <returns>Sequence of true values.</returns>
-    public static IObservable<bool> WhereTrue(this IObservable<bool> source) => source.Where(b => b);
-
-    /// <summary>
-    /// Filters to false values only.
-    /// </summary>
-    /// <param name="source">Boolean source.</param>
-    /// <returns>Sequence of false values.</returns>
-    public static IObservable<bool> WhereFalse(this IObservable<bool> source) => source.Where(b => !b);
-
-    /// <summary>
-    /// Catches any error and returns a fallback value then completes.
+    /// Wraps values with a synchronization disposable that completes when disposed.
     /// </summary>
     /// <typeparam name="T">Element type.</typeparam>
     /// <param name="source">Source sequence.</param>
-    /// <param name="fallback">Fallback value.</param>
-    /// <returns>Sequence producing either original values or fallback on error then completing.</returns>
-    public static IObservable<T> CatchAndReturn<T>(this IObservable<T> source, T fallback) =>
-        source.Catch(Observable.Return(fallback));
+    /// <returns>Sequence of (value, sync handle).</returns>
+    public static IObservable<(T Value, IDisposable Sync)> SynchronizeSynchronous<T>(this IObservable<T> source) =>
+        Observable.Create<(T Value, IDisposable Sync)>(observer => source.Subscribe(item => new Continuation().Lock(item, observer).Wait()));
 
     /// <summary>
-    /// Catches a specific exception type mapping it to a fallback value.
+    /// Synchronized timer all instances of this with the same TimeSpan use the same timer.
     /// </summary>
-    /// <typeparam name="T">Element type.</typeparam>
-    /// <typeparam name="TException">Exception type.</typeparam>
-    /// <param name="source">Source sequence.</param>
-    /// <param name="fallbackFactory">Factory producing fallback from the exception.</param>
-    /// <returns>Recovered sequence.</returns>
-    public static IObservable<T> CatchAndReturn<T, TException>(this IObservable<T> source, Func<TException, T> fallbackFactory)
-        where TException : Exception =>
-        source.Catch<T, TException>(ex => Observable.Return(fallbackFactory(ex)));
-
-    /// <summary>
-    /// Retries with exponential backoff.
-    /// </summary>
-    /// <typeparam name="T">Element type.</typeparam>
-    /// <param name="source">Source sequence.</param>
-    /// <param name="maxRetries">Maximum number of retries.</param>
-    /// <param name="initialDelay">Initial backoff delay.</param>
-    /// <param name="backoffFactor">Multiplier for each retry (default 2).</param>
-    /// <param name="maxDelay">Optional maximum delay.</param>
-    /// <param name="scheduler">Scheduler (optional).</param>
-    /// <returns>Retried sequence with backoff.</returns>
-    public static IObservable<T> RetryWithBackoff<T>(this IObservable<T> source, int maxRetries, TimeSpan initialDelay, double backoffFactor = 2.0, TimeSpan? maxDelay = null, IScheduler? scheduler = null) =>
-        Observable.Defer(() =>
-        {
-            scheduler ??= Scheduler.Default;
-            var attempt = 0;
-            return source.Catch<T, Exception>(ex =>
-            {
-                if (attempt++ >= maxRetries)
+    /// <param name="timeSpan">The time span.</param>
+    /// <returns>An observable sequence producing the shared DateTime ticks.</returns>
+    public static IObservable<DateTime> SyncTimer(TimeSpan timeSpan)
+    {
+        var lazy = _timerList.GetOrAdd(
+            timeSpan,
+            ts => new Lazy<IConnectableObservable<DateTime>>(
+                () =>
                 {
-                    return Observable.Throw<T>(ex);
-                }
+                    var published = Observable
+                        .Timer(TimeSpan.Zero, ts)
+                        .Timestamp()
+                        .Select(x => x.Timestamp.DateTime)
+                        .Publish();
 
-                var nextDelay = TimeSpan.FromMilliseconds(initialDelay.TotalMilliseconds * Math.Pow(backoffFactor, attempt - 1));
-                if (maxDelay.HasValue && nextDelay > maxDelay.Value)
+                    // Connect immediately so subsequent subscribers share.
+                    published.Connect();
+
+                    return published;
+                }));
+        return lazy.Value;
+    }
+
+    /// <summary>
+    /// Takes elements until predicate returns true for an element (inclusive) then completes.
+    /// </summary>
+    /// <typeparam name="TSource">Element type.</typeparam>
+    /// <param name="source">Source sequence.</param>
+    /// <param name="predicate">Predicate for completion.</param>
+    /// <returns>Sequence that completes when predicate satisfied.</returns>
+    public static IObservable<TSource> TakeUntil<TSource>(this IObservable<TSource> source, Func<TSource, bool> predicate) =>
+        Observable.Create<TSource>(observer =>
+            source.Subscribe(
+                item =>
                 {
-                    nextDelay = maxDelay.Value;
-                }
-
-                return Observable.Timer(nextDelay, scheduler).Select(_ => default(T)!).IgnoreElements().Concat(source).RetryWithBackoff(maxRetries - attempt, initialDelay, backoffFactor, maxDelay, scheduler);
-            });
-        });
+                    observer.OnNext(item);
+                    if (predicate?.Invoke(item) ?? default)
+                    {
+                        observer.OnCompleted();
+                    }
+                },
+                observer.OnError,
+                observer.OnCompleted));
 
     /// <summary>
     /// Emits only the first value in each time window.
@@ -1033,179 +1251,37 @@ public static class ReactiveExtensions
     }
 
     /// <summary>
-    /// Debounces with an immediate first emission then standard debounce behavior.
+    /// Emits Unit for each source element.
     /// </summary>
-    /// <typeparam name="T">Element type.</typeparam>
+    /// <typeparam name="T">Source type.</typeparam>
     /// <param name="source">Source sequence.</param>
-    /// <param name="dueTime">Debounce time.</param>
-    /// <param name="scheduler">Scheduler (optional).</param>
-    /// <returns>Debounced sequence.</returns>
-    public static IObservable<T> DebounceImmediate<T>(this IObservable<T> source, TimeSpan dueTime, IScheduler? scheduler = null)
-    {
-        scheduler ??= Scheduler.Default;
-        return Observable.Create<T>(obs =>
-        {
-            SerialDisposable timer = new();
-            object gate = new();
-            var isFirst = true;
-            T? lastValue = default;
-            var hasValue = false;
-
-            void Emit()
-            {
-                if (hasValue)
-                {
-                    obs.OnNext(lastValue!);
-                    hasValue = false;
-                }
-            }
-
-            var subscription = source.Subscribe(
-                v =>
-                {
-                    lock (gate)
-                    {
-                        if (isFirst)
-                        {
-                            isFirst = false;
-                            obs.OnNext(v);
-                            return;
-                        }
-
-                        lastValue = v;
-                        hasValue = true;
-                        timer.Disposable = scheduler.Schedule(dueTime, Emit);
-                    }
-                },
-                ex =>
-                {
-                    lock (gate)
-                    {
-                        Emit();
-                    }
-
-                    obs.OnError(ex);
-                },
-                () =>
-                {
-                    lock (gate)
-                    {
-                        Emit();
-                    }
-
-                    obs.OnCompleted();
-                });
-            return new CompositeDisposable(subscription, timer);
-        });
-    }
+    /// <returns>Unit sequence.</returns>
+    public static IObservable<Unit> ToUnit<T>(this IObservable<T> source) => source.Select(_ => Unit.Default);
 
     /// <summary>
-    /// Projects each element to a task executed sequentially.
+    /// Using helper with Action.
     /// </summary>
-    /// <typeparam name="TSource">Source element type.</typeparam>
-    /// <typeparam name="TResult">Result type.</typeparam>
-    /// <param name="source">Source sequence.</param>
-    /// <param name="selector">Task selector.</param>
-    /// <returns>Sequence of results preserving order.</returns>
-    public static IObservable<TResult> SelectAsyncSequential<TSource, TResult>(this IObservable<TSource> source, Func<TSource, Task<TResult>> selector) =>
-        source.Select(x => Observable.FromAsync(() => selector(x))).Concat();
-
-    /// <summary>
-    /// Projects each element to a task but only latest result is emitted.
-    /// </summary>
-    /// <typeparam name="TSource">Source type.</typeparam>
-    /// <typeparam name="TResult">Result type.</typeparam>
-    /// <param name="source">Source sequence.</param>
-    /// <param name="selector">Task selector.</param>
-    /// <returns>Sequence of latest task results.</returns>
-    public static IObservable<TResult> SelectLatestAsync<TSource, TResult>(this IObservable<TSource> source, Func<TSource, Task<TResult>> selector) =>
-        source.Select(x => Observable.FromAsync(() => selector(x))).Switch();
-
-    /// <summary>
-    /// Projects each element to a task with limited concurrency.
-    /// </summary>
-    /// <typeparam name="TSource">Source type.</typeparam>
-    /// <typeparam name="TResult">Result type.</typeparam>
-    /// <param name="source">Source sequence.</param>
-    /// <param name="selector">Task selector.</param>
-    /// <param name="maxConcurrency">Max concurrency.</param>
-    /// <returns>Merged sequence of task results.</returns>
-    public static IObservable<TResult> SelectAsyncConcurrent<TSource, TResult>(this IObservable<TSource> source, Func<TSource, Task<TResult>> selector, int maxConcurrency) =>
-        source.Select(x => Observable.FromAsync(() => selector(x))).Merge(maxConcurrency);
-
-    /// <summary>
-    /// Partitions a sequence into two based on predicate.
-    /// </summary>
-    /// <typeparam name="T">Element type.</typeparam>
-    /// <param name="source">Source sequence.</param>
-    /// <param name="predicate">Predicate.</param>
-    /// <returns>Tuple of (trueSequence, falseSequence).</returns>
-    public static (IObservable<T> True, IObservable<T> False) Partition<T>(this IObservable<T> source, Func<T, bool> predicate)
-    {
-        var published = source.Publish().RefCount();
-        return (published.Where(predicate), published.Where(x => !predicate(x)));
-    }
-
-    /// <summary>
-    /// Buffers items until inactivity period elapses then emits and resets buffer.
-    /// </summary>
-    /// <typeparam name="T">Element type.</typeparam>
-    /// <param name="source">Source sequence.</param>
-    /// <param name="inactivityPeriod">Inactivity period.</param>
+    /// <typeparam name="T">Disposable type.</typeparam>
+    /// <param name="obj">Object to use.</param>
+    /// <param name="action">Action to run.</param>
     /// <param name="scheduler">Scheduler.</param>
-    /// <returns>Sequence of buffered lists.</returns>
-    public static IObservable<IList<T>> BufferUntilInactive<T>(this IObservable<T> source, TimeSpan inactivityPeriod, IScheduler? scheduler = null)
-    {
-        scheduler ??= Scheduler.Default;
-        return Observable.Create<IList<T>>(observer =>
-        {
-            object gate = new();
-            List<T> buffer = [];
-            SerialDisposable timer = new();
+    /// <returns>Completion signal.</returns>
+    public static IObservable<Unit> Using<T>(this T obj, Action<T> action, IScheduler? scheduler = null)
+        where T : IDisposable =>
+        Observable.Using(() => obj, id => Start(() => action?.Invoke(id), scheduler));
 
-            void Flush()
-            {
-                List<T>? toEmit = null;
-                lock (gate)
-                {
-                    if (buffer.Count > 0)
-                    {
-                        toEmit = buffer;
-                        buffer = [];
-                    }
-                }
-
-                if (toEmit != null)
-                {
-                    observer.OnNext(toEmit);
-                }
-            }
-
-            void ScheduleFlush() => timer.Disposable = scheduler.Schedule(inactivityPeriod, Flush);
-
-            var subscription = source.Subscribe(
-                x =>
-                {
-                    lock (gate)
-                    {
-                        buffer.Add(x);
-                        ScheduleFlush();
-                    }
-                },
-                ex =>
-                {
-                    Flush();
-                    observer.OnError(ex);
-                },
-                () =>
-                {
-                    Flush();
-                    observer.OnCompleted();
-                });
-
-            return new CompositeDisposable(subscription, timer);
-        });
-    }
+    /// <summary>
+    /// Using helper with Func.
+    /// </summary>
+    /// <typeparam name="T">Disposable type.</typeparam>
+    /// <typeparam name="TResult">Result type.</typeparam>
+    /// <param name="obj">Object to use.</param>
+    /// <param name="function">Function to invoke.</param>
+    /// <param name="scheduler">Scheduler.</param>
+    /// <returns>Observable of result.</returns>
+    public static IObservable<TResult> Using<T, TResult>(this T obj, Func<T, TResult> function, IScheduler? scheduler = null)
+        where T : IDisposable =>
+        Observable.Using(() => obj, id => Start(() => function.Invoke(id), scheduler));
 
     /// <summary>
     /// Emits the first element matching predicate then completes.
@@ -1218,46 +1294,95 @@ public static class ReactiveExtensions
         source.Where(predicate).Take(1);
 
     /// <summary>
-    /// Executes an action at subscription time.
+    /// Filters to false values only.
     /// </summary>
-    /// <typeparam name="T">Element type.</typeparam>
-    /// <param name="source">Source sequence.</param>
-    /// <param name="action">Action to run on subscribe.</param>
-    /// <returns>Original sequence with subscribe side-effect.</returns>
-    public static IObservable<T> DoOnSubscribe<T>(this IObservable<T> source, Action action) =>
-        Observable.Create<T>(o =>
-        {
-            action();
-            return source.Subscribe(o);
-        });
+    /// <param name="source">Boolean source.</param>
+    /// <returns>Sequence of false values.</returns>
+    public static IObservable<bool> WhereFalse(this IObservable<bool> source) => source.Where(b => !b);
 
     /// <summary>
-    /// Executes an action when subscription is disposed.
+    /// Returns only values that are not null.
+    /// Converts the nullability.
     /// </summary>
-    /// <typeparam name="T">Element type.</typeparam>
-    /// <param name="source">Source sequence.</param>
-    /// <param name="disposeAction">Action to run on dispose.</param>
-    /// <returns>Original sequence with dispose side-effect.</returns>
-    public static IObservable<T> DoOnDispose<T>(this IObservable<T> source, Action disposeAction) =>
-        Observable.Create<T>(o =>
+    /// <typeparam name="T">The type of value emitted by the observable.</typeparam>
+    /// <param name="observable">The observable that can contain nulls.</param>
+    /// <returns>A non nullable version of the observable that only emits valid values.</returns>
+    public static IObservable<T> WhereIsNotNull<T>(this IObservable<T> observable) =>
+        observable
+            .Where(x => x is not null)!;
+
+    /// <summary>
+    /// Filters to true values only.
+    /// </summary>
+    /// <param name="source">Boolean source.</param>
+    /// <returns>Sequence of true values.</returns>
+    public static IObservable<bool> WhereTrue(this IObservable<bool> source) => source.Where(b => b);
+
+    /// <summary>
+    /// While construct.
+    /// </summary>
+    /// <param name="condition">Condition to evaluate.</param>
+    /// <param name="action">Action to execute.</param>
+    /// <param name="scheduler">Scheduler.</param>
+    /// <returns>Observable representing the loop.</returns>
+    public static IObservable<Unit> While(Func<bool> condition, Action action, IScheduler? scheduler = null) =>
+        Observable.Create<Unit>(observer =>
         {
-            var disp = source.Subscribe(o);
-            return Disposable.Create(() =>
+            scheduler ??= Scheduler.Immediate;
+            return scheduler.Schedule(self =>
             {
+                bool shouldContinue;
                 try
                 {
-                    disp.Dispose();
+                    shouldContinue = condition();
                 }
-                finally
+                catch (Exception ex)
                 {
-                    disposeAction();
+                    observer.OnError(ex);
+                    return;
                 }
+
+                if (!shouldContinue)
+                {
+                    observer.OnCompleted();
+                    return;
+                }
+
+                try
+                {
+                    action();
+                    observer.OnNext(Unit.Default);
+                }
+                catch (Exception ex)
+                {
+                    observer.OnError(ex);
+                    return;
+                }
+
+                self(); // recurse for next iteration
             });
         });
 
+    /// <summary>
+    /// Executes with limited concurrency.
+    /// </summary>
+    /// <typeparam name="T">The result type.</typeparam>
+    /// <param name="taskFunctions">Tasks to execute.</param>
+    /// <param name="maxConcurrency">Maximum concurrency.</param>
+    /// <returns>A sequence of task results.</returns>
+    public static IObservable<T> WithLimitedConcurrency<T>(this IEnumerable<Task<T>> taskFunctions, int maxConcurrency) =>
+        new ConcurrencyLimiter<T>(taskFunctions, maxConcurrency).IObservable;
+
     private static void FastForEach<T>(IObserver<T> observer, IEnumerable<T> source)
     {
-        if (source is List<T> fullList)
+        if (source is T[] array)
+        {
+            foreach (var item in array)
+            {
+                observer.OnNext(item);
+            }
+        }
+        else if (source is List<T> fullList)
         {
             foreach (var item in fullList)
             {
@@ -1267,13 +1392,6 @@ public static class ReactiveExtensions
         else if (source is IList<T> list)
         {
             foreach (var item in EnumerableIList.Create(list))
-            {
-                observer.OnNext(item);
-            }
-        }
-        else if (source is T[] array)
-        {
-            foreach (var item in array)
             {
                 observer.OnNext(item);
             }

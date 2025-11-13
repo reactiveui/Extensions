@@ -1876,7 +1876,7 @@ public class ReactiveExtensionsTests
     }
 
     /// <summary>
-    /// Tests BufferUntilInactive buffers values during activity and emits when inactive.
+    /// Tests BufferUntilInactive buffers values until inactivity.
     /// </summary>
     [Test]
     public void BufferUntilInactive_BuffersValuesUntilInactivity()
@@ -1952,5 +1952,51 @@ public class ReactiveExtensionsTests
         scheduler.ScheduleSafe(TimeSpan.FromMilliseconds(10), () => executed = true);
 
         Assert.That(executed, Is.True);
+    }
+
+    /// <summary>
+    /// Tests While emits until condition becomes false.
+    /// </summary>
+    [Test]
+    public void While_EmitsUntilConditionFalse()
+    {
+        var executed = 0;
+
+        ReactiveExtensions.While(
+            () => executed < 3,
+            () => executed++,
+            Scheduler.Immediate)
+        .Subscribe();
+
+        Assert.That(executed, Is.EqualTo(3));
+    }
+
+    /// <summary>
+    /// Tests CatchAndReturn with exception mapping.
+    /// </summary>
+    [Test]
+    public void CatchAndReturn_WithExceptionMapping_ReturnsFallback()
+    {
+        var subject = new Subject<int>();
+        var results = new List<int>();
+
+        subject.CatchAndReturn<int, InvalidOperationException>(_ => 99).Subscribe(results.Add);
+
+        subject.OnNext(1);
+        subject.OnError(new InvalidOperationException());
+
+        Assert.That(results, Is.EquivalentTo(new[] { 1, 99 }));
+    }
+
+    /// <summary>
+    /// Tests Start with function returns result.
+    /// </summary>
+    [Test]
+    public void Start_WithFunction_ReturnsResult()
+    {
+        int? result = null;
+        ReactiveExtensions.Start(() => 21 * 2, Scheduler.Immediate).Subscribe(x => result = x);
+
+        Assert.That(result, Is.EqualTo(42));
     }
 }
