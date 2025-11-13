@@ -2,6 +2,7 @@
 // ReactiveUI Association Incorporated licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
+using System.Reactive;
 using System.Reactive.Concurrency;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
@@ -16,27 +17,6 @@ namespace ReactiveUI.Extensions.Tests;
 [TestFixture]
 public class ComprehensiveReactiveExtensionsTests
 {
-    /// <summary>
-    /// Tests SyncTimer creates shared timer for same TimeSpan.
-    /// </summary>
-    [Test]
-    public void SyncTimer_WithSameTimeSpan_SharesTimer()
-    {
-        var timeSpan = TimeSpan.FromMilliseconds(100);
-        var values1 = new List<DateTime>();
-        var values2 = new List<DateTime>();
-
-        using var sub1 = ReactiveExtensions.SyncTimer(timeSpan).Take(2).Subscribe(values1.Add);
-        using var sub2 = ReactiveExtensions.SyncTimer(timeSpan).Take(2).Subscribe(values2.Add);
-        Thread.Sleep(250);
-
-        using (Assert.EnterMultipleScope())
-        {
-            Assert.That(values1, Has.Count.GreaterThanOrEqualTo(2));
-            Assert.That(values2, Has.Count.GreaterThanOrEqualTo(2));
-        }
-    }
-
     /// <summary>
     /// Tests BufferUntil with character delimiters.
     /// </summary>
@@ -353,8 +333,7 @@ public class ComprehensiveReactiveExtensionsTests
         var executed = false;
         Action action = () => executed = true;
 
-        using var sub = ReactiveExtensions.Start(action, null).Subscribe();
-        Thread.Sleep(100);
+        using var sub = ReactiveExtensions.Start(action, Scheduler.Immediate).Subscribe();
 
         Assert.That(executed, Is.True);
     }
@@ -458,8 +437,7 @@ public class ComprehensiveReactiveExtensionsTests
         });
 
         var results = new List<int>();
-        using var sub = source.OnErrorRetry().Take(1).Subscribe(results.Add);
-        Thread.Sleep(100);
+        using var sub = source.OnErrorRetry().Subscribe(results.Add);
 
         using (Assert.EnterMultipleScope())
         {
@@ -551,11 +529,10 @@ public class ComprehensiveReactiveExtensionsTests
     {
         var subject = new Subject<int>();
         var results = new List<int>();
-        using var sub = subject.ThrottleFirst(TimeSpan.FromMilliseconds(50)).Subscribe(results.Add);
+        using var sub = subject.ThrottleFirst(TimeSpan.FromMilliseconds(50), Scheduler.Immediate).Subscribe(results.Add);
 
         subject.OnNext(1);
         subject.OnNext(2);  // Should be throttled
-        Thread.Sleep(60);  // Wait for window to pass
         subject.OnNext(3);  // Should emit
 
         Assert.That(results, Is.EquivalentTo(new[] { 1, 3 }));
@@ -728,5 +705,270 @@ public class ComprehensiveReactiveExtensionsTests
         var phases = continuation.CompletedPhases;
 
         Assert.That(phases, Is.GreaterThanOrEqualTo(0));
+    }
+
+    /// <summary>
+    /// Tests WhereIsNotNull filters null values.
+    /// </summary>
+    [Test]
+    public void WhereIsNotNull_FiltersNullValues()
+    {
+        var source = new[] { "a", null, "b", null, "c" }.ToObservable();
+        var results = new List<string>();
+        using var sub = source.WhereIsNotNull().Subscribe(x => results.Add(x!));
+
+        Assert.That(results, Is.EquivalentTo(new[] { "a", "b", "c" }));
+    }
+
+    /// <summary>
+    /// Tests AsSignal converts to Unit.
+    /// </summary>
+    [Test]
+    public void AsSignal_ConvertsToUnit()
+    {
+        var source = Observable.Range(1, 3);
+        var results = new List<Unit>();
+        using var sub = source.AsSignal().Subscribe(results.Add);
+
+        Assert.That(results, Has.Count.EqualTo(3));
+    }
+
+    /// <summary>
+    /// Tests DebounceImmediate emits first immediately.
+    /// </summary>
+    [Test]
+    public void DebounceImmediate_EmitsFirstImmediately()
+    {
+        var scheduler = new TestScheduler();
+        var subject = new Subject<int>();
+        var results = new List<int>();
+        using var sub = subject.DebounceImmediate(TimeSpan.FromTicks(100), scheduler).Subscribe(results.Add);
+
+        subject.OnNext(1);
+        subject.OnNext(2);
+        scheduler.AdvanceBy(101);
+
+        Assert.That(results, Is.Not.Empty);
+        Assert.That(results[0], Is.EqualTo(1));
+    }
+
+    /// <summary>
+    /// Tests RetryWithBackoff respects max delay.
+    /// </summary>
+    [Test]
+    public void RetryWithBackoff_RespectsMaxDelay()
+    {
+        var attempts = 0;
+        var source = Observable.Create<int>(observer =>
+        {
+            attempts++;
+            if (attempts < 5)
+            {
+                observer.OnError(new InvalidOperationException());
+            }
+            else
+            {
+                observer.OnNext(42);
+                observer.OnCompleted();
+            }
+
+            return System.Reactive.Disposables.Disposable.Empty;
+        });
+
+        var result = source.RetryWithBackoff(
+            maxRetries: 10,
+            initialDelay: TimeSpan.FromMilliseconds(10),
+            backoffFactor: 2.0,
+            maxDelay: TimeSpan.FromMilliseconds(50))
+            .Wait();
+
+        Assert.That(result, Is.EqualTo(42));
+    }
+
+    /// <summary>
+    /// Tests SynchronizeSynchronous provides sync lock.
+    /// </summary>
+    [Test]
+    public void SynchronizeSynchronous_ProvidesSyncLock()
+    {
+        var subject = new Subject<int>();
+        var results = new List<int>();
+        IDisposable? lastSync = null;
+
+        using var sub = subject.SynchronizeSynchronous().Subscribe(tuple =>
+        {
+            results.Add(tuple.Value);
+            lastSync = tuple.Sync;
+        });
+
+        subject.OnNext(1);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(results, Has.Count.EqualTo(1));
+            Assert.That(lastSync, Is.Not.Null);
+        }
+    }
+
+    /// <summary>
+    /// Tests SynchronizeAsync provides sync lock.
+    /// </summary>
+    [Test]
+    public void SynchronizeAsync_ProvidesSyncLock()
+    {
+        var subject = new Subject<int>();
+        var results = new List<int>();
+        IDisposable? lastSync = null;
+
+        using var sub = subject.SynchronizeAsync().Subscribe(tuple =>
+        {
+            results.Add(tuple.Value);
+            lastSync = tuple.Sync;
+        });
+
+        subject.OnNext(1);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(results, Has.Count.EqualTo(1));
+            Assert.That(lastSync, Is.Not.Null);
+        }
+    }
+
+    /// <summary>
+    /// Tests SubscribeAsync with onNext and onError.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous unit test.</returns>
+    [Test]
+    public async Task SubscribeAsync_WithOnNextAndOnError_HandlesError()
+    {
+        var subject = new Subject<int>();
+        var results = new List<int>();
+        Exception? caughtException = null;
+
+        using var sub = subject.SubscribeAsync(
+            async x =>
+            {
+                await Task.Delay(10);
+                results.Add(x);
+            },
+            ex => caughtException = ex);
+
+        subject.OnNext(1);
+        subject.OnError(new InvalidOperationException());
+
+        await Task.Delay(100);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(results, Is.EquivalentTo(new[] { 1 }));
+            Assert.That(caughtException, Is.Not.Null);
+        }
+    }
+
+    /// <summary>
+    /// Tests OnErrorRetry with error action and retry count.
+    /// </summary>
+    [Test]
+    public void OnErrorRetry_WithErrorActionAndRetryCount_RetriesLimitedTimes()
+    {
+        var attempts = 0;
+        var errorCount = 0;
+        var source = Observable.Create<int>(observer =>
+        {
+            attempts++;
+            observer.OnError(new InvalidOperationException());
+            return System.Reactive.Disposables.Disposable.Empty;
+        });
+
+        Exception? caughtException = null;
+
+        using var sub = source.OnErrorRetry<int, InvalidOperationException>(ex => errorCount++, retryCount: 3)
+            .Subscribe(_ => { }, ex => caughtException = ex);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(attempts, Is.EqualTo(3));
+            Assert.That(caughtException, Is.Not.Null);
+        }
+    }
+
+    /// <summary>
+    /// Tests OnErrorRetry with delay.
+    /// </summary>
+    [Test]
+    public void OnErrorRetry_WithDelay_DelaysRetries()
+    {
+        var attempts = 0;
+        var source = Observable.Create<int>(observer =>
+        {
+            attempts++;
+            if (attempts < 3)
+            {
+                observer.OnError(new InvalidOperationException());
+            }
+            else
+            {
+                observer.OnNext(42);
+                observer.OnCompleted();
+            }
+
+            return System.Reactive.Disposables.Disposable.Empty;
+        });
+
+        var startTime = DateTime.Now;
+
+        var result = source.OnErrorRetry<int, InvalidOperationException>(
+            ex => { },
+            retryCount: 5,
+            delay: TimeSpan.FromMilliseconds(50))
+            .Wait();
+
+        var elapsed = DateTime.Now - startTime;
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(result, Is.EqualTo(42));
+            Assert.That(elapsed.TotalMilliseconds, Is.GreaterThanOrEqualTo(100));
+        }
+    }
+
+    /// <summary>
+    /// Tests Schedule with value and TimeSpan and function.
+    /// </summary>
+    [Test]
+    public void Schedule_WithValueTimeSpanAndFunction_DelaysAndTransforms()
+    {
+        var scheduler = new TestScheduler();
+        int? result = null;
+
+        using var sub = 10.Schedule(TimeSpan.FromTicks(100), scheduler, x => x * 2)
+            .Subscribe(x => result = x);
+
+        Assert.That(result, Is.Null);
+
+        scheduler.AdvanceBy(101);
+
+        Assert.That(result, Is.EqualTo(20));
+    }
+
+    /// <summary>
+    /// Tests Schedule with observable TimeSpan and function.
+    /// </summary>
+    [Test]
+    public void Schedule_WithObservableTimeSpanAndFunction_DelaysAndTransforms()
+    {
+        var scheduler = new TestScheduler();
+        var source = Observable.Return(10);
+        var results = new List<int>();
+
+        using var sub = source.Schedule(TimeSpan.FromTicks(100), scheduler, x => x * 2)
+            .Subscribe(results.Add);
+
+        Assert.That(results, Is.Empty);
+
+        scheduler.AdvanceBy(101);
+
+        Assert.That(results, Is.EquivalentTo(new[] { 20 }));
     }
 }

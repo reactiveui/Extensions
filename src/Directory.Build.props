@@ -21,6 +21,7 @@
     <IsTestProject>$(MSBuildProjectName.Contains('Tests'))</IsTestProject>
     <DebugType>embedded</DebugType>
     <NoWarn>$(NoWarn);SA1010</NoWarn>
+    <WarningsAsErrors>Nullable</WarningsAsErrors>
 
     <!-- Publish the repository URL in the built .nupkg (in the NuSpec <Repository> element) -->
     <PublishRepositoryUrl>true</PublishRepositoryUrl>
