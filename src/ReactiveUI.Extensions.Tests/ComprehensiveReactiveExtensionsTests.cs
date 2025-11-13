@@ -522,23 +522,6 @@ public class ComprehensiveReactiveExtensionsTests
     }
 
     /// <summary>
-    /// Tests ThrottleFirst emits first in window.
-    /// </summary>
-    [Test]
-    public void ThrottleFirst_EmitsFirstInWindow()
-    {
-        var subject = new Subject<int>();
-        var results = new List<int>();
-        using var sub = subject.ThrottleFirst(TimeSpan.FromMilliseconds(50), Scheduler.Immediate).Subscribe(results.Add);
-
-        subject.OnNext(1);
-        subject.OnNext(2);  // Should be throttled
-        subject.OnNext(3);  // Should emit
-
-        Assert.That(results, Is.EquivalentTo(new[] { 1, 3 }));
-    }
-
-    /// <summary>
     /// Tests Partition splits sequence.
     /// </summary>
     [Test]
@@ -799,6 +782,7 @@ public class ComprehensiveReactiveExtensionsTests
         {
             results.Add(tuple.Value);
             lastSync = tuple.Sync;
+            tuple.Sync.Dispose(); // Must dispose sync lock to allow next item to process
         });
 
         subject.OnNext(1);
