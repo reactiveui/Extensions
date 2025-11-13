@@ -1,11 +1,21 @@
+<a href="https://www.nuget.org/packages/splat">
+        <img src="https://img.shields.io/nuget/dt/reactiveui.extensions.svg">
+</a>
+<a href="https://reactiveui.net/slack">
+        <img src="https://img.shields.io/badge/chat-slack-blue.svg">
+</a>
+
+[![Build](https://github.com/reactiveui/Extensions/actions/workflows/ci-build.yml/badge.svg)](https://github.com/reactiveui/Extensions/actions/workflows/ci-build.yml)
+[![codecov](https://codecov.io/gh/reactiveui/Extensions/graph/badge.svg?token=7u1lNF5imh)](https://codecov.io/gh/reactiveui/Extensions)
+
 # ReactiveUI.Extensions
 
-A focused collection of high–value Reactive Extensions (Rx) operators that do **not** ship with `System.Reactive` but are commonly needed when building reactive .NET applications.
+A focused collection of highâ€“value Reactive Extensions (Rx) operators that do **not** ship with `System.Reactive` but are commonly needed when building reactive .NET applications.
 
 The goal of this library is to:  
 - Reduce boilerplate for frequent reactive patterns (timers, buffering, throttling, heartbeats, etc.)  
 - Provide pragmatic, allocation?aware helpers for performance sensitive scenarios  
-- Avoid additional dependencies – only `System.Reactive` is required
+- Avoid additional dependencies â€“ only `System.Reactive` is required
 
 Supported Target Frameworks: `.NET Standard 2.0`, `.NET 8`, `.NET 9`, `.NET 10`.
 
@@ -255,7 +265,7 @@ subj.OnNext(1, 2, 3, 4);
 ## Performance Notes
 - `FastForEach` path avoids iterator allocations for `List<T>`, `IList<T>`, and arrays.
 - `SyncTimer` ensures only one shared timer per period reducing timer overhead.
-- `Conflate` helps tame high–frequency producers without dropping the final value of a burst.
+- `Conflate` helps tame highâ€“frequency producers without dropping the final value of a burst.
 - `Heartbeat` and `DetectStale` use lightweight scheduling primitives.
 - Most operators avoid capturing lambdas in hot loops where practical.
 
@@ -265,11 +275,11 @@ subj.OnNext(1, 2, 3, 4);
 - Methods returning shared observables (`SyncTimer`, `Partition` result sequences) are safe for multi-subscriber usage unless the upstream is inherently side-effecting.
 
 ## License
-MIT – see LICENSE file.
+MIT â€“ see LICENSE file.
 
 ---
 ## Contributing
-Issues / PRs welcome. Please keep additions dependency–free and focused on broadly useful reactive patterns.
+Issues / PRs welcome. Please keep additions dependencyâ€“free and focused on broadly useful reactive patterns.
 
 ---
 ## Change Log (Excerpt)
