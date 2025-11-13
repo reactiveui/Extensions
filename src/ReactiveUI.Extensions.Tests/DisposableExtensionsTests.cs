@@ -5,8 +5,7 @@
 using System;
 using System.Reactive.Disposables;
 using System.Reactive.Disposables.Fluent;
-using FluentAssertions;
-using Xunit;
+using NUnit.Framework;
 
 namespace ReactiveUI.Extensions.Tests;
 
@@ -18,25 +17,23 @@ public class DisposableExtensionsTests
     /// <summary>
     /// Tests DisposeWith returns a disposable.
     /// </summary>
-    [Fact]
+    [Test]
     public void GivenNull_WhenDisposeWith_ThenExceptionThrown()
     {
         // Given
         var sut = Disposable.Create(() => { });
 
         // When
-        var result = Record.Exception(() => sut.DisposeWith(null!));
+        var result = Assert.Catch<Exception>(() => sut.DisposeWith(null!));
 
         // Then
-        result
-            .Should()
-            .BeOfType<ArgumentNullException>();
+        Assert.That(result, Is.TypeOf<ArgumentNullException>());
     }
 
     /// <summary>
     /// Tests DisposeWith disposes the underlying disposable.
     /// </summary>
-    [Fact]
+    [Test]
     public void GivenDisposable_WhenDisposeWith_ThenDisposed()
     {
         // Given
@@ -48,15 +45,13 @@ public class DisposableExtensionsTests
         compositeDisposable.Dispose();
 
         // Then
-        sut.IsDisposed
-            .Should()
-            .BeTrue();
+        Assert.That(sut.IsDisposed, Is.True);
     }
 
     /// <summary>
     /// Tests DisposeWith returns the original disposable.
     /// </summary>
-    [Fact]
+    [Test]
     public void GivenDisposable_WhenDisposeWith_ThenReturnsDisposable()
     {
         // Given, When
@@ -65,7 +60,6 @@ public class DisposableExtensionsTests
         var result = sut.DisposeWith(compositeDisposable);
 
         // Then
-        sut.Should()
-            .BeEquivalentTo(result);
+        Assert.That(result, Is.SameAs(sut));
     }
 }

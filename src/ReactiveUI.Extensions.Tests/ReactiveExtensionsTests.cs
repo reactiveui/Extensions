@@ -8,8 +8,7 @@ using System.Reactive.Linq;
 using System.Reactive.Subjects;
 using System.Threading;
 using System.Threading.Tasks;
-using FluentAssertions;
-using Xunit;
+using NUnit.Framework;
 
 namespace ReactiveUI.Extensions.Tests;
 
@@ -21,7 +20,7 @@ public class ReactiveExtensionsTests
     /// <summary>
     /// Tests the WhereIsNotNull extension.
     /// </summary>
-    [Fact]
+    [Test]
     public void GivenNull_WhenWhereIsNotNull_ThenNoNotification()
     {
         // Given, When
@@ -29,15 +28,13 @@ public class ReactiveExtensionsTests
         using var disposable = Observable.Return<bool?>(null).WhereIsNotNull().Subscribe(x => result = x);
 
         // Then
-        result
-            .Should()
-            .BeNull();
+        Assert.That(result, Is.Null);
     }
 
     /// <summary>
     /// Tests the WhereIsNotNull extension.
     /// </summary>
-    [Fact]
+    [Test]
     public void GivenValue_WhenWhereIsNotNull_ThenNotification()
     {
         // Given, When
@@ -45,15 +42,13 @@ public class ReactiveExtensionsTests
         using var disposable = Observable.Return<bool?>(false).WhereIsNotNull().Subscribe(x => result = x);
 
         // Then
-        result
-            .Should()
-            .BeFalse();
+        Assert.That(result, Is.False);
     }
 
     /// <summary>
     /// Tests the AsSignal extension.
     /// </summary>
-    [Fact]
+    [Test]
     public void GivenObservable_WhenAsSignal_ThenNotifiesUnit()
     {
         // Given, When
@@ -61,15 +56,13 @@ public class ReactiveExtensionsTests
         using var disposable = Observable.Return<bool?>(false).AsSignal().Subscribe(x => result = x);
 
         // Then
-        result
-            .Should()
-            .Be(Unit.Default);
+        Assert.That(result, Is.EqualTo(Unit.Default));
     }
 
     /// <summary>
     /// Syncronizes the asynchronous runs with asynchronous tasks in subscriptions.
     /// </summary>
-    [Fact]
+    [Test]
     public void SubscribeSynchronus_RunsWithAsyncTasksInSubscriptions()
     {
         // Given, When
@@ -106,15 +99,13 @@ public class ReactiveExtensionsTests
         }
 
         // Then
-        result
-            .Should()
-            .Be(0);
+        Assert.That(result, Is.EqualTo(0));
     }
 
     /// <summary>
     /// Syncronizes the asynchronous runs with asynchronous tasks in subscriptions.
     /// </summary>
-    [Fact]
+    [Test]
     public void SyncronizeAsync_RunsWithAsyncTasksInSubscriptions()
     {
         // Given, When
@@ -153,15 +144,13 @@ public class ReactiveExtensionsTests
         }
 
         // Then
-        result
-            .Should()
-            .Be(0);
+        Assert.That(result, Is.EqualTo(0));
     }
 
     /// <summary>
     /// Syncronizes the asynchronous runs with asynchronous tasks in subscriptions.
     /// </summary>
-    [Fact]
+    [Test]
     public void SynchronizeSynchronous_RunsWithAsyncTasksInSubscriptions()
     {
         // Given, When
@@ -200,15 +189,13 @@ public class ReactiveExtensionsTests
         }
 
         // Then
-        result
-            .Should()
-            .Be(0);
+        Assert.That(result, Is.EqualTo(0));
     }
 
     /// <summary>
     /// Syncronizes the asynchronous runs with asynchronous tasks in subscriptions.
     /// </summary>
-    [Fact]
+    [Test]
     public void SubscribeAsync_RunsWithAsyncTasksInSubscriptions()
     {
         // Given, When
@@ -245,8 +232,6 @@ public class ReactiveExtensionsTests
         }
 
         // Then
-        result
-            .Should()
-            .Be(0);
+        Assert.That(result, Is.EqualTo(0));
     }
 }
