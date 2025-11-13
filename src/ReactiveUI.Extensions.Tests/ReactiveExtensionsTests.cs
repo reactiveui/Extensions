@@ -241,7 +241,7 @@ public class ReactiveExtensionsTests
     [Test]
     public void BufferUntil_WithStartAndEndChars_BuffersCorrectly()
     {
-        var subject = new Subject<char>();
+        using var subject = new Subject<char>();
         var results = new List<string>();
         using var sub = subject.BufferUntil('<', '>').Subscribe(results.Add);
 
