@@ -297,7 +297,7 @@ public class ReactiveExtensionsTests
     [Test]
     public void CatchIgnore_WithErrorAction_CallsActionAndReturnsEmpty()
     {
-        var subject = new Subject<int>();
+        using var subject = new Subject<int>();
         var results = new List<int>();
         var errorCaught = false;
         var completed = false;
