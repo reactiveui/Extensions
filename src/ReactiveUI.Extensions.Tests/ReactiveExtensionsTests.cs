@@ -3,8 +3,11 @@
 // See the LICENSE file in the project root for full license information.
 
 using System.Reactive;
+using System.Reactive.Concurrency;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
+using DynamicData;
+using Microsoft.Reactive.Testing;
 using NUnit.Framework;
 
 namespace ReactiveUI.Extensions.Tests;
