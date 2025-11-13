@@ -99,7 +99,7 @@ public class ReactiveExtensionsTests
         }
 
         // Then
-        Assert.That(result, Is.EqualTo(0));
+        Assert.That(result, Is.Zero);
     }
 
     /// <summary>
@@ -144,7 +144,7 @@ public class ReactiveExtensionsTests
         }
 
         // Then
-        Assert.That(result, Is.EqualTo(0));
+        Assert.That(result, Is.Zero);
     }
 
     /// <summary>
@@ -189,7 +189,7 @@ public class ReactiveExtensionsTests
         }
 
         // Then
-        Assert.That(result, Is.EqualTo(0));
+        Assert.That(result, Is.Zero);
     }
 
     /// <summary>
@@ -232,6 +232,6 @@ public class ReactiveExtensionsTests
         }
 
         // Then
-        Assert.That(result, Is.EqualTo(0));
+        Assert.That(result, Is.Zero);
     }
 }
