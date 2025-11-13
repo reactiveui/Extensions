@@ -232,7 +232,7 @@ public class ReactiveExtensionsTests
         Assert.That(result, Is.Zero);
     }
 
-       /// <summary>
+    /// <summary>
     /// Tests BufferUntil with character delimiters.
     /// </summary>
     [Test]
