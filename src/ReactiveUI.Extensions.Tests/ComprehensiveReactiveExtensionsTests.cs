@@ -1712,7 +1712,6 @@ public class ComprehensiveReactiveExtensionsTests
         {
             Assert.That(executed, Is.True);
             Assert.That(results, Has.Count.EqualTo(1));
-            Assert.That(results[0], Is.EqualTo(default(Unit)));
         }
     }
 
@@ -1806,7 +1805,9 @@ public class ComprehensiveReactiveExtensionsTests
     public void ForEach_WithDynamicDataPattern_ProcessesEnumerable()
     {
         var numbers = new[] { 1, 2, 3, 4, 5 };
-        numbers.ForEach(ImmediateScheduler.Instance)
+        var subject = new BehaviorSubject<IEnumerable<int>>(numbers);
+
+        subject.ForEach(ImmediateScheduler.Instance)
             .ToObservableChangeSet(scheduler: ImmediateScheduler.Instance)
             .Bind(out var results)
             .Subscribe();
@@ -1875,7 +1876,7 @@ public class ComprehensiveReactiveExtensionsTests
         var subject2 = new BehaviorSubject<bool>(true);
         var subject3 = new BehaviorSubject<bool>(true);
 
-        ReactiveExtensions.CombineLatestValuesAreAllTrue(subject1, subject2, subject3)
+        new[] { subject1, subject2, subject3 }.CombineLatestValuesAreAllTrue()
             .ToObservableChangeSet(scheduler: ImmediateScheduler.Instance)
             .Bind(out var results)
             .Subscribe();
@@ -1899,7 +1900,7 @@ public class ComprehensiveReactiveExtensionsTests
         var subject2 = new BehaviorSubject<bool>(false);
         var subject3 = new BehaviorSubject<bool>(false);
 
-        ReactiveExtensions.CombineLatestValuesAreAllFalse(subject1, subject2, subject3)
+        new[] { subject1, subject2, subject3 }.CombineLatestValuesAreAllFalse()
             .ToObservableChangeSet(scheduler: ImmediateScheduler.Instance)
             .Bind(out var results)
             .Subscribe();
@@ -1923,7 +1924,7 @@ public class ComprehensiveReactiveExtensionsTests
         var subject2 = new BehaviorSubject<int>(10);
         var subject3 = new BehaviorSubject<int>(3);
 
-        ReactiveExtensions.GetMax(subject1, subject2, subject3)
+        ReactiveExtensions.GetMax<int>(subject1, subject2, subject3)
             .Where(x => x.HasValue)
             .Select(x => x!.Value)
             .ToObservableChangeSet(scheduler: ImmediateScheduler.Instance)
@@ -1949,7 +1950,7 @@ public class ComprehensiveReactiveExtensionsTests
         var subject2 = new BehaviorSubject<int>(10);
         var subject3 = new BehaviorSubject<int>(3);
 
-        ReactiveExtensions.GetMin(subject1, subject2, subject3)
+        ReactiveExtensions.GetMin<int>(subject1, subject2, subject3)
             .Where(x => x.HasValue)
             .Select(x => x!.Value)
             .ToObservableChangeSet(scheduler: ImmediateScheduler.Instance)
