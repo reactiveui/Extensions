@@ -2,6 +2,10 @@
 // ReactiveUI Association Incorporated licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
+using System.ComponentModel;
+using System.Linq.Expressions;
+using System.Reactive.Threading.Tasks;
+
 namespace ReactiveUI.Extensions;
 
 /// <summary>
@@ -99,6 +103,18 @@ public static class ReactiveExtensions
                 });
             return new CompositeDisposable(sub);
         });
+
+    /// <summary>
+    /// Emit a batch when the stream goes quiet.
+    /// </summary>
+    /// <typeparam name="T">The type of the elements in the source sequence.</typeparam>
+    /// <param name="source">The source.</param>
+    /// <param name="idleTime">The idle time.</param>
+    /// <returns>A sequence of buffered lists.</returns>
+    public static IObservable<IList<T>> BufferUntilIdle<T>(
+        this IObservable<T> source,
+        TimeSpan idleTime) => source
+            .Publish(shared => shared.Buffer(() => shared.Throttle(idleTime)));
 
     /// <summary>
     /// Catch exception and return Observable.Empty.
@@ -346,6 +362,30 @@ public static class ReactiveExtensions
         });
 
     /// <summary>
+    /// Emit the latest value or a default if none exists.
+    /// </summary>
+    /// <typeparam name="T">The type of the source.</typeparam>
+    /// <param name="source">The source.</param>
+    /// <param name="defaultValue">The default value.</param>
+    /// <returns>A sequence that emits the latest value or the default.</returns>
+    public static IObservable<T> LatestOrDefault<T>(
+        this IObservable<T> source,
+        T defaultValue) => source
+            .StartWith(defaultValue)
+            .DistinctUntilChanged();
+
+    /// <summary>
+    /// Logs the errors. Inline error logging without terminating the stream.
+    /// </summary>
+    /// <typeparam name="T">The type of the source.</typeparam>
+    /// <param name="source">The source.</param>
+    /// <param name="logger">The logger.</param>
+    /// <returns>A sequence that logs errors.</returns>
+    public static IObservable<T> LogErrors<T>(
+        this IObservable<T> source,
+        Action<Exception> logger) => source.Do(_ => { }, ex => logger(ex));
+
+    /// <summary>
     /// Executes with limited concurrency.
     /// </summary>
     /// <typeparam name="T">The result type.</typeparam>
@@ -373,6 +413,43 @@ public static class ReactiveExtensions
     /// <returns>The source sequence whose callbacks happen on the specified scheduler.</returns>
     public static IObservable<TSource> ObserveOnSafe<TSource>(this IObservable<TSource> source, IScheduler? scheduler) =>
         scheduler == null ? source : source.ObserveOn(scheduler);
+
+    /// <summary>
+    /// Conditionally switch schedulers.
+    /// </summary>
+    /// <typeparam name="T">The type.</typeparam>
+    /// <param name="source">The source.</param>
+    /// <param name="condition">if set to <c>true</c> [condition].</param>
+    /// <param name="scheduler">The scheduler.</param>
+    /// <returns>An IObservable of T.</returns>
+    public static IObservable<T> ObserveOnIf<T>(
+        this IObservable<T> source,
+        bool condition,
+        IScheduler scheduler) => condition ? source.ObserveOn(scheduler) : source;
+
+    /// <summary>
+    /// Conditionally switch schedulers.
+    /// </summary>
+    /// <typeparam name="T">The type.</typeparam>
+    /// <param name="source">The source.</param>
+    /// <param name="condition">if set to <c>true</c> [condition].</param>
+    /// <param name="trueScheduler">The true scheduler.</param>
+    /// <param name="falseScheduler">The false scheduler.</param>
+    /// <returns>An IObservable of T.</returns>
+    public static IObservable<T> ObserveOnIf<T>(
+            this IObservable<T> source,
+            bool condition,
+            IScheduler trueScheduler,
+            IScheduler falseScheduler) => condition ? source.ObserveOn(trueScheduler) : source.ObserveOn(falseScheduler);
+
+    /// <summary>
+    /// Skip null values until the first non-null appears.
+    /// </summary>
+    /// <typeparam name="T">The type.</typeparam>
+    /// <param name="source">The source.</param>
+    /// <returns>An IObservable of T.</returns>
+    public static IObservable<T> SkipWhileNull<T>(this IObservable<T?> source)
+        where T : class => source.SkipWhile(x => x == null)!;
 
     /// <summary>
     /// Invokes the action asynchronously surfacing the result through a Unit observable.
@@ -483,6 +560,33 @@ public static class ReactiveExtensions
     /// <returns>Observable representing the loop.</returns>
     public static IObservable<Unit> While(Func<bool> condition, Action action, IScheduler? scheduler = null) =>
         Observable.While(condition, Start(action, scheduler));
+
+    /// <summary>
+    /// Sample the latest value whenever a trigger fires.
+    /// </summary>
+    /// <typeparam name="T">The type.</typeparam>
+    /// <param name="source">The source.</param>
+    /// <param name="trigger">The trigger.</param>
+    /// <returns>An IObservable of T.</returns>
+    public static IObservable<T> SampleLatest<T>(
+        this IObservable<T> source,
+        IObservable<object> trigger) => trigger
+            .WithLatestFrom(source, (_, value) => value);
+
+    /// <summary>
+    /// Scan that always emits the initial value first.
+    /// </summary>
+    /// <typeparam name="TSource">The type of the source.</typeparam>
+    /// <typeparam name="TAccumulate">The type of the accumulate.</typeparam>
+    /// <param name="source">The source.</param>
+    /// <param name="initial">The initial.</param>
+    /// <param name="accumulator">The accumulator.</param>
+    /// <returns>An IObservable of TAccumulate.</returns>
+    public static IObservable<TAccumulate> ScanWithInitial<TSource, TAccumulate>(
+        this IObservable<TSource> source,
+        TAccumulate initial,
+        Func<TAccumulate, TSource, TAccumulate> accumulator) => Observable.Return(initial)
+            .Concat(source.Scan(initial, accumulator));
 
     /// <summary>
     /// Schedules a single value after a delay.
@@ -857,6 +961,17 @@ public static class ReactiveExtensions
              });
 
     /// <summary>
+    /// Provide a fallback observable if the source completes without emitting.
+    /// </summary>
+    /// <typeparam name="T">The type.</typeparam>
+    /// <param name="source">The source.</param>
+    /// <param name="fallback">The fallback.</param>
+    /// <returns>An IObservable of T.</returns>
+    public static IObservable<T> SwitchIfEmpty<T>(
+        this IObservable<T> source,
+        IObservable<T> fallback) => source.Publish(s => s.Any().SelectMany(hasValue => hasValue ? s : fallback));
+
+    /// <summary>
     /// Synchronizes the asynchronous operations in downstream operations.
     /// Use SubscribeSynchronus instead for a simpler version.
     /// Call Sync.Dispose() to release the lock in the downstream methods.
@@ -994,6 +1109,69 @@ public static class ReactiveExtensions
         });
 
     /// <summary>
+    /// Retry with exponential.
+    /// </summary>
+    /// <typeparam name="T">The type.</typeparam>
+    /// <param name="source">The source.</param>
+    /// <param name="retryCount">The retry count.</param>
+    /// <param name="delaySelector">The delay selector.</param>
+    /// <returns>An IObservable of T.</returns>
+    public static IObservable<T> RetryWithDelay<T>(
+        this IObservable<T> source,
+        int retryCount,
+        Func<int, TimeSpan> delaySelector) =>
+        source.RetryWhen(errors =>
+            errors.SelectMany((ex, attempt) =>
+            {
+                if (attempt >= retryCount)
+                {
+                    return Observable.Throw<long>(ex);
+                }
+
+                return Observable.Timer(delaySelector(attempt));
+            }));
+
+    /// <summary>
+    /// Retries the forever with delay.
+    /// </summary>
+    /// <typeparam name="T">The type.</typeparam>
+    /// <param name="source">The source.</param>
+    /// <param name="delay">The delay.</param>
+    /// <returns>An IObservable of T.</returns>
+    public static IObservable<T> RetryForeverWithDelay<T>(this IObservable<T> source, TimeSpan delay) =>
+        source.RetryWhen(errors => errors.SelectMany(_ => Observable.Timer(delay)));
+
+    /// <summary>
+    /// Retry with fixed backoff.
+    /// </summary>
+    /// <typeparam name="T">The type.</typeparam>
+    /// <param name="source">The source.</param>
+    /// <param name="retryCount">The retry count.</param>
+    /// <param name="delay">The delay.</param>
+    /// <returns>An IObservable of T.</returns>
+    public static IObservable<T> RetryWithFixedDelay<T>(
+        this IObservable<T> source,
+        int retryCount,
+        TimeSpan delay)
+        => source.RetryWithDelay(retryCount, _ => delay);
+
+    /// <summary>
+    /// Always replay the last value, even if the source hasn’t produced one yet.
+    /// </summary>
+    /// <typeparam name="T">The type.</typeparam>
+    /// <param name="source">The source.</param>
+    /// <param name="initialValue">The initial value.</param>
+    /// <returns>An IObservable of T.</returns>
+    public static IObservable<T> ReplayLastOnSubscribe<T>(
+        this IObservable<T> source,
+        T initialValue)
+    {
+        var subject = new BehaviorSubject<T>(initialValue);
+        source.Subscribe(subject);
+        return subject.AsObservable();
+    }
+
+    /// <summary>
     /// Emits only the first value in each time window.
     /// </summary>
     /// <typeparam name="T">Element type.</typeparam>
@@ -1031,6 +1209,97 @@ public static class ReactiveExtensions
                 obs.OnCompleted);
         });
     }
+
+    /// <summary>
+    /// Throttle until a predicate becomes true.
+    /// </summary>
+    /// <typeparam name="T">The type.</typeparam>
+    /// <param name="source">The source.</param>
+    /// <param name="throttle">The throttle.</param>
+    /// <param name="predicate">The predicate.</param>
+    /// <returns>An IObservable of T.</returns>
+    public static IObservable<T> ThrottleUntilTrue<T>(
+        this IObservable<T> source,
+        TimeSpan throttle,
+        Func<T, bool> predicate) => source
+            .Select(x => predicate(x)
+                ? Observable.Return(x)
+                : Observable.Return(x).Throttle(throttle))
+            .Switch();
+
+    /// <summary>
+    /// Throttles the on scheduler.
+    /// </summary>
+    /// <typeparam name="T">The type.</typeparam>
+    /// <param name="source">The source.</param>
+    /// <param name="timeSpan">The time span.</param>
+    /// <param name="scheduler">The scheduler.</param>
+    /// <returns>An IObservable of T.</returns>
+    public static IObservable<T> ThrottleOnScheduler<T>(
+        this IObservable<T> source,
+        TimeSpan timeSpan,
+        IScheduler scheduler) => source.Throttle(timeSpan, scheduler);
+
+    /// <summary>
+    /// A safe wrapper around BehaviorSubject that exposes only the observable.
+    /// </summary>
+    /// <typeparam name="T">The type.</typeparam>
+    /// <param name="initialValue">The initial value.</param>
+    /// <returns>A tuple of IObservable and IObserver.</returns>
+    public static (IObservable<T> Observable, IObserver<T> Observer) ToReadOnlyBehavior<T>(T initialValue)
+    {
+        var subject = new BehaviorSubject<T>(initialValue);
+        return (subject.AsObservable(), subject);
+    }
+
+    /// <summary>
+    /// Convert an observable to a Task that starts immediately.
+    /// </summary>
+    /// <typeparam name="T">The type.</typeparam>
+    /// <param name="source">The source.</param>
+    /// <returns>A Task of T.</returns>
+    public static Task<T> ToHotTask<T>(this IObservable<T> source) => source.FirstAsync().ToTask();
+
+    /// <summary>
+    /// Convert a property getter into an observable that emits on change.
+    /// </summary>
+    /// <typeparam name="T">The type of the source.</typeparam>
+    /// <typeparam name="TProperty">The type of the property.</typeparam>
+    /// <param name="source">The source.</param>
+    /// <param name="propertyExpression">The property expression.</param>
+    /// <returns>An IObservable of TProperty.</returns>
+    /// <exception cref="ArgumentException">Expression must be a property.</exception>
+    public static IObservable<TProperty> ToPropertyObservable<T, TProperty>(
+        this T source,
+        Expression<Func<T, TProperty>> propertyExpression)
+        where T : INotifyPropertyChanged
+    {
+        var member = (propertyExpression.Body as MemberExpression)
+            ?? throw new ArgumentException("Expression must be a property");
+
+        var propertyName = member.Member.Name;
+
+        return Observable.FromEventPattern<PropertyChangedEventHandler, PropertyChangedEventArgs>(
+                h => source.PropertyChanged += h,
+                h => source.PropertyChanged -= h)
+            .Where(e => e.EventArgs.PropertyName == propertyName)
+            .Select(_ => propertyExpression.Compile()(source))
+            .StartWith(propertyExpression.Compile()(source));
+    }
+
+    /// <summary>
+    /// Throttle but only emit when the value actually changes.
+    /// </summary>
+    /// <typeparam name="T">Element type.</typeparam>
+    /// <param name="source">The source.</param>
+    /// <param name="throttle">The throttle.</param>
+    /// <returns>A throttled distinct sequence.</returns>
+    public static IObservable<T> ThrottleDistinct<T>(
+        this IObservable<T> source,
+        TimeSpan throttle) => source
+            .DistinctUntilChanged()
+            .Throttle(throttle)
+            .DistinctUntilChanged();
 
     /// <summary>
     /// Debounces with an immediate first emission then standard debounce behavior.
@@ -1100,6 +1369,47 @@ public static class ReactiveExtensions
     }
 
     /// <summary>
+    /// Debounce until a condition becomes true.
+    /// </summary>
+    /// <typeparam name="T">The type.</typeparam>
+    /// <param name="source">The source.</param>
+    /// <param name="debounce">The debounce.</param>
+    /// <param name="condition">The condition.</param>
+    /// <returns>An IObservable of T.</returns>
+    public static IObservable<T> DebounceUntil<T>(
+        this IObservable<T> source,
+        TimeSpan debounce,
+        Func<T, bool> condition) => source
+            .Select(x => condition(x)
+                ? Observable.Return(x)
+                : Observable.Return(x).Delay(debounce))
+            .Switch();
+
+    /// <summary>
+    /// Maps values to async operations without losing ordering or cancellation semantics.
+    /// </summary>
+    /// <typeparam name="TSource">The type of the source.</typeparam>
+    /// <typeparam name="TResult">The type of the result.</typeparam>
+    /// <param name="source">The source.</param>
+    /// <param name="asyncSelector">The asynchronous selector.</param>
+    /// <returns>An IObservable of TResult.</returns>
+    public static IObservable<TResult> SelectAsync<TSource, TResult>(
+        this IObservable<TSource> source,
+        Func<TSource, CancellationToken, Task<TResult>> asyncSelector) => source.Select(x => Observable.FromAsync(ct => asyncSelector(x, ct))).Concat();
+
+    /// <summary>
+    /// Maps values to async operations without losing ordering or cancellation semantics.
+    /// </summary>
+    /// <typeparam name="TSource">The type of the source.</typeparam>
+    /// <typeparam name="TResult">The type of the result.</typeparam>
+    /// <param name="source">The source.</param>
+    /// <param name="asyncSelector">The asynchronous selector.</param>
+    /// <returns>An IObservable of TResult.</returns>
+    public static IObservable<TResult> SelectAsync<TSource, TResult>(
+        this IObservable<TSource> source,
+        Func<TSource, Task<TResult>> asyncSelector) => source.Select(x => Observable.FromAsync(() => asyncSelector(x))).Concat();
+
+    /// <summary>
     /// Projects each element to a task executed sequentially.
     /// </summary>
     /// <typeparam name="TSource">Source element type.</typeparam>
@@ -1132,6 +1442,18 @@ public static class ReactiveExtensions
     /// <returns>Merged sequence of task results.</returns>
     public static IObservable<TResult> SelectAsyncConcurrent<TSource, TResult>(this IObservable<TSource> source, Func<TSource, Task<TResult>> selector, int maxConcurrency) =>
         source.Select(x => Observable.FromAsync(() => selector(x))).Merge(maxConcurrency);
+
+    /// <summary>
+    /// Emit (previous, current) pairs.
+    /// </summary>
+    /// <typeparam name="T">The type.</typeparam>
+    /// <param name="source">The source.</param>
+    /// <returns>An IObservable of (T Previous, T Current).</returns>
+    public static IObservable<(T Previous, T Current)> Pairwise<T>(
+        this IObservable<T> source) => source
+            .Scan((HasValue: false, Previous: default(T)!, Current: default(T)!), (acc, value) => (true, acc.Current, value))
+            .Where(x => x.HasValue)
+            .Select(x => (x.Previous, x.Current));
 
     /// <summary>
     /// Partitions a sequence into two based on predicate.
@@ -1216,6 +1538,36 @@ public static class ReactiveExtensions
     /// <returns>Sequence with first matching element.</returns>
     public static IObservable<T> WaitUntil<T>(this IObservable<T> source, Func<T, bool> predicate) =>
         source.Where(predicate).Take(1);
+
+    /// <summary>
+    /// Drop values when the previous async operation is still running.
+    /// </summary>
+    /// <typeparam name="T">The type.</typeparam>
+    /// <param name="source">The source.</param>
+    /// <param name="asyncAction">The asynchronous action.</param>
+    /// <returns>An IObservable of T.</returns>
+    public static IObservable<T> DropIfBusy<T>(
+        this IObservable<T> source,
+        Func<T, Task> asyncAction)
+    {
+        var isBusy = false;
+
+        return source
+            .Where(_ => !isBusy)
+            .SelectMany(async x =>
+            {
+                try
+                {
+                    isBusy = true;
+                    await asyncAction(x);
+                    return x;
+                }
+                finally
+                {
+                    isBusy = false;
+                }
+            });
+    }
 
     /// <summary>
     /// Executes an action at subscription time.
