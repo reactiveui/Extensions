@@ -443,6 +443,42 @@ public static class ReactiveExtensions
             IScheduler falseScheduler) => condition ? source.ObserveOn(trueScheduler) : source.ObserveOn(falseScheduler);
 
     /// <summary>
+    /// Conditionally switch schedulers based on a reactive condition.
+    /// </summary>
+    /// <typeparam name="T">The type.</typeparam>
+    /// <param name="source">The source.</param>
+    /// <param name="condition">The reactive condition.</param>
+    /// <param name="trueScheduler">The scheduler to use when condition is true.</param>
+    /// <param name="falseScheduler">The scheduler to use when condition is false.</param>
+    /// <returns>An IObservable of T.</returns>
+    public static IObservable<T> ObserveOnIf<T>(
+        this IObservable<T> source,
+        IObservable<bool> condition,
+        IScheduler trueScheduler,
+        IScheduler falseScheduler) =>
+        source.Publish(shared =>
+            condition.StartWith(false).DistinctUntilChanged()
+                .Select(c => c ? shared.ObserveOn(trueScheduler) : shared.ObserveOn(falseScheduler))
+                .Switch());
+
+    /// <summary>
+    /// Conditionally switch schedulers based on a reactive condition.
+    /// </summary>
+    /// <typeparam name="T">The type.</typeparam>
+    /// <param name="source">The source.</param>
+    /// <param name="condition">The reactive condition.</param>
+    /// <param name="scheduler">The scheduler to use when condition is true.</param>
+    /// <returns>An IObservable of T.</returns>
+    public static IObservable<T> ObserveOnIf<T>(
+        this IObservable<T> source,
+        IObservable<bool> condition,
+        IScheduler scheduler) =>
+        source.Publish(shared =>
+            condition.StartWith(false).DistinctUntilChanged()
+                .Select(c => c ? shared.ObserveOn(scheduler) : shared)
+                .Switch());
+
+    /// <summary>
     /// Skip null values until the first non-null appears.
     /// </summary>
     /// <typeparam name="T">The type.</typeparam>

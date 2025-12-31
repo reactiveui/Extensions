@@ -2074,6 +2074,81 @@ public class ReactiveExtensionsTests
     }
 
     /// <summary>
+    /// Tests ObserveOnIf with bool condition and single scheduler when true.
+    /// </summary>
+    [Test]
+    public void ObserveOnIf_WithBoolConditionTrue_ObservesOnScheduler()
+    {
+        var scheduler = new TestScheduler();
+        var subject = new Subject<int>();
+        var results = new List<int>();
+
+        subject.ObserveOnIf(true, scheduler).Subscribe(results.Add);
+
+        subject.OnNext(1);
+        Assert.That(results, Is.Empty);
+
+        scheduler.AdvanceBy(1);
+        Assert.That(results, Is.EquivalentTo([1]));
+    }
+
+    /// <summary>
+    /// Tests ObserveOnIf with bool condition and single scheduler when false.
+    /// </summary>
+    [Test]
+    public void ObserveOnIf_WithBoolConditionFalse_DoesNotObserveOnScheduler()
+    {
+        var scheduler = new TestScheduler();
+        var subject = new Subject<int>();
+        var results = new List<int>();
+
+        subject.ObserveOnIf(false, scheduler).Subscribe(results.Add);
+
+        subject.OnNext(1);
+        Assert.That(results, Is.EquivalentTo([1]));
+    }
+
+    /// <summary>
+    /// Tests ObserveOnIf with bool condition and two schedulers when true.
+    /// </summary>
+    [Test]
+    public void ObserveOnIf_WithBoolConditionTrue_ObservesOnTrueScheduler()
+    {
+        var trueScheduler = new TestScheduler();
+        var falseScheduler = new TestScheduler();
+        var subject = new Subject<int>();
+        var results = new List<int>();
+
+        subject.ObserveOnIf(true, trueScheduler, falseScheduler).Subscribe(results.Add);
+
+        subject.OnNext(1);
+        Assert.That(results, Is.Empty);
+
+        trueScheduler.AdvanceBy(1);
+        Assert.That(results, Is.EquivalentTo([1]));
+    }
+
+    /// <summary>
+    /// Tests ObserveOnIf with bool condition and two schedulers when false.
+    /// </summary>
+    [Test]
+    public void ObserveOnIf_WithBoolConditionFalse_ObservesOnFalseScheduler()
+    {
+        var trueScheduler = new TestScheduler();
+        var falseScheduler = new TestScheduler();
+        var subject = new Subject<int>();
+        var results = new List<int>();
+
+        subject.ObserveOnIf(false, trueScheduler, falseScheduler).Subscribe(results.Add);
+
+        subject.OnNext(1);
+        Assert.That(results, Is.Empty);
+
+        falseScheduler.AdvanceBy(1);
+        Assert.That(results, Is.EquivalentTo([1]));
+    }
+
+    /// <summary>
     /// Test class for INotifyPropertyChanged.
     /// </summary>
     private class TestNotifyPropertyChanged : INotifyPropertyChanged
