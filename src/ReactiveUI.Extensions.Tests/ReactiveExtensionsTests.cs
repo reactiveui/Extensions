@@ -11,6 +11,7 @@ using System.Threading;
 using DynamicData;
 using Microsoft.Reactive.Testing;
 using NUnit.Framework;
+using ReactiveUI.Extensions;
 
 namespace ReactiveUI.Extensions.Tests;
 
@@ -1157,7 +1158,7 @@ public class ReactiveExtensionsTests
     }
 
     /// <summary>
-    /// Tests Schedule with observable TimeSpan and function.
+    /// Tests Schedule with observable, TimeSpan and function.
     /// </summary>
     [Test]
     public void Schedule_WithObservableTimeSpanAndFunction_DelaysAndTransforms()
@@ -1438,7 +1439,7 @@ public class ReactiveExtensionsTests
     }
 
     /// <summary>
-    /// Tests Schedule with observable and TimeSpan and action.
+    /// Tests Schedule with observable, TimeSpan and action.
     /// </summary>
     [Test]
     public void Schedule_WithObservableTimeSpanAndAction_ExecutesAction()
@@ -1885,17 +1886,18 @@ public class ReactiveExtensionsTests
     [Test]
     public void BufferUntilIdle_BuffersUntilIdle()
     {
+        var scheduler = new TestScheduler();
         var subject = new Subject<int>();
         var results = new List<IList<int>>();
 
-        subject.BufferUntilIdle(TimeSpan.FromMilliseconds(100))
+        subject.BufferUntilIdle(TimeSpan.FromMilliseconds(100), scheduler)
             .Subscribe(results.Add);
 
         subject.OnNext(1);
         subject.OnNext(2);
-        Thread.Sleep(50);
+        scheduler.AdvanceBy(TimeSpan.FromMilliseconds(50).Ticks);
         subject.OnNext(3);
-        Thread.Sleep(150); // Wait for idle period
+        scheduler.AdvanceBy(TimeSpan.FromMilliseconds(150).Ticks); // Wait for idle period
 
         Assert.That(results, Has.Count.EqualTo(1));
         Assert.That(results[0], Is.EquivalentTo([1, 2, 3]));
@@ -2089,6 +2091,7 @@ public class ReactiveExtensionsTests
         Assert.That(results, Is.Empty);
 
         scheduler.AdvanceBy(1);
+
         Assert.That(results, Is.EquivalentTo([1]));
     }
 
