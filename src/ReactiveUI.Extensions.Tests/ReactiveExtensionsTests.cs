@@ -7,6 +7,7 @@ using System.Reactive;
 using System.Reactive.Concurrency;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
+using System.Threading;
 using DynamicData;
 using Microsoft.Reactive.Testing;
 using NUnit.Framework;
@@ -1698,7 +1699,6 @@ public class ReactiveExtensionsTests
     /// Tests SubscribeSynchronous with full callbacks.
     /// </summary>
     [Test]
-    [Ignore("SubscribeSynchronous has timing issues with async completion callbacks in tests")]
     public void SubscribeSynchronous_WithFullCallbacks_ExecutesAll()
     {
         var subject = new Subject<int>();
@@ -1719,8 +1719,13 @@ public class ReactiveExtensionsTests
         subject.OnNext(2);
         subject.OnCompleted();
 
-        // Wait for async operations
-        Thread.Sleep(50);
+        // Wait for completion callback
+        var timeout = 0;
+        while (!completed && timeout < 1000)
+        {
+            Thread.Sleep(10);
+            timeout += 10;
+        }
 
         using (Assert.EnterMultipleScope())
         {
@@ -1734,7 +1739,6 @@ public class ReactiveExtensionsTests
     /// Tests SubscribeSynchronous with onNext and onError.
     /// </summary>
     [Test]
-    [Ignore("SubscribeSynchronous has timing issues with async error callbacks in tests")]
     public void SubscribeSynchronous_WithOnNextAndOnError_HandlesError()
     {
         var subject = new Subject<int>();
@@ -1766,7 +1770,6 @@ public class ReactiveExtensionsTests
     /// Tests SubscribeSynchronous with onNext and onCompleted.
     /// </summary>
     [Test]
-    [Ignore("SubscribeSynchronous has timing issues with async completion callbacks in tests")]
     public void SubscribeSynchronous_WithOnNextAndOnCompleted_CompletesCorrectly()
     {
         var subject = new Subject<int>();

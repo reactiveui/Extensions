@@ -889,7 +889,11 @@ public static class ReactiveExtensions
     /// <param name="source">Source sequence.</param>
     /// <returns>Sequence of (value, sync handle).</returns>
     public static IObservable<(T Value, IDisposable Sync)> SynchronizeSynchronous<T>(this IObservable<T> source) =>
-        Observable.Create<(T Value, IDisposable Sync)>(observer => source.Subscribe(item => new Continuation().Lock(item, observer).Wait()));
+        Observable.Create<(T Value, IDisposable Sync)>(observer =>
+            source.Subscribe(
+                item => new Continuation().Lock(item, observer).Wait(),
+                observer.OnError,
+                observer.OnCompleted));
 
     /// <summary>
     /// Subscribes to the specified source synchronously.
