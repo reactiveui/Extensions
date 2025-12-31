@@ -1451,9 +1451,7 @@ public static class ReactiveExtensions
     /// <returns>An IObservable of (T Previous, T Current).</returns>
     public static IObservable<(T Previous, T Current)> Pairwise<T>(
         this IObservable<T> source) => source
-            .Scan((HasValue: false, Previous: default(T)!, Current: default(T)!), (acc, value) => (true, acc.Current, value))
-            .Where(x => x.HasValue)
-            .Select(x => (x.Previous, x.Current));
+            .Publish(s => s.Zip(s.Skip(1), (prev, curr) => (prev, curr)));
 
     /// <summary>
     /// Partitions a sequence into two based on predicate.
