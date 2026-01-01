@@ -1395,6 +1395,22 @@ public static class ReactiveExtensions
             .DistinctUntilChanged();
 
     /// <summary>
+    /// Throttle but only emit when the value actually changes.
+    /// </summary>
+    /// <typeparam name="T">Element type.</typeparam>
+    /// <param name="source">The source.</param>
+    /// <param name="throttle">The throttle.</param>
+    /// <param name="scheduler">The scheduler.</param>
+    /// <returns>A throttled distinct sequence.</returns>
+    public static IObservable<T> ThrottleDistinct<T>(
+        this IObservable<T> source,
+        TimeSpan throttle,
+        IScheduler scheduler) => source
+            .DistinctUntilChanged()
+            .Throttle(throttle, scheduler)
+            .DistinctUntilChanged();
+
+    /// <summary>
     /// Debounces with an immediate first emission then standard debounce behavior.
     /// </summary>
     /// <typeparam name="T">Element type.</typeparam>

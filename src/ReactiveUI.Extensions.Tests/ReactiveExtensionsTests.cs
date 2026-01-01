@@ -2017,15 +2017,17 @@ public class ReactiveExtensionsTests
     [Test]
     public void ThrottleDistinct_ThrottlesDistinct()
     {
+        var scheduler = new TestScheduler();
         var subject = new Subject<int>();
         var results = new List<int>();
 
-        subject.ThrottleDistinct(TimeSpan.FromMilliseconds(100)).Subscribe(results.Add);
+        subject.ThrottleDistinct(TimeSpan.FromTicks(100), scheduler)
+            .Subscribe(results.Add);
 
         subject.OnNext(1);
         subject.OnNext(1); // Duplicate, ignored
         subject.OnNext(2);
-        Thread.Sleep(150);
+        scheduler.AdvanceBy(101);
         subject.OnNext(2); // Duplicate after throttle
 
         Assert.That(results, Is.EquivalentTo([2]));
