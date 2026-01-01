@@ -1612,7 +1612,7 @@ public class ReactiveExtensionsTests
         source.OnErrorRetry<int, InvalidOperationException>(
                 ex => errorsCaught++,
                 retryCount: 2)
-            .Subscribe(_ => { }, _ => finalError = true, () => { });
+            .Subscribe(_ => { }, ex => finalError = true);
 
         using (Assert.EnterMultipleScope())
         {
@@ -1643,7 +1643,7 @@ public class ReactiveExtensionsTests
                 ex => errorsCaught++,
                 retryCount: 2,
                 delay: TimeSpan.FromMilliseconds(10))
-            .Subscribe(_ => { }, _ => finalError = true);
+            .Subscribe(_ => { }, ex => finalError = true);
 
         // Wait for retries
         Thread.Sleep(100);
@@ -2152,6 +2152,57 @@ public class ReactiveExtensionsTests
 
         falseScheduler.AdvanceBy(1);
         Assert.That(results, Is.EquivalentTo([1]));
+    }
+
+    /// <summary>
+    /// Tests ReplayLastOnSubscribe replays last value to new subscribers.
+    /// </summary>
+    [Test]
+    public void ReplayLastOnSubscribe_ReplaysLastValueToNewSubscribers()
+    {
+        var subject = new Subject<int>();
+        var replayed = subject.ReplayLastOnSubscribe(99);
+
+        var results1 = new List<int>();
+        using var sub1 = replayed.Subscribe(results1.Add);
+
+        // First subscriber gets initial
+        Assert.That(results1, Is.EquivalentTo([99]));
+
+        subject.OnNext(1);
+        Assert.That(results1, Is.EquivalentTo([99, 1]));
+
+        var results2 = new List<int>();
+        using var sub2 = replayed.Subscribe(results2.Add);
+
+        // Second subscriber gets last value
+        Assert.That(results2, Is.EquivalentTo([1]));
+
+        subject.OnNext(2);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(results1, Is.EquivalentTo([99, 1, 2]));
+            Assert.That(results2, Is.EquivalentTo([1, 2]));
+        }
+    }
+
+    /// <summary>
+    /// Tests DebounceUntil emits immediately when condition true, delays when false.
+    /// </summary>
+    [Test]
+    public void DebounceUntil_EmitsImmediatelyWhenConditionTrue_DelaysWhenFalse()
+    {
+        var subject = new Subject<int>();
+        var results = new List<int>();
+
+        subject.DebounceUntil(TimeSpan.FromMilliseconds(100), x => x % 2 == 0)
+            .Subscribe(results.Add);
+
+        subject.OnNext(1); // Odd, should be delayed
+        Thread.Sleep(50);
+        subject.OnNext(2); // Even, should emit immediately, cancelling delayed 1
+
+        Assert.That(results, Is.EquivalentTo([2]));
     }
 
     /// <summary>
