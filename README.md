@@ -88,16 +88,16 @@ Some overloads omitted for brevity.
 | Category | Operators |
 |----------|-----------|
 | Null & Signal | `WhereIsNotNull`, `AsSignal` |
-| Timing & Scheduling | `SyncTimer`, `Schedule` (overloads), `ScheduleSafe`, `ThrottleFirst`, `DebounceImmediate` |
+| Timing & Scheduling | `SyncTimer`, `Schedule` (overloads), `ScheduleSafe`, `ThrottleFirst`, `ThrottleDistinct`, `DebounceImmediate` |
 | Inactivity / Liveness | `Heartbeat`, `DetectStale`, `BufferUntilInactive` |
 | Error Handling | `CatchIgnore`, `CatchAndReturn`, `OnErrorRetry` (overloads), `RetryWithBackoff` |
 | Combining & Aggregation | `CombineLatestValuesAreAllTrue`, `CombineLatestValuesAreAllFalse`, `GetMax`, `GetMin`, `Partition` |
 | Logical / Boolean | `Not`, `WhereTrue`, `WhereFalse` |
-| Async / Task | `SelectAsyncSequential`, `SelectLatestAsync`, `SelectAsyncConcurrent`, `SubscribeAsync` (overloads), `SynchronizeSynchronous`, `SynchronizeAsync`, `SubscribeSynchronous` (overloads) |
+| Async / Task | `SelectAsyncSequential`, `SelectLatestAsync`, `SelectAsyncConcurrent`, `SubscribeAsync` (overloads), `SynchronizeSynchronous`, `SynchronizeAsync`, `SubscribeSynchronous` (overloads), `ToHotTask` |
 | Backpressure | `Conflate` |
-| Filtering / Conditional | `Filter` (Regex), `TakeUntil` (predicate), `WaitUntil` |
-| Buffering | `BufferUntil`, `BufferUntilInactive` |
-| Transformation & Utility | `Shuffle`, `ForEach`, `FromArray`, `Using`, `While`, `Start`, `OnNext` (params helper), `DoOnSubscribe`, `DoOnDispose` |
+| Filtering / Conditional | `Filter` (Regex), `TakeUntil` (predicate), `WaitUntil`, `SampleLatest`, `SwitchIfEmpty`, `DropIfBusy` |
+| Buffering | `BufferUntil`, `BufferUntilInactive`, `BufferUntilIdle`, `Pairwise`, `ScanWithInitial` |
+| Transformation & Utility | `Shuffle`, `ForEach`, `FromArray`, `Using`, `While`, `Start`, `OnNext` (params helper), `DoOnSubscribe`, `DoOnDispose`, `ToReadOnlyBehavior`, `ToPropertyObservable` |
 
 ---
 ## Operator Categories & Examples
@@ -128,6 +128,10 @@ var throttled = Observable.Interval(TimeSpan.FromMilliseconds(50))
 // DebounceImmediate: emit first immediately then debounce rest
 var debounced = Observable.Interval(TimeSpan.FromMilliseconds(40))
                           .DebounceImmediate(TimeSpan.FromMilliseconds(250));
+
+// ThrottleDistinct: throttle but only emit when the value actually changes
+var source = Observable.Interval(TimeSpan.FromMilliseconds(50)).Take(20);
+var distinctThrottled = source.ThrottleDistinct(TimeSpan.FromMilliseconds(200));
 ```
 
 ### Inactivity / Liveness
@@ -201,6 +205,11 @@ inputs.SubscribeAsync(async i => await Task.Delay(10));
 
 // Synchronous gate: ensures per-item async completion before next is emitted
 a inputs.SubscribeSynchronous(async i => await Task.Delay(25));
+
+// ToHotTask: convert an observable to a Task that starts immediately
+var source = Observable.Return(42);
+var task = source.ToHotTask();
+var result = await task; // 42
 ```
 
 ### Backpressure / Conflation
@@ -217,6 +226,20 @@ var untilFive = Observable.Range(1, 100).TakeUntil(x => x == 5);
 
 // WaitUntil first match then complete
 var firstEven = Observable.Range(1, 10).WaitUntil(x => x % 2 == 0);
+
+// SampleLatest: sample the latest value whenever a trigger fires
+var source = Observable.Interval(TimeSpan.FromMilliseconds(100)).Take(10);
+var trigger = Observable.Interval(TimeSpan.FromMilliseconds(300)).Take(3);
+var sampled = source.SampleLatest(trigger);
+
+// SwitchIfEmpty: provide a fallback if the source completes without emitting
+var empty = Observable.Empty<int>();
+var fallback = Observable.Return(42);
+var result = empty.SwitchIfEmpty(fallback); // emits 42
+
+// DropIfBusy: drop values if the previous async operation is still running
+var inputs = Observable.Range(1, 5);
+var processed = inputs.DropIfBusy(async x => { await Task.Delay(200); Console.WriteLine(x); });
 ```
 
 ### Buffering & Transformation
@@ -228,6 +251,18 @@ var frames = chars.BufferUntil('<', '>'); // emits "<a>", "<bc>", "<d>"
 // Shuffle arrays in-place
 var arrays = Observable.Return(new[] { 1, 2, 3, 4, 5 });
 var shuffled = arrays.Shuffle();
+
+// BufferUntilIdle: emit a batch when the stream goes quiet
+var events = Observable.Interval(TimeSpan.FromMilliseconds(100)).Take(10);
+var batches = events.BufferUntilIdle(TimeSpan.FromMilliseconds(250));
+
+// Pairwise: emit consecutive pairs
+var numbers = Observable.Range(1, 5);
+var pairs = numbers.Pairwise(); // emits (1,2), (2,3), (3,4), (4,5)
+
+// ScanWithInitial: scan that always emits the initial value first
+var values = Observable.Return(5);
+var accumulated = values.ScanWithInitial(10, (acc, x) => acc + x); // emits 10, then 15
 ```
 
 ### Subscription & Side Effects
@@ -259,6 +294,26 @@ ReactiveExtensions.While(() => counter++ < 3, () => Console.WriteLine(counter))
 // Batch push with OnNext params
 var subj = new Subject<int>();
 subj.OnNext(1, 2, 3, 4);
+
+// ToReadOnlyBehavior: create a read-only behavior subject
+var (observable, observer) = ReactiveExtensions.ToReadOnlyBehavior(10);
+observer.OnNext(20); // observable emits 10, then 20
+
+// ToPropertyObservable: observe property changes on INotifyPropertyChanged
+public class ViewModel : INotifyPropertyChanged
+{
+    private string _name;
+    public string Name
+    {
+        get => _name;
+        set { _name = value; PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Name))); }
+    }
+    public event PropertyChangedEventHandler? PropertyChanged;
+}
+
+var vm = new ViewModel();
+var nameChanges = vm.ToPropertyObservable(x => x.Name);
+vm.Name = "Hello"; // observable emits "Hello"
 ```
 
 ---
@@ -287,7 +342,11 @@ Issues / PRs welcome. Please keep additions dependency–free and focused on bro
 - Added async task projection helpers (`SelectAsyncSequential`, `SelectLatestAsync`, `SelectAsyncConcurrent`).
 - Added liveness operators (`Heartbeat`, `DetectStale`, `BufferUntilInactive`).
 - Added resilience (`RetryWithBackoff`, expanded `OnErrorRetry` overloads).
-- Added flow control (`Conflate`, `ThrottleFirst`, `DebounceImmediate`).
+- Added flow control (`Conflate`, `ThrottleFirst`, `DebounceImmediate`, `ThrottleDistinct`).
+- Added buffering and transformation operators (`BufferUntilIdle`, `Pairwise`, `ScanWithInitial`).
+- Added filtering and conditional operators (`SampleLatest`, `SwitchIfEmpty`, `DropIfBusy`).
+- Added utility operators (`ToReadOnlyBehavior`, `ToHotTask`, `ToPropertyObservable`).
+- Fixed `SynchronizeSynchronous` to properly propagate OnError and OnCompleted events.
 - Removed DisposeWith extension use System.Reactive.Disposables.Fluent from System.Reactive.
 
 ---

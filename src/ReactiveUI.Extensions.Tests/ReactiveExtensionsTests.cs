@@ -2,13 +2,16 @@
 // ReactiveUI Association Incorporated licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
+using System.ComponentModel;
 using System.Reactive;
 using System.Reactive.Concurrency;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
+using System.Threading;
 using DynamicData;
 using Microsoft.Reactive.Testing;
 using NUnit.Framework;
+using ReactiveUI.Extensions;
 
 namespace ReactiveUI.Extensions.Tests;
 
@@ -286,7 +289,7 @@ public class ReactiveExtensionsTests
 
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(results, Is.EquivalentTo(new[] { 1, 2 }));
+            Assert.That(results, Is.EquivalentTo([1, 2]));
             Assert.That(completed, Is.True);
         }
     }
@@ -309,7 +312,7 @@ public class ReactiveExtensionsTests
 
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(results, Is.EquivalentTo(new[] { 1 }));
+            Assert.That(results, Is.EquivalentTo([1]));
             Assert.That(errorCaught, Is.True);
             Assert.That(completed, Is.True);
         }
@@ -509,7 +512,7 @@ public class ReactiveExtensionsTests
 
         subject.OnNext(1, 2, 3, 4, 5);
 
-        Assert.That(results, Is.EquivalentTo(new[] { 1, 2, 3, 4, 5 }));
+        Assert.That(results, Is.EquivalentTo([1, 2, 3, 4, 5]));
     }
 
     /// <summary>
@@ -566,7 +569,7 @@ public class ReactiveExtensionsTests
         var results = new List<int>();
         using var sub = source.ForEach().Subscribe(results.Add);
 
-        Assert.That(results, Is.EquivalentTo(new[] { 1, 2, 3 }));
+        Assert.That(results, Is.EquivalentTo([1, 2, 3]));
     }
 
     /// <summary>
@@ -609,7 +612,7 @@ public class ReactiveExtensionsTests
         var results = new List<string>();
         using var sub = source.Filter(@"^test\d+$").Subscribe(results.Add);
 
-        Assert.That(results, Is.EquivalentTo(new[] { "test123", "test456" }));
+        Assert.That(results, Is.EquivalentTo(["test123", "test456"]));
     }
 
     /// <summary>
@@ -680,7 +683,7 @@ public class ReactiveExtensionsTests
         subject.OnNext(5);
         subject.OnNext(6);
 
-        Assert.That(results, Is.EquivalentTo(new[] { 1, 2, 5 }));
+        Assert.That(results, Is.EquivalentTo([1, 2, 5]));
     }
 
     /// <summary>
@@ -706,7 +709,7 @@ public class ReactiveExtensionsTests
         var results = new List<bool>();
         using var sub = source.WhereTrue().Subscribe(results.Add);
 
-        Assert.That(results, Is.EquivalentTo(new[] { true, true, true }));
+        Assert.That(results, Is.EquivalentTo([true, true, true]));
     }
 
     /// <summary>
@@ -719,7 +722,7 @@ public class ReactiveExtensionsTests
         var results = new List<bool>();
         using var sub = source.WhereFalse().Subscribe(results.Add);
 
-        Assert.That(results, Is.EquivalentTo(new[] { false, false }));
+        Assert.That(results, Is.EquivalentTo([false, false]));
     }
 
     /// <summary>
@@ -736,7 +739,7 @@ public class ReactiveExtensionsTests
         subject.OnNext(2);
         subject.OnError(new Exception());
 
-        Assert.That(results, Is.EquivalentTo(new[] { 1, 2, 99 }));
+        Assert.That(results, Is.EquivalentTo([1, 2, 99]));
     }
 
     /// <summary>
@@ -763,8 +766,8 @@ public class ReactiveExtensionsTests
 
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(trueResults, Is.EquivalentTo(new[] { 2, 4, 6, 8, 10 }));
-            Assert.That(falseResults, Is.EquivalentTo(new[] { 1, 3, 5, 7, 9 }));
+            Assert.That(trueResults, Is.EquivalentTo([2, 4, 6, 8, 10]));
+            Assert.That(falseResults, Is.EquivalentTo([1, 3, 5, 7, 9]));
         }
     }
 
@@ -783,7 +786,7 @@ public class ReactiveExtensionsTests
         subject.OnNext(7);
         subject.OnNext(9);
 
-        Assert.That(results, Is.EquivalentTo(new[] { 7 }));
+        Assert.That(results, Is.EquivalentTo([7]));
     }
 
     /// <summary>
@@ -918,7 +921,7 @@ public class ReactiveExtensionsTests
         var results = new List<string>();
         using var sub = source.WhereIsNotNull().Subscribe(x => results.Add(x!));
 
-        Assert.That(results, Is.EquivalentTo(new[] { "a", "b", "c" }));
+        Assert.That(results, Is.EquivalentTo(["a", "b", "c"]));
     }
 
     /// <summary>
@@ -1063,7 +1066,7 @@ public class ReactiveExtensionsTests
 
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(results, Is.EquivalentTo(new[] { 1 }));
+            Assert.That(results, Is.EquivalentTo([1]));
             Assert.That(caughtException, Is.Not.Null);
         }
     }
@@ -1155,7 +1158,7 @@ public class ReactiveExtensionsTests
     }
 
     /// <summary>
-    /// Tests Schedule with observable TimeSpan and function.
+    /// Tests Schedule with observable, TimeSpan and function.
     /// </summary>
     [Test]
     public void Schedule_WithObservableTimeSpanAndFunction_DelaysAndTransforms()
@@ -1171,7 +1174,7 @@ public class ReactiveExtensionsTests
 
         scheduler.AdvanceBy(101);
 
-        Assert.That(results, Is.EquivalentTo(new[] { 20 }));
+        Assert.That(results, Is.EquivalentTo([20]));
     }
 
     // ========== DynamicData Pattern Tests ==========
@@ -1196,15 +1199,15 @@ public class ReactiveExtensionsTests
             .Subscribe();
 
         // Initial minimum is 3
-        Assert.That(results, Is.EquivalentTo(new[] { 3 }));
+        Assert.That(results, Is.EquivalentTo([3]));
 
         // Change minimum to 1
         subject3.OnNext(1);
-        Assert.That(results, Is.EquivalentTo(new[] { 3, 1 }));
+        Assert.That(results, Is.EquivalentTo([3, 1]));
 
         // Change minimum to 0
         subject1.OnNext(0);
-        Assert.That(results, Is.EquivalentTo(new[] { 3, 1, 0 }));
+        Assert.That(results, Is.EquivalentTo([3, 1, 0]));
     }
 
     /// <summary>
@@ -1226,15 +1229,15 @@ public class ReactiveExtensionsTests
             .Subscribe();
 
         // Initial maximum is 10
-        Assert.That(results, Is.EquivalentTo(new[] { 10 }));
+        Assert.That(results, Is.EquivalentTo([10]));
 
         // Change maximum to 15
         subject2.OnNext(15);
-        Assert.That(results, Is.EquivalentTo(new[] { 10, 15 }));
+        Assert.That(results, Is.EquivalentTo([10, 15]));
 
         // Change maximum to 20
         subject1.OnNext(20);
-        Assert.That(results, Is.EquivalentTo(new[] { 10, 15, 20 }));
+        Assert.That(results, Is.EquivalentTo([10, 15, 20]));
     }
 
     /// <summary>
@@ -1254,23 +1257,23 @@ public class ReactiveExtensionsTests
             .Subscribe();
 
         // Initially all false
-        Assert.That(results, Is.EquivalentTo(new[] { false }));
+        Assert.That(results, Is.EquivalentTo([false]));
 
         // One true, still false
         subject1.OnNext(true);
-        Assert.That(results, Is.EquivalentTo(new[] { false, false }));
+        Assert.That(results, Is.EquivalentTo([false, false]));
 
         // Two true, still false
         subject2.OnNext(true);
-        Assert.That(results, Is.EquivalentTo(new[] { false, false, false }));
+        Assert.That(results, Is.EquivalentTo([false, false, false]));
 
         // All true
         subject3.OnNext(true);
-        Assert.That(results, Is.EquivalentTo(new[] { false, false, false, true }));
+        Assert.That(results, Is.EquivalentTo([false, false, false, true]));
 
         // Back to false
         subject1.OnNext(false);
-        Assert.That(results, Is.EquivalentTo(new[] { false, false, false, true, false }));
+        Assert.That(results, Is.EquivalentTo([false, false, false, true, false]));
     }
 
     /// <summary>
@@ -1290,19 +1293,19 @@ public class ReactiveExtensionsTests
             .Subscribe();
 
         // Initially all false - result is true
-        Assert.That(results, Is.EquivalentTo(new[] { true }));
+        Assert.That(results, Is.EquivalentTo([true]));
 
         // One becomes true - result becomes false
         subject1.OnNext(true);
-        Assert.That(results, Is.EquivalentTo(new[] { true, false }));
+        Assert.That(results, Is.EquivalentTo([true, false]));
 
         // Back to false - result becomes true
         subject1.OnNext(false);
-        Assert.That(results, Is.EquivalentTo(new[] { true, false, true }));
+        Assert.That(results, Is.EquivalentTo([true, false, true]));
 
         // Another becomes true - result becomes false
         subject2.OnNext(true);
-        Assert.That(results, Is.EquivalentTo(new[] { true, false, true, false }));
+        Assert.That(results, Is.EquivalentTo([true, false, true, false]));
     }
 
     /// <summary>
@@ -1324,7 +1327,7 @@ public class ReactiveExtensionsTests
         subject.OnNext("third");
 
         // Only non-null values collected
-        Assert.That(results, Is.EquivalentTo(new[] { "first", "second", "third" }));
+        Assert.That(results, Is.EquivalentTo(["first", "second", "third"]));
     }
 
     /// <summary>
@@ -1344,7 +1347,7 @@ public class ReactiveExtensionsTests
         subject.OnNext(true);
         subject.OnNext(false);
 
-        Assert.That(results, Is.EquivalentTo(new[] { false, true, false, true }));
+        Assert.That(results, Is.EquivalentTo([false, true, false, true]));
     }
 
     /// <summary>
@@ -1436,7 +1439,7 @@ public class ReactiveExtensionsTests
     }
 
     /// <summary>
-    /// Tests Schedule with observable and TimeSpan and action.
+    /// Tests Schedule with observable, TimeSpan and action.
     /// </summary>
     [Test]
     public void Schedule_WithObservableTimeSpanAndAction_ExecutesAction()
@@ -1585,7 +1588,7 @@ public class ReactiveExtensionsTests
         using (Assert.EnterMultipleScope())
         {
             Assert.That(errorsCaught, Is.EqualTo(1));
-            Assert.That(results, Is.EquivalentTo(new[] { 42 }));
+            Assert.That(results, Is.EquivalentTo([42]));
         }
     }
 
@@ -1609,7 +1612,7 @@ public class ReactiveExtensionsTests
         source.OnErrorRetry<int, InvalidOperationException>(
                 ex => errorsCaught++,
                 retryCount: 2)
-            .Subscribe(_ => { }, _ => finalError = true, () => { });
+            .Subscribe(_ => { }, ex => finalError = true);
 
         using (Assert.EnterMultipleScope())
         {
@@ -1640,7 +1643,7 @@ public class ReactiveExtensionsTests
                 ex => errorsCaught++,
                 retryCount: 2,
                 delay: TimeSpan.FromMilliseconds(10))
-            .Subscribe(_ => { }, _ => finalError = true);
+            .Subscribe(_ => { }, ex => finalError = true);
 
         // Wait for retries
         Thread.Sleep(100);
@@ -1697,7 +1700,6 @@ public class ReactiveExtensionsTests
     /// Tests SubscribeSynchronous with full callbacks.
     /// </summary>
     [Test]
-    [Ignore("SubscribeSynchronous has timing issues with async completion callbacks in tests")]
     public void SubscribeSynchronous_WithFullCallbacks_ExecutesAll()
     {
         var subject = new Subject<int>();
@@ -1718,12 +1720,17 @@ public class ReactiveExtensionsTests
         subject.OnNext(2);
         subject.OnCompleted();
 
-        // Wait for async operations
-        Thread.Sleep(50);
+        // Wait for completion callback
+        var timeout = 0;
+        while (!completed && timeout < 1000)
+        {
+            Thread.Sleep(10);
+            timeout += 10;
+        }
 
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(results, Is.EquivalentTo(new[] { 1, 2 }));
+            Assert.That(results, Is.EquivalentTo([1, 2]));
             Assert.That(errorHandled, Is.False);
             Assert.That(completed, Is.True);
         }
@@ -1733,7 +1740,6 @@ public class ReactiveExtensionsTests
     /// Tests SubscribeSynchronous with onNext and onError.
     /// </summary>
     [Test]
-    [Ignore("SubscribeSynchronous has timing issues with async error callbacks in tests")]
     public void SubscribeSynchronous_WithOnNextAndOnError_HandlesError()
     {
         var subject = new Subject<int>();
@@ -1756,7 +1762,7 @@ public class ReactiveExtensionsTests
 
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(results, Is.EquivalentTo(new[] { 1 }));
+            Assert.That(results, Is.EquivalentTo([1]));
             Assert.That(errorHandled, Is.True);
         }
     }
@@ -1765,7 +1771,6 @@ public class ReactiveExtensionsTests
     /// Tests SubscribeSynchronous with onNext and onCompleted.
     /// </summary>
     [Test]
-    [Ignore("SubscribeSynchronous has timing issues with async completion callbacks in tests")]
     public void SubscribeSynchronous_WithOnNextAndOnCompleted_CompletesCorrectly()
     {
         var subject = new Subject<int>();
@@ -1789,7 +1794,7 @@ public class ReactiveExtensionsTests
 
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(results, Is.EquivalentTo(new[] { 1, 2 }));
+            Assert.That(results, Is.EquivalentTo([1, 2]));
             Assert.That(completed, Is.True);
         }
     }
@@ -1817,7 +1822,7 @@ public class ReactiveExtensionsTests
         // Wait for async operations
         Thread.Sleep(50);
 
-        Assert.That(results, Is.EquivalentTo(new[] { 1, 2, 3 }));
+        Assert.That(results, Is.EquivalentTo([1, 2, 3]));
     }
 
     /// <summary>
@@ -1847,110 +1852,388 @@ public class ReactiveExtensionsTests
 
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(results, Is.EquivalentTo(new[] { 1, 2 }));
+            Assert.That(results, Is.EquivalentTo([1, 2]));
             Assert.That(completed, Is.True);
         }
     }
 
     /// <summary>
-    /// Tests ThrottleFirst emits first value and throttles subsequent values within window.
+    /// Tests ThrottleFirst emits first immediately, then ignores subsequent values within the throttle window.
     /// </summary>
     [Test]
-    public void ThrottleFirst_WithWindow_ThrottlesCorrectly()
+    public void ThrottleFirst_EmitsFirstImmediately_IgnoresSubsequentWithinWindow()
     {
         var subject = new Subject<int>();
         var results = new List<int>();
 
-        subject.ThrottleFirst(TimeSpan.FromMilliseconds(100), Scheduler.Immediate)
+        // Throttle window of 100 ms
+        subject.ThrottleFirst(TimeSpan.FromMilliseconds(100))
             .Subscribe(results.Add);
 
-        subject.OnNext(1); // Emitted
-        subject.OnNext(2); // Throttled
-        subject.OnNext(3); // Throttled
-        Thread.Sleep(150);
-        subject.OnNext(4); // Emitted (window expired)
+        subject.OnNext(1); // Should be emitted immediately
+        subject.OnNext(2); // Should be ignored (within throttle window)
+        subject.OnNext(3); // Should be ignored (within throttle window)
+        Thread.Sleep(150); // Wait for throttle window to pass
+        subject.OnNext(4); // Should be emitted
 
-        // Should only get first value and value after window expires
-        Assert.That(results, Has.Count.GreaterThanOrEqualTo(1));
-        Assert.That(results[0], Is.EqualTo(1));
+        // Verify results
+        Assert.That(results, Is.EquivalentTo([1, 4]));
     }
 
     /// <summary>
-    /// Tests BufferUntilInactive buffers values during activity and emits when inactive.
+    /// Tests BufferUntilIdle buffers values until idle period.
     /// </summary>
     [Test]
-    public void BufferUntilInactive_BuffersValuesUntilInactivity()
+    public void BufferUntilIdle_BuffersUntilIdle()
     {
         var scheduler = new TestScheduler();
         var subject = new Subject<int>();
         var results = new List<IList<int>>();
 
-        subject.BufferUntilInactive(TimeSpan.FromMilliseconds(50), scheduler)
+        subject.BufferUntilIdle(TimeSpan.FromMilliseconds(100), scheduler)
             .Subscribe(results.Add);
+
+        subject.OnNext(1);
+        subject.OnNext(2);
+        scheduler.AdvanceBy(TimeSpan.FromMilliseconds(50).Ticks);
+        subject.OnNext(3);
+        scheduler.AdvanceBy(TimeSpan.FromMilliseconds(150).Ticks); // Wait for idle period
+
+        Assert.That(results, Has.Count.EqualTo(1));
+        Assert.That(results[0], Is.EquivalentTo([1, 2, 3]));
+    }
+
+    /// <summary>
+    /// Tests DropIfBusy drops values when busy.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous unit test.</returns>
+    [Test]
+    public async Task DropIfBusy_DropsWhenBusy()
+    {
+        var subject = new Subject<int>();
+        var results = new List<int>();
+        var tcs = new TaskCompletionSource<object>();
+
+        subject.DropIfBusy(async x =>
+        {
+            await tcs.Task;
+            results.Add(x);
+        }).Subscribe();
+
+        subject.OnNext(1); // Should process
+        subject.OnNext(2); // Should drop
+        subject.OnNext(3); // Should drop
+
+        tcs.SetResult(new object()); // Complete the async action
+
+        await Task.Delay(10); // Small delay to allow processing
+
+        Assert.That(results, Is.EquivalentTo([1]));
+    }
+
+    /// <summary>
+    /// Tests Pairwise emits previous and current pairs.
+    /// </summary>
+    [Test]
+    public void Pairwise_EmitsPairs()
+    {
+        var subject = new Subject<int>();
+        var results = new List<(int Previous, int Current)>();
+
+        subject.Pairwise().Subscribe(results.Add);
 
         subject.OnNext(1);
         subject.OnNext(2);
         subject.OnNext(3);
 
-        // Advance time past inactivity period
-        scheduler.AdvanceBy(TimeSpan.FromMilliseconds(100).Ticks);
-
-        // Should have one buffer with all three values
-        Assert.That(results, Has.Count.EqualTo(1));
-        Assert.That(results[0], Is.EquivalentTo(new[] { 1, 2, 3 }));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(results, Has.Count.EqualTo(2));
+            Assert.That(results[0], Is.EqualTo((1, 2)));
+            Assert.That(results[1], Is.EqualTo((2, 3)));
+        }
     }
 
     /// <summary>
-    /// Tests ScheduleSafe with action executes immediately.
+    /// Tests ScanWithInitial starts with initial value.
     /// </summary>
     [Test]
-    public void ScheduleSafe_WithAction_ExecutesImmediately()
+    public void ScanWithInitial_StartsWithInitial()
     {
-        var executed = false;
+        var subject = new Subject<int>();
+        var results = new List<int>();
 
-        Scheduler.Immediate.ScheduleSafe(() => executed = true);
+        subject.ScanWithInitial(10, (acc, x) => acc + x).Subscribe(results.Add);
 
-        Assert.That(executed, Is.True);
+        subject.OnNext(1);
+        subject.OnNext(2);
+
+        Assert.That(results, Is.EquivalentTo([10, 11, 13]));
     }
 
     /// <summary>
-    /// Tests ScheduleSafe with null scheduler uses immediate scheduler.
+    /// Tests SampleLatest samples latest on trigger.
     /// </summary>
     [Test]
-    public void ScheduleSafe_WithNullScheduler_UsesImmediate()
+    public void SampleLatest_SamplesLatestOnTrigger()
     {
-        var executed = false;
-        IScheduler? scheduler = null;
+        var subject = new Subject<int>();
+        var trigger = new Subject<object>();
+        var results = new List<int>();
 
-        scheduler.ScheduleSafe(() => executed = true);
+        subject.SampleLatest(trigger).Subscribe(results.Add);
 
-        Assert.That(executed, Is.True);
+        subject.OnNext(1);
+        subject.OnNext(2);
+        trigger.OnNext(new object()); // Should emit 2
+        subject.OnNext(3);
+        trigger.OnNext(new object()); // Should emit 3
+
+        Assert.That(results, Is.EquivalentTo([2, 3]));
     }
 
     /// <summary>
-    /// Tests ScheduleSafe with TimeSpan executes after delay.
+    /// Tests SwitchIfEmpty switches to fallback when empty.
     /// </summary>
     [Test]
-    public void ScheduleSafe_WithTimeSpan_ExecutesAfterDelay()
+    public void SwitchIfEmpty_SwitchesWhenEmpty()
     {
-        var executed = false;
+        var emptySubject = new Subject<int>();
+        var fallbackSubject = new Subject<int>();
+        var results = new List<int>();
 
-        Scheduler.Immediate.ScheduleSafe(TimeSpan.FromMilliseconds(10), () => executed = true);
+        emptySubject.SwitchIfEmpty(fallbackSubject).Subscribe(results.Add);
 
-        Assert.That(executed, Is.True);
+        emptySubject.OnCompleted(); // Empty completes
+        fallbackSubject.OnNext(42);
+        fallbackSubject.OnCompleted();
+
+        Assert.That(results, Is.EquivalentTo([42]));
     }
 
     /// <summary>
-    /// Tests ScheduleSafe with TimeSpan and null scheduler.
+    /// Tests ThrottleDistinct throttles distinct values.
     /// </summary>
     [Test]
-    public void ScheduleSafe_WithTimeSpanAndNullScheduler_UsesImmediate()
+    public void ThrottleDistinct_ThrottlesDistinct()
     {
-        var executed = false;
-        IScheduler? scheduler = null;
+        var scheduler = new TestScheduler();
+        var subject = new Subject<int>();
+        var results = new List<int>();
 
-        scheduler.ScheduleSafe(TimeSpan.FromMilliseconds(10), () => executed = true);
+        subject.ThrottleDistinct(TimeSpan.FromTicks(100), scheduler)
+            .Subscribe(results.Add);
 
-        Assert.That(executed, Is.True);
+        subject.OnNext(1);
+        subject.OnNext(1); // Duplicate, ignored
+        subject.OnNext(2);
+        scheduler.AdvanceBy(101);
+        subject.OnNext(2); // Duplicate after throttle
+
+        Assert.That(results, Is.EquivalentTo([2]));
+    }
+
+    /// <summary>
+    /// Tests ToReadOnlyBehavior creates read-only behavior.
+    /// </summary>
+    [Test]
+    public void ToReadOnlyBehavior_CreatesReadOnly()
+    {
+        var (observable, observer) = ReactiveExtensions.ToReadOnlyBehavior(10);
+        var results = new List<int>();
+
+        observable.Subscribe(results.Add);
+
+        observer.OnNext(20);
+        observer.OnNext(30);
+
+        Assert.That(results, Is.EquivalentTo([10, 20, 30]));
+    }
+
+    /// <summary>
+    /// Tests ToHotTask converts to hot task.
+    /// </summary>
+    [Test]
+    public void ToHotTask_ConvertsToTask()
+    {
+        var subject = new Subject<int>();
+        var task = subject.ToHotTask();
+
+        subject.OnNext(42);
+
+        Assert.That(task.Result, Is.EqualTo(42));
+    }
+
+    /// <summary>
+    /// Tests ToPropertyObservable observes property changes.
+    /// </summary>
+    [Test]
+    public void ToPropertyObservable_ObservesProperty()
+    {
+        var obj = new TestNotifyPropertyChanged { TestProperty = "initial" };
+        var results = new List<string>();
+
+        obj.ToPropertyObservable(x => x.TestProperty).Subscribe(results.Add);
+
+        obj.TestProperty = "changed";
+
+        Assert.That(results, Is.EquivalentTo(["initial", "changed"]));
+    }
+
+    /// <summary>
+    /// Tests ObserveOnIf with bool condition and single scheduler when true.
+    /// </summary>
+    [Test]
+    public void ObserveOnIf_WithBoolConditionTrue_ObservesOnScheduler()
+    {
+        var scheduler = new TestScheduler();
+        var subject = new Subject<int>();
+        var results = new List<int>();
+
+        subject.ObserveOnIf(true, scheduler).Subscribe(results.Add);
+
+        subject.OnNext(1);
+        Assert.That(results, Is.Empty);
+
+        scheduler.AdvanceBy(1);
+
+        Assert.That(results, Is.EquivalentTo([1]));
+    }
+
+    /// <summary>
+    /// Tests ObserveOnIf with bool condition and single scheduler when false.
+    /// </summary>
+    [Test]
+    public void ObserveOnIf_WithBoolConditionFalse_DoesNotObserveOnScheduler()
+    {
+        var scheduler = new TestScheduler();
+        var subject = new Subject<int>();
+        var results = new List<int>();
+
+        subject.ObserveOnIf(false, scheduler).Subscribe(results.Add);
+
+        subject.OnNext(1);
+        Assert.That(results, Is.EquivalentTo([1]));
+    }
+
+    /// <summary>
+    /// Tests ObserveOnIf with bool condition and two schedulers when true.
+    /// </summary>
+    [Test]
+    public void ObserveOnIf_WithBoolConditionTrue_ObservesOnTrueScheduler()
+    {
+        var trueScheduler = new TestScheduler();
+        var falseScheduler = new TestScheduler();
+        var subject = new Subject<int>();
+        var results = new List<int>();
+
+        subject.ObserveOnIf(true, trueScheduler, falseScheduler).Subscribe(results.Add);
+
+        subject.OnNext(1);
+        Assert.That(results, Is.Empty);
+
+        trueScheduler.AdvanceBy(1);
+        Assert.That(results, Is.EquivalentTo([1]));
+    }
+
+    /// <summary>
+    /// Tests ObserveOnIf with bool condition and two schedulers when false.
+    /// </summary>
+    [Test]
+    public void ObserveOnIf_WithBoolConditionFalse_ObservesOnFalseScheduler()
+    {
+        var trueScheduler = new TestScheduler();
+        var falseScheduler = new TestScheduler();
+        var subject = new Subject<int>();
+        var results = new List<int>();
+
+        subject.ObserveOnIf(false, trueScheduler, falseScheduler).Subscribe(results.Add);
+
+        subject.OnNext(1);
+        Assert.That(results, Is.Empty);
+
+        falseScheduler.AdvanceBy(1);
+        Assert.That(results, Is.EquivalentTo([1]));
+    }
+
+    /// <summary>
+    /// Tests ReplayLastOnSubscribe replays last value to new subscribers.
+    /// </summary>
+    [Test]
+    public void ReplayLastOnSubscribe_ReplaysLastValueToNewSubscribers()
+    {
+        var subject = new Subject<int>();
+        var replayed = subject.ReplayLastOnSubscribe(99);
+
+        var results1 = new List<int>();
+        using var sub1 = replayed.Subscribe(results1.Add);
+
+        // First subscriber gets initial
+        Assert.That(results1, Is.EquivalentTo([99]));
+
+        subject.OnNext(1);
+        Assert.That(results1, Is.EquivalentTo([99, 1]));
+
+        var results2 = new List<int>();
+        using var sub2 = replayed.Subscribe(results2.Add);
+
+        // Second subscriber gets last value
+        Assert.That(results2, Is.EquivalentTo([1]));
+
+        subject.OnNext(2);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(results1, Is.EquivalentTo([99, 1, 2]));
+            Assert.That(results2, Is.EquivalentTo([1, 2]));
+        }
+    }
+
+    /// <summary>
+    /// Tests DebounceUntil emits immediately when condition true, delays when false.
+    /// </summary>
+    [Test]
+    public void DebounceUntil_EmitsImmediatelyWhenConditionTrue_DelaysWhenFalse()
+    {
+        var subject = new Subject<int>();
+        var results = new List<int>();
+
+        subject.DebounceUntil(TimeSpan.FromMilliseconds(100), x => x % 2 == 0)
+            .Subscribe(results.Add);
+
+        subject.OnNext(1); // Odd, should be delayed
+        Thread.Sleep(50);
+        subject.OnNext(2); // Even, should emit immediately, cancelling delayed 1
+
+        Assert.That(results, Is.EquivalentTo([2]));
+    }
+
+    /// <summary>
+    /// Test class for INotifyPropertyChanged.
+    /// </summary>
+    private class TestNotifyPropertyChanged : INotifyPropertyChanged
+    {
+        private string _testProperty = string.Empty;
+
+        /// <summary>
+        /// Property changed event.
+        /// </summary>
+        public event PropertyChangedEventHandler? PropertyChanged;
+
+        /// <summary>
+        /// Gets or sets the test property.
+        /// </summary>
+        /// <returns>The test property value.</returns>
+        public string TestProperty
+        {
+            get => _testProperty;
+            set
+            {
+                if (_testProperty != value)
+                {
+                    _testProperty = value;
+                    PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(TestProperty)));
+                }
+            }
+        }
     }
 }
