@@ -110,11 +110,64 @@ public static class ReactiveExtensions
     /// <typeparam name="T">The type of the elements in the source sequence.</typeparam>
     /// <param name="source">The source.</param>
     /// <param name="idleTime">The idle time.</param>
+    /// <param name="scheduler">The scheduler.</param>
     /// <returns>A sequence of buffered lists.</returns>
     public static IObservable<IList<T>> BufferUntilIdle<T>(
         this IObservable<T> source,
-        TimeSpan idleTime) => source
-            .Publish(shared => shared.Buffer(() => shared.Throttle(idleTime)));
+        TimeSpan idleTime,
+        IScheduler? scheduler = null)
+    {
+        return scheduler == null
+            ? source.Publish(shared => shared.Buffer(() => shared.Throttle(idleTime)))
+            : Observable.Create<IList<T>>(observer =>
+            {
+                object gate = new();
+                List<T> buffer = new();
+                SerialDisposable timer = new();
+
+                void Flush()
+                {
+                    List<T>? toEmit = null;
+                    lock (gate)
+                    {
+                        if (buffer.Count > 0)
+                        {
+                            toEmit = buffer;
+                            buffer = new List<T>();
+                        }
+                    }
+
+                    if (toEmit != null)
+                    {
+                        observer.OnNext(toEmit);
+                    }
+                }
+
+                void ScheduleFlush() => timer.Disposable = scheduler!.Schedule(idleTime, Flush);
+
+                var subscription = source.Subscribe(
+                    x =>
+                    {
+                        lock (gate)
+                        {
+                            buffer.Add(x);
+                            ScheduleFlush();
+                        }
+                    },
+                    ex =>
+                    {
+                        Flush();
+                        observer.OnError(ex);
+                    },
+                    () =>
+                    {
+                        Flush();
+                        observer.OnCompleted();
+                    });
+
+                return new CompositeDisposable(subscription, timer);
+            });
+    }
 
     /// <summary>
     /// Catch exception and return Observable.Empty.
