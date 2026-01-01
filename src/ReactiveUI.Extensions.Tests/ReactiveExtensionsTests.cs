@@ -1912,10 +1912,11 @@ public class ReactiveExtensionsTests
     {
         var subject = new Subject<int>();
         var results = new List<int>();
+        var tcs = new TaskCompletionSource<object>();
 
         subject.DropIfBusy(async x =>
         {
-            await Task.Delay(100);
+            await tcs.Task;
             results.Add(x);
         }).Subscribe();
 
@@ -1923,7 +1924,9 @@ public class ReactiveExtensionsTests
         subject.OnNext(2); // Should drop
         subject.OnNext(3); // Should drop
 
-        await Task.Delay(150);
+        tcs.SetResult(new object()); // Complete the async action
+
+        await Task.Delay(10); // Small delay to allow processing
 
         Assert.That(results, Is.EquivalentTo([1]));
     }
