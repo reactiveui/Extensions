@@ -34,10 +34,10 @@
   <!-- Define Target Framework Monikers (TFMs) -->
   <PropertyGroup>
     <!-- Cross-platform TFMs that work on all platforms -->
-    <NetCoreTargetFrameworks>netstandard2.0;net8.0;net9.0;net10.0</NetCoreTargetFrameworks>
+    <NetCoreTargetFrameworks>net8.0;net9.0;net10.0</NetCoreTargetFrameworks>
     
     <!-- Windows-only .NET Framework TFMs - only included on Windows builds -->
-    <NetFrameworkTargetFrameworks Condition="$([MSBuild]::IsOsPlatform('Windows'))">net462;net472</NetFrameworkTargetFrameworks>
+    <NetFrameworkTargetFrameworks Condition="$([MSBuild]::IsOsPlatform('Windows'))">net462;net472;net481</NetFrameworkTargetFrameworks>
     
     <!-- Library projects: netstandard2.0, net462, net472, net8.0, net9.0, net10.0 -->
     <LibraryTargetFrameworks>$(NetCoreTargetFrameworks)</LibraryTargetFrameworks>
