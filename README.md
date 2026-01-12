@@ -17,7 +17,7 @@ The goal of this library is to:
 - Provide pragmatic, allocation?aware helpers for performance sensitive scenarios  
 - Avoid additional dependencies – only `System.Reactive` is required
 
-Supported Target Frameworks: `.NET Standard 2.0`, `.NET 8`, `.NET 9`, `.NET 10`.
+Supported Target Frameworks: `.NET 4.6.2`, `.NET 4.7.2`, `.NET 4.8.1`, `.NET 8`, `.NET 9`, `.NET 10`.
 
 ---
 ## Table of Contents
