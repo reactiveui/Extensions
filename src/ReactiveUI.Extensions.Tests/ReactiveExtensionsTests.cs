@@ -2190,15 +2190,17 @@ public class ReactiveExtensionsTests
     [Test]
     public void DebounceUntil_EmitsImmediatelyWhenConditionTrue_DelaysWhenFalse()
     {
+        var scheduler = new TestScheduler();
         var subject = new Subject<int>();
         var results = new List<int>();
 
-        subject.DebounceUntil(TimeSpan.FromMilliseconds(100), x => x % 2 == 0)
+        subject.DebounceUntil(TimeSpan.FromTicks(100), x => x % 2 == 0, scheduler)
             .Subscribe(results.Add);
 
         subject.OnNext(1); // Odd, should be delayed
-        Thread.Sleep(50);
+        scheduler.AdvanceBy(50); // Advance less than debounce period
         subject.OnNext(2); // Even, should emit immediately, cancelling delayed 1
+        scheduler.AdvanceBy(100); // Advance past debounce period
 
         Assert.That(results, Is.EquivalentTo([2]));
     }

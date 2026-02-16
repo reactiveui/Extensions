@@ -1491,6 +1491,25 @@ public static class ReactiveExtensions
             .Switch();
 
     /// <summary>
+    /// Debounce until a condition becomes true.
+    /// </summary>
+    /// <typeparam name="T">The type.</typeparam>
+    /// <param name="source">The source.</param>
+    /// <param name="debounce">The debounce.</param>
+    /// <param name="condition">The condition.</param>
+    /// <param name="scheduler">The scheduler for the delay.</param>
+    /// <returns>An IObservable of T.</returns>
+    public static IObservable<T> DebounceUntil<T>(
+        this IObservable<T> source,
+        TimeSpan debounce,
+        Func<T, bool> condition,
+        IScheduler scheduler) => source
+            .Select(x => condition(x)
+                ? Observable.Return(x)
+                : Observable.Return(x).Delay(debounce, scheduler))
+            .Switch();
+
+    /// <summary>
     /// Maps values to async operations without losing ordering or cancellation semantics.
     /// </summary>
     /// <typeparam name="TSource">The type of the source.</typeparam>
