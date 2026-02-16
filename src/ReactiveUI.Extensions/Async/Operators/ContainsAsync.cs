@@ -14,7 +14,7 @@ namespace ReactiveUI.Extensions.Async;
 /// ObservableAsync{T} pattern for asynchronous, push-based data streams.</remarks>
 public static partial class ObservableAsync
 {
-    extension<T>(ObservableAsync<T> @this)
+    extension<T>(IObservableAsync<T> @this)
     {
         /// <summary>
         /// Asynchronously determines whether the sequence contains a specified value using the given equality comparer.

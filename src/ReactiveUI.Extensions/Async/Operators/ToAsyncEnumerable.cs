@@ -31,7 +31,7 @@ public static partial class ObservableAsync
     /// enumeration completes when the observable completes or an unhandled error occurs.</returns>
     /// <exception cref="ArgumentNullException">Thrown if <paramref name="this"/> or <paramref name="channelFactory"/> is null.</exception>
     public static IAsyncEnumerable<T> ToAsyncEnumerable<T>(
-        this ObservableAsync<T> @this,
+        this IObservableAsync<T> @this,
         Func<Channel<T>> channelFactory,
         Func<Exception, CancellationToken, ValueTask>? onErrorResume = null)
     {
@@ -48,7 +48,7 @@ public static partial class ObservableAsync
         return Impl(@this, channelFactory, onErrorResume);
 
         static async IAsyncEnumerable<T> Impl(
-            ObservableAsync<T> @this,
+            IObservableAsync<T> @this,
             Func<Channel<T>> channelFactory,
             Func<Exception, CancellationToken, ValueTask>? onErrorResume,
             [EnumeratorCancellation] CancellationToken cancellationToken = default)

@@ -24,7 +24,7 @@ public static partial class ObservableAsync
     /// <param name="error">The exception to be propagated to observers as an error notification. Cannot be null.</param>
     /// <returns>An observable sequence of type <typeparamref name="T"/> that signals the specified exception upon subscription.</returns>
     /// <exception cref="ArgumentNullException">Thrown if <paramref name="error"/> is null.</exception>
-    public static ObservableAsync<T> Throw<T>(Exception error)
+    public static IObservableAsync<T> Throw<T>(Exception error)
     {
         if (error == null)
         {
@@ -44,7 +44,7 @@ public static partial class ObservableAsync
     /// <param name="error">The exception that will be signaled to observers as the terminal error.</param>
     private sealed class ObservableAsyncThrow<T>(Exception error) : ObservableAsync<T>
     {
-        protected override async ValueTask<IAsyncDisposable> SubscribeAsyncCore(ObserverAsync<T> observer, CancellationToken cancellationToken)
+        protected override async ValueTask<IAsyncDisposable> SubscribeAsyncCore(IObserverAsync<T> observer, CancellationToken cancellationToken)
         {
             await observer.OnCompletedAsync(Result.Failure(error));
             return DisposableAsync.Empty;

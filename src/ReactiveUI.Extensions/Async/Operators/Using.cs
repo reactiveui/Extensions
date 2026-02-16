@@ -30,7 +30,7 @@ public static partial class ObservableAsync
     /// observable sequence that uses the resource.</param>
     /// <returns>An <see cref="ObservableAsync{T}"/> that uses the specified resource and ensures the resource is disposed
     /// asynchronously when the sequence completes or an error occurs.</returns>
-    public static ObservableAsync<T> Using<T, TResource>(Func<CancellationToken, ValueTask<TResource>> resourceFactory, Func<TResource, ObservableAsync<T>> observableFactory)
+    public static IObservableAsync<T> Using<T, TResource>(Func<CancellationToken, ValueTask<TResource>> resourceFactory, Func<TResource, IObservableAsync<T>> observableFactory)
         where TResource : IAsyncDisposable => Defer(async token =>
         {
             var resource = await resourceFactory(token);

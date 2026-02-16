@@ -12,7 +12,7 @@ namespace ReactiveUI.Extensions.Async;
 /// asynchronous data streams in a reactive programming style.</remarks>
 public static partial class ObservableAsync
 {
-    extension<T>(ObservableAsync<T> @this)
+    extension<T>(IObservableAsync<T> @this)
     {
         /// <summary>
         /// Returns a new observable sequence that skips the specified number of elements from the start of the source
@@ -22,7 +22,7 @@ public static partial class ObservableAsync
         /// <returns>An observable sequence that contains the elements of the source sequence after the specified number of
         /// elements have been skipped. If the count is 0, the original sequence is returned.</returns>
         /// <exception cref="ArgumentOutOfRangeException">Thrown if count is less than 0.</exception>
-        public ObservableAsync<T> Skip(int count) => count switch
+        public IObservableAsync<T> Skip(int count) => count switch
         {
             < 0 => throw new ArgumentOutOfRangeException(nameof(count)),
             0 => @this,

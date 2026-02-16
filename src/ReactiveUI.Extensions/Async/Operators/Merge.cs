@@ -28,7 +28,7 @@ public static partial class ObservableAsync
     /// <param name="this">The source asynchronous observable sequence whose elements are themselves observable sequences to be merged.
     /// Cannot be null.</param>
     /// <returns>An asynchronous observable sequence that emits items from all inner observable sequences as they are produced.</returns>
-    public static ObservableAsync<T> Merge<T>(this ObservableAsync<ObservableAsync<T>> @this) => new MergeObservableObservables<T>(@this);
+    public static IObservableAsync<T> Merge<T>(this IObservableAsync<IObservableAsync<T>> @this) => new MergeObservableObservables<T>(@this);
 
     /// <summary>
     /// Merges the emissions of multiple asynchronous observable sequences into a single observable sequence, limiting
@@ -43,7 +43,7 @@ public static partial class ObservableAsync
     /// <param name="maxConcurrent">The maximum number of inner observable sequences to subscribe to concurrently. Must be greater than zero.</param>
     /// <returns>An observable sequence that emits the items from the merged inner observable sequences, with at most the
     /// specified number of concurrent subscriptions.</returns>
-    public static ObservableAsync<T> Merge<T>(this ObservableAsync<ObservableAsync<T>> @this, int maxConcurrent) => new MergeObservableObservablesWithMaxConcurrency<T>(@this, maxConcurrent);
+    public static IObservableAsync<T> Merge<T>(this IObservableAsync<IObservableAsync<T>> @this, int maxConcurrent) => new MergeObservableObservablesWithMaxConcurrency<T>(@this, maxConcurrent);
 
     /// <summary>
     /// Combines multiple asynchronous observable sequences into a single observable sequence that emits items from all
@@ -56,7 +56,7 @@ public static partial class ObservableAsync
     /// <typeparam name="T">The type of the elements produced by the observable sequences.</typeparam>
     /// <param name="this">A collection of asynchronous observable sequences to be merged.</param>
     /// <returns>An observable sequence that emits items from all input sequences as they are produced.</returns>
-    public static ObservableAsync<T> Merge<T>(this IEnumerable<ObservableAsync<T>> @this) => new MergeEnumerableObservable<T>(@this);
+    public static IObservableAsync<T> Merge<T>(this IEnumerable<IObservableAsync<T>> @this) => new MergeEnumerableObservable<T>(@this);
 
     /// <summary>
     /// Combines the elements of two asynchronous observable sequences into a single sequence by merging their
@@ -69,11 +69,11 @@ public static partial class ObservableAsync
     /// <param name="this">The first asynchronous observable sequence to merge.</param>
     /// <param name="other">The second asynchronous observable sequence to merge with the first.</param>
     /// <returns>An ObservableAsync{T} that emits the elements from both input sequences as they arrive.</returns>
-    public static ObservableAsync<T> Merge<T>(this ObservableAsync<T> @this, ObservableAsync<T> other) => new MergeEnumerableObservable<T>([@this, other]);
+    public static IObservableAsync<T> Merge<T>(this IObservableAsync<T> @this, IObservableAsync<T> other) => new MergeEnumerableObservable<T>([@this, other]);
 
-    private sealed class MergeObservableObservables<T>(ObservableAsync<ObservableAsync<T>> sources) : ObservableAsync<T>
+    private sealed class MergeObservableObservables<T>(IObservableAsync<IObservableAsync<T>> sources) : ObservableAsync<T>
     {
-        protected override async ValueTask<IAsyncDisposable> SubscribeAsyncCore(ObserverAsync<T> observer, CancellationToken cancellationToken)
+        protected override async ValueTask<IAsyncDisposable> SubscribeAsyncCore(IObserverAsync<T> observer, CancellationToken cancellationToken)
         {
             var subscription = new MergeSubscription<T>(observer);
             try
@@ -90,9 +90,9 @@ public static partial class ObservableAsync
         }
     }
 
-    private sealed class MergeObservableObservablesWithMaxConcurrency<T>(ObservableAsync<ObservableAsync<T>> sources, int maxConcurrent) : ObservableAsync<T>
+    private sealed class MergeObservableObservablesWithMaxConcurrency<T>(IObservableAsync<IObservableAsync<T>> sources, int maxConcurrent) : ObservableAsync<T>
     {
-        protected override async ValueTask<IAsyncDisposable> SubscribeAsyncCore(ObserverAsync<T> observer, CancellationToken cancellationToken)
+        protected override async ValueTask<IAsyncDisposable> SubscribeAsyncCore(IObserverAsync<T> observer, CancellationToken cancellationToken)
         {
             var subscription = new MergeSubscriptionWithMaxConcurrency<T>(observer, maxConcurrent);
             try
@@ -118,18 +118,18 @@ public static partial class ObservableAsync
         private readonly SingleAssignmentDisposableAsync _outerDisposable = new();
         private readonly CompositeDisposableAsync _innerDisposables = new();
         private readonly AsyncGate _onSomethingGate = new();
-        private readonly ObserverAsync<T> _observer;
+        private readonly IObserverAsync<T> _observer;
         private int _innerActiveCount;
         private bool _outerCompleted;
         private bool _disposed;
 
-        public MergeSubscription(ObserverAsync<T> observer)
+        public MergeSubscription(IObserverAsync<T> observer)
         {
             _observer = observer;
             DisposedCancellationToken = _disposeCts.Token;
         }
 
-        public async ValueTask SubscribeAsync(ObservableAsync<ObservableAsync<T>> @this, CancellationToken cancellationToken)
+        public async ValueTask SubscribeAsync(IObservableAsync<IObservableAsync<T>> @this, CancellationToken cancellationToken)
         {
             using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, DisposedCancellationToken);
 
@@ -154,7 +154,7 @@ public static partial class ObservableAsync
 
         public ValueTask DisposeAsync() => CompleteAsync(null);
 
-        protected virtual async ValueTask SubscribeInnerAsync(ObservableAsync<T> inner)
+        protected virtual async ValueTask SubscribeInnerAsync(IObservableAsync<T> inner)
         {
             try
             {
@@ -228,7 +228,7 @@ public static partial class ObservableAsync
 
         protected class InnerAsyncObserver(MergeSubscription<T> parent) : ObserverAsync<T>
         {
-            public async ValueTask SubscribeAsync(ObservableAsync<T> inner)
+            public async ValueTask SubscribeAsync(IObservableAsync<T> inner)
             {
                 lock (parent._disposeCts)
                 {
@@ -265,11 +265,11 @@ public static partial class ObservableAsync
         }
     }
 
-    private sealed class MergeSubscriptionWithMaxConcurrency<T>(ObserverAsync<T> observer, int maxConcurrent) : MergeSubscription<T>(observer)
+    private sealed class MergeSubscriptionWithMaxConcurrency<T>(IObserverAsync<T> observer, int maxConcurrent) : MergeSubscription<T>(observer)
     {
         private readonly SemaphoreSlim _semaphore = new(maxConcurrent, maxConcurrent);
 
-        protected override async ValueTask SubscribeInnerAsync(ObservableAsync<T> inner)
+        protected override async ValueTask SubscribeInnerAsync(IObservableAsync<T> inner)
         {
             await _semaphore.WaitAsync(DisposedCancellationToken);
             try
@@ -296,9 +296,9 @@ public static partial class ObservableAsync
         }
     }
 
-    private sealed class MergeEnumerableObservable<T>(IEnumerable<ObservableAsync<T>> sources) : ObservableAsync<T>
+    private sealed class MergeEnumerableObservable<T>(IEnumerable<IObservableAsync<T>> sources) : ObservableAsync<T>
     {
-        protected override async ValueTask<IAsyncDisposable> SubscribeAsyncCore(ObserverAsync<T> observer, CancellationToken cancellationToken)
+        protected override async ValueTask<IAsyncDisposable> SubscribeAsyncCore(IObserverAsync<T> observer, CancellationToken cancellationToken)
         {
             var subscription = new MergeEnumerableSubscription(observer, sources);
             try
@@ -316,18 +316,18 @@ public static partial class ObservableAsync
 
         private sealed class MergeEnumerableSubscription : IAsyncDisposable
         {
-            private readonly IEnumerable<ObservableAsync<T>> _sources;
+            private readonly IEnumerable<IObservableAsync<T>> _sources;
             private readonly CompositeDisposableAsync _innerDisposables = new();
             private readonly CancellationTokenSource _cts = new();
             private readonly CancellationToken _disposedCancellationToken;
             private readonly AsyncGate _onSomethingGate = new();
             private readonly TaskCompletionSource<bool> _subscriptionFinished = new(TaskCreationOptions.RunContinuationsAsynchronously);
             private readonly AsyncLocal<bool> _reentrant = new();
-            private readonly ObserverAsync<T> _observer;
+            private readonly IObserverAsync<T> _observer;
             private int _active;
             private int _disposed;
 
-            public MergeEnumerableSubscription(ObserverAsync<T> observer, IEnumerable<ObservableAsync<T>> sources)
+            public MergeEnumerableSubscription(IObserverAsync<T> observer, IEnumerable<IObservableAsync<T>> sources)
             {
                 _observer = observer;
                 _sources = sources;

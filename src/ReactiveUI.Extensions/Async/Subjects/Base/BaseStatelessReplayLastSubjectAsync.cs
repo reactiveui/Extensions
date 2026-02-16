@@ -26,13 +26,13 @@ public abstract class BaseStatelessReplayLastSubjectAsync<T>(Optional<T> startVa
     private readonly Optional<T> _startValue = startValue;
     private readonly AsyncGate _gate = new();
     private Optional<T> _value = startValue;
-    private ImmutableList<ObserverAsync<T>> _observers = [];
+    private ImmutableList<IObserverAsync<T>> _observers = [];
     private bool _disposedValue;
 
     /// <summary>
     /// Gets an observable sequence that represents the asynchronous values published by the subject.
     /// </summary>
-    ObservableAsync<T> ISubjectAsync<T>.Values => this;
+    IObservableAsync<T> ISubjectAsync<T>.Values => this;
 
     /// <summary>
     /// Asynchronously notifies all registered observers of a new value.
@@ -42,7 +42,7 @@ public abstract class BaseStatelessReplayLastSubjectAsync<T>(Optional<T> startVa
     /// <returns>A task that represents the asynchronous notification operation.</returns>
     public async ValueTask OnNextAsync(T value, CancellationToken cancellationToken)
     {
-        ImmutableList<ObserverAsync<T>> observers;
+        ImmutableList<IObserverAsync<T>> observers;
         using (await _gate.LockAsync())
         {
             _value = new(value);
@@ -63,7 +63,7 @@ public abstract class BaseStatelessReplayLastSubjectAsync<T>(Optional<T> startVa
     /// <returns>A task that represents the asynchronous error notification operation.</returns>
     public async ValueTask OnErrorResumeAsync(Exception error, CancellationToken cancellationToken)
     {
-        ImmutableList<ObserverAsync<T>> observers;
+        ImmutableList<IObserverAsync<T>> observers;
         using (await _gate.LockAsync())
         {
             observers = _observers;
@@ -81,7 +81,7 @@ public abstract class BaseStatelessReplayLastSubjectAsync<T>(Optional<T> startVa
     /// <returns>A task that represents the asynchronous notification operation.</returns>
     public async ValueTask OnCompletedAsync(Result result)
     {
-        ImmutableList<ObserverAsync<T>> observers;
+        ImmutableList<IObserverAsync<T>> observers;
         using (await _gate.LockAsync())
         {
             observers = _observers;
@@ -113,7 +113,7 @@ public abstract class BaseStatelessReplayLastSubjectAsync<T>(Optional<T> startVa
     /// <param name="cancellationToken">A cancellation token that can be used to cancel the subscription operation.</param>
     /// <returns>A task that represents the asynchronous operation. The result contains a disposable object that can be used to
     /// unsubscribe the observer.</returns>
-    protected override async ValueTask<IAsyncDisposable> SubscribeAsyncCore(ObserverAsync<T> observer, CancellationToken cancellationToken)
+    protected override async ValueTask<IAsyncDisposable> SubscribeAsyncCore(IObserverAsync<T> observer, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         var disposable = DisposableAsync.Create(async () =>
@@ -150,7 +150,7 @@ public abstract class BaseStatelessReplayLastSubjectAsync<T>(Optional<T> startVa
     /// <param name="value">The value to deliver to each observer.</param>
     /// <param name="cancellationToken">A cancellation token that can be used to cancel the notification operation.</param>
     /// <returns>A ValueTask that represents the asynchronous notification operation.</returns>
-    protected abstract ValueTask OnNextAsyncCore(IReadOnlyList<ObserverAsync<T>> observers, T value, CancellationToken cancellationToken);
+    protected abstract ValueTask OnNextAsyncCore(IReadOnlyList<IObserverAsync<T>> observers, T value, CancellationToken cancellationToken);
 
     /// <summary>
     /// Handles an error by resuming asynchronous observation for the specified observers.
@@ -162,7 +162,7 @@ public abstract class BaseStatelessReplayLastSubjectAsync<T>(Optional<T> startVa
     /// <param name="error">The exception that triggered the error handling logic. Cannot be null.</param>
     /// <param name="cancellationToken">A token that can be used to cancel the asynchronous operation.</param>
     /// <returns>A ValueTask that represents the asynchronous error handling operation.</returns>
-    protected abstract ValueTask OnErrorResumeAsyncCore(IReadOnlyList<ObserverAsync<T>> observers, Exception error, CancellationToken cancellationToken);
+    protected abstract ValueTask OnErrorResumeAsyncCore(IReadOnlyList<IObserverAsync<T>> observers, Exception error, CancellationToken cancellationToken);
 
     /// <summary>
     /// Invoked to asynchronously notify all observers that the sequence has completed, providing the final result.
@@ -173,7 +173,7 @@ public abstract class BaseStatelessReplayLastSubjectAsync<T>(Optional<T> startVa
     /// <param name="observers">The collection of observers to be notified of the sequence completion. Cannot be null.</param>
     /// <param name="result">The result to provide to observers upon completion. Represents the outcome of the observed sequence.</param>
     /// <returns>A ValueTask that represents the asynchronous notification operation.</returns>
-    protected abstract ValueTask OnCompletedAsyncCore(IReadOnlyList<ObserverAsync<T>> observers, Result result);
+    protected abstract ValueTask OnCompletedAsyncCore(IReadOnlyList<IObserverAsync<T>> observers, Result result);
 
     /// <summary>
     /// Releases the unmanaged resources used by the object and, optionally, releases the managed resources.

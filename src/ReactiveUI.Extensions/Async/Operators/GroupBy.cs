@@ -28,7 +28,7 @@ public static partial class ObservableAsync
     /// <param name="keySelector">A function to extract the key for each element in the source sequence.</param>
     /// <returns>An asynchronous observable sequence of grouped observables, each containing elements that share a common key.</returns>
     /// <exception cref="ArgumentNullException">Thrown if <paramref name="source"/> or <paramref name="keySelector"/> is null.</exception>
-    public static ObservableAsync<GroupedAsyncObservable<TKey, TValue>> GroupBy<TKey, TValue>(this ObservableAsync<TValue> source, Func<TValue, TKey> keySelector)
+    public static IObservableAsync<GroupedAsyncObservable<TKey, TValue>> GroupBy<TKey, TValue>(this IObservableAsync<TValue> source, Func<TValue, TKey> keySelector)
         where TKey : notnull
     {
         if (source == null)
@@ -61,7 +61,7 @@ public static partial class ObservableAsync
     /// <returns>An asynchronous observable sequence containing grouped observables, each representing a collection of elements
     /// that share a common key.</returns>
     /// <exception cref="ArgumentNullException">Thrown if <paramref name="source"/> or <paramref name="keySelector"/> is null.</exception>
-    public static ObservableAsync<GroupedAsyncObservable<TKey, TValue>> GroupBy<TKey, TValue>(this ObservableAsync<TValue> source, Func<TValue, TKey> keySelector, Func<TKey, ISubjectAsync<TValue>> groupSubjectSelector)
+    public static IObservableAsync<GroupedAsyncObservable<TKey, TValue>> GroupBy<TKey, TValue>(this IObservableAsync<TValue> source, Func<TValue, TKey> keySelector, Func<TKey, ISubjectAsync<TValue>> groupSubjectSelector)
         where TKey : notnull
     {
         if (source == null)
@@ -78,16 +78,16 @@ public static partial class ObservableAsync
     }
 
     private sealed class GroupByAsyncObservable<TKey, TValue>(
-        ObservableAsync<TValue> source,
+        IObservableAsync<TValue> source,
         Func<TValue, TKey> keySelector,
         Func<TKey, ISubjectAsync<TValue>> groupSubjectSelector) : ObservableAsync<GroupedAsyncObservable<TKey, TValue>>
         where TKey : notnull
     {
-        private readonly ObservableAsync<TValue> _source = source;
+        private readonly IObservableAsync<TValue> _source = source;
         private readonly Func<TValue, TKey> _keySelector = keySelector;
         private readonly Func<TKey, ISubjectAsync<TValue>> _groupSubjectSelector = groupSubjectSelector;
 
-        protected override async ValueTask<IAsyncDisposable> SubscribeAsyncCore(ObserverAsync<GroupedAsyncObservable<TKey, TValue>> observer, CancellationToken cancellationToken)
+        protected override async ValueTask<IAsyncDisposable> SubscribeAsyncCore(IObserverAsync<GroupedAsyncObservable<TKey, TValue>> observer, CancellationToken cancellationToken)
         {
             var subscrption = new Subscription(this, observer);
             try
@@ -101,7 +101,7 @@ public static partial class ObservableAsync
             }
         }
 
-        private sealed class Subscription(GroupByAsyncObservable<TKey, TValue> parent, ObserverAsync<GroupedAsyncObservable<TKey, TValue>> observer) : ObserverAsync<TValue>
+        private sealed class Subscription(GroupByAsyncObservable<TKey, TValue> parent, IObserverAsync<GroupedAsyncObservable<TKey, TValue>> observer) : ObserverAsync<TValue>
         {
             private readonly CompositeDisposableAsync _disposables = new();
             private Dictionary<TKey, ISubjectAsync<TValue>> _subjectsByKey = new();
@@ -141,14 +141,14 @@ public static partial class ObservableAsync
                 await _disposables.DisposeAsync();
             }
 
-            internal class Observable(Subscription parent, TKey key, ObservableAsync<TValue> subjectValues) : GroupedAsyncObservable<TKey, TValue>
+            internal class Observable(Subscription parent, TKey key, IObservableAsync<TValue> subjectValues) : GroupedAsyncObservable<TKey, TValue>
             {
                 /// <summary>
                 /// Gets the key associated with this element.
                 /// </summary>
                 public override TKey Key => key;
 
-                protected override async ValueTask<IAsyncDisposable> SubscribeAsyncCore(ObserverAsync<TValue> observer, CancellationToken cancellationToken)
+                protected override async ValueTask<IAsyncDisposable> SubscribeAsyncCore(IObserverAsync<TValue> observer, CancellationToken cancellationToken)
                 {
                     var subscription = await subjectValues.SubscribeAsync(observer.Wrap(), cancellationToken);
                     await parent._disposables.AddAsync(subscription);

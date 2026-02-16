@@ -42,7 +42,7 @@ public static partial class ObservableAsync
         }
 
         [DebuggerStepThrough]
-        protected override async ValueTask<IAsyncDisposable> SubscribeAsyncCore(ObserverAsync<T> observer, CancellationToken cancellationToken)
+        protected override async ValueTask<IAsyncDisposable> SubscribeAsyncCore(IObserverAsync<T> observer, CancellationToken cancellationToken)
         {
             using (await _gate.LockAsync())
             {
@@ -76,7 +76,7 @@ public static partial class ObservableAsync
             }
         }
 
-        private sealed class RefCountObsever(RefCountObservable<T> parent, ObserverAsync<T> observer) : ObserverAsync<T>
+        private sealed class RefCountObsever(RefCountObservable<T> parent, IObserverAsync<T> observer) : ObserverAsync<T>
         {
             protected override ValueTask OnNextAsyncCore(T value, CancellationToken cancellationToken) => observer.OnNextAsync(value, cancellationToken);
 

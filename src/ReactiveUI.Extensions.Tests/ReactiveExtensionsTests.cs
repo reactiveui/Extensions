@@ -354,9 +354,9 @@ public class ReactiveExtensionsTests
     [Test]
     public void GetMax_WithMultipleSources_ReturnsMaximum()
     {
-        var subject1 = new BehaviorSubject<int?>(5);
-        var subject2 = new BehaviorSubject<int?>(10);
-        var subject3 = new BehaviorSubject<int?>(3);
+        var subject1 = new BehaviorSubject<int>(5);
+        var subject2 = new BehaviorSubject<int>(10);
+        var subject3 = new BehaviorSubject<int>(3);
         int? result = null;
         using var sub = subject1.GetMax(subject2, subject3).Subscribe(x => result = x);
 
@@ -369,9 +369,9 @@ public class ReactiveExtensionsTests
     [Test]
     public void GetMin_WithMultipleSources_ReturnsMinimum()
     {
-        var subject1 = new BehaviorSubject<int?>(5);
-        var subject2 = new BehaviorSubject<int?>(10);
-        var subject3 = new BehaviorSubject<int?>(3);
+        var subject1 = new BehaviorSubject<int>(5);
+        var subject2 = new BehaviorSubject<int>(10);
+        var subject3 = new BehaviorSubject<int>(3);
         int? result = null;
         using var sub = subject1.GetMin(subject2, subject3).Subscribe(x => result = x);
 
@@ -1190,10 +1190,8 @@ public class ReactiveExtensionsTests
         var subject2 = new BehaviorSubject<int>(10);
         var subject3 = new BehaviorSubject<int>(3);
 
-        subject1.Select(x => (int?)x)
-            .GetMin(subject2.Select(x => (int?)x), subject3.Select(x => (int?)x))
-            .Where(x => x.HasValue)
-            .Select(x => x!.Value)
+        subject1
+            .GetMin(subject2, subject3)
             .ToObservableChangeSet(scheduler: ImmediateScheduler.Instance)
             .Bind(out var results)
             .Subscribe();
@@ -1220,10 +1218,8 @@ public class ReactiveExtensionsTests
         var subject2 = new BehaviorSubject<int>(10);
         var subject3 = new BehaviorSubject<int>(3);
 
-        subject1.Select(x => (int?)x)
-            .GetMax(subject2.Select(x => (int?)x), subject3.Select(x => (int?)x))
-            .Where(x => x.HasValue)
-            .Select(x => x!.Value)
+        subject1
+            .GetMax(subject2, subject3)
             .ToObservableChangeSet(scheduler: ImmediateScheduler.Instance)
             .Bind(out var results)
             .Subscribe();

@@ -20,7 +20,7 @@ public static partial class ObservableAsync
     /// <param name="this">The observable sequence to wait for completion.</param>
     /// <param name="cancellationToken">A cancellation token that can be used to cancel the wait operation.</param>
     /// <returns>A ValueTask that represents the asynchronous wait operation.</returns>
-    public static async ValueTask WaitCompletionAsync<T>(this ObservableAsync<T> @this, CancellationToken cancellationToken = default)
+    public static async ValueTask WaitCompletionAsync<T>(this IObservableAsync<T> @this, CancellationToken cancellationToken = default)
     {
         var observer = new WaitCompletionAsyncObserver<T>(cancellationToken);
         _ = await @this.SubscribeAsync(observer, cancellationToken);

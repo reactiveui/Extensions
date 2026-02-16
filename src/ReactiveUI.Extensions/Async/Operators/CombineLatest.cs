@@ -4,7 +4,7 @@
 
 using ReactiveUI.Extensions.Async.Internals;
 
-namespace ReactiveUI.Extensions.Async.Operators;
+namespace ReactiveUI.Extensions.Async;
 
 /// <summary>
 /// Provides extension methods for combining multiple asynchronous observable sequences into a single sequence that
@@ -34,9 +34,9 @@ public static partial class ObservableAsync
     /// <param name="selector">A function that projects a result value from the latest values of both observable sequences.</param>
     /// <returns>An asynchronous observable sequence that emits values resulting from applying the selector function to the
     /// latest values from both source sequences.</returns>
-    public static ObservableAsync<TResult> CombineLatest<T1, T2, TResult>(
-        this ObservableAsync<T1> src1,
-        ObservableAsync<T2> src2,
+    public static IObservableAsync<TResult> CombineLatest<T1, T2, TResult>(
+        this IObservableAsync<T1> src1,
+        IObservableAsync<T2> src2,
         Func<T1, T2, TResult> selector) => new CombineLatest2ObservableAsync<T1, T2, TResult>(src1, src2, selector);
 
     /// <summary>
@@ -56,10 +56,10 @@ public static partial class ObservableAsync
     /// <param name="selector">A function that receives the latest values from each source sequence and returns a projected result.</param>
     /// <returns>An asynchronous observable sequence that emits a result each time any of the source sequences produces a new
     /// value, using the latest values from all sources.</returns>
-    public static ObservableAsync<TResult> CombineLatest<T1, T2, T3, TResult>(
-        this ObservableAsync<T1> src1,
-        ObservableAsync<T2> src2,
-        ObservableAsync<T3> src3,
+    public static IObservableAsync<TResult> CombineLatest<T1, T2, T3, TResult>(
+        this IObservableAsync<T1> src1,
+        IObservableAsync<T2> src2,
+        IObservableAsync<T3> src3,
         Func<T1, T2, T3, TResult> selector) => new CombineLatest3ObservableAsync<T1, T2, T3, TResult>(src1, src2, src3, selector);
 
     /// <summary>
@@ -82,11 +82,11 @@ public static partial class ObservableAsync
     /// <param name="selector">A function that takes the latest values from each source sequence and projects them into a result.</param>
     /// <returns>An asynchronous observable sequence containing the results of combining the latest values from the four source
     /// sequences using the selector function.</returns>
-    public static ObservableAsync<TResult> CombineLatest<T1, T2, T3, T4, TResult>(
-        this ObservableAsync<T1> src1,
-        ObservableAsync<T2> src2,
-        ObservableAsync<T3> src3,
-        ObservableAsync<T4> src4,
+    public static IObservableAsync<TResult> CombineLatest<T1, T2, T3, T4, TResult>(
+        this IObservableAsync<T1> src1,
+        IObservableAsync<T2> src2,
+        IObservableAsync<T3> src3,
+        IObservableAsync<T4> src4,
         Func<T1, T2, T3, T4, TResult> selector) => new CombineLatest4ObservableAsync<T1, T2, T3, T4, TResult>(src1, src2, src3, src4, selector);
 
     /// <summary>
@@ -110,12 +110,12 @@ public static partial class ObservableAsync
     /// <param name="selector">A function that combines the latest values from each source sequence into a result value.</param>
     /// <returns>An asynchronous observable sequence that emits values resulting from applying the selector function to the
     /// latest values from each source sequence.</returns>
-    public static ObservableAsync<TResult> CombineLatest<T1, T2, T3, T4, T5, TResult>(
-        this ObservableAsync<T1> src1,
-        ObservableAsync<T2> src2,
-        ObservableAsync<T3> src3,
-        ObservableAsync<T4> src4,
-        ObservableAsync<T5> src5,
+    public static IObservableAsync<TResult> CombineLatest<T1, T2, T3, T4, T5, TResult>(
+        this IObservableAsync<T1> src1,
+        IObservableAsync<T2> src2,
+        IObservableAsync<T3> src3,
+        IObservableAsync<T4> src4,
+        IObservableAsync<T5> src5,
         Func<T1, T2, T3, T4, T5, TResult> selector) => new CombineLatest5ObservableAsync<T1, T2, T3, T4, T5, TResult>(src1, src2, src3, src4, src5, selector);
 
     /// <summary>
@@ -142,13 +142,13 @@ public static partial class ObservableAsync
     /// <param name="selector">A function that combines the latest values from each source observable into a result value.</param>
     /// <returns>An observable sequence that emits a result each time any of the source observables produces a new value, after
     /// all sources have emitted at least one value.</returns>
-    public static ObservableAsync<TResult> CombineLatest<T1, T2, T3, T4, T5, T6, TResult>(
-        this ObservableAsync<T1> src1,
-        ObservableAsync<T2> src2,
-        ObservableAsync<T3> src3,
-        ObservableAsync<T4> src4,
-        ObservableAsync<T5> src5,
-        ObservableAsync<T6> src6,
+    public static IObservableAsync<TResult> CombineLatest<T1, T2, T3, T4, T5, T6, TResult>(
+        this IObservableAsync<T1> src1,
+        IObservableAsync<T2> src2,
+        IObservableAsync<T3> src3,
+        IObservableAsync<T4> src4,
+        IObservableAsync<T5> src5,
+        IObservableAsync<T6> src6,
         Func<T1, T2, T3, T4, T5, T6, TResult> selector) => new CombineLatest6ObservableAsync<T1, T2, T3, T4, T5, T6, TResult>(src1, src2, src3, src4, src5, src6, selector);
 
     /// <summary>
@@ -178,14 +178,14 @@ public static partial class ObservableAsync
     /// observable sequence.</param>
     /// <returns>An asynchronous observable sequence that emits results produced by the selector function whenever any of the
     /// seven sources emits a new value, after all sources have emitted at least one value.</returns>
-    public static ObservableAsync<TResult> CombineLatest<T1, T2, T3, T4, T5, T6, T7, TResult>(
-        this ObservableAsync<T1> src1,
-        ObservableAsync<T2> src2,
-        ObservableAsync<T3> src3,
-        ObservableAsync<T4> src4,
-        ObservableAsync<T5> src5,
-        ObservableAsync<T6> src6,
-        ObservableAsync<T7> src7,
+    public static IObservableAsync<TResult> CombineLatest<T1, T2, T3, T4, T5, T6, T7, TResult>(
+        this IObservableAsync<T1> src1,
+        IObservableAsync<T2> src2,
+        IObservableAsync<T3> src3,
+        IObservableAsync<T4> src4,
+        IObservableAsync<T5> src5,
+        IObservableAsync<T6> src6,
+        IObservableAsync<T7> src7,
         Func<T1, T2, T3, T4, T5, T6, T7, TResult> selector) => new CombineLatest7ObservableAsync<T1, T2, T3, T4, T5, T6, T7, TResult>(src1, src2, src3, src4, src5, src6, src7, selector);
 
     /// <summary>
@@ -216,20 +216,20 @@ public static partial class ObservableAsync
     /// <param name="selector">A function that combines the latest values from each source observable into a result value.</param>
     /// <returns>An observable sequence that emits a result each time any of the source observables produces a new value, after
     /// all sources have emitted at least one value.</returns>
-    public static ObservableAsync<TResult> CombineLatest<T1, T2, T3, T4, T5, T6, T7, T8, TResult>(
-        this ObservableAsync<T1> src1,
-        ObservableAsync<T2> src2,
-        ObservableAsync<T3> src3,
-        ObservableAsync<T4> src4,
-        ObservableAsync<T5> src5,
-        ObservableAsync<T6> src6,
-        ObservableAsync<T7> src7,
-        ObservableAsync<T8> src8,
+    public static IObservableAsync<TResult> CombineLatest<T1, T2, T3, T4, T5, T6, T7, T8, TResult>(
+        this IObservableAsync<T1> src1,
+        IObservableAsync<T2> src2,
+        IObservableAsync<T3> src3,
+        IObservableAsync<T4> src4,
+        IObservableAsync<T5> src5,
+        IObservableAsync<T6> src6,
+        IObservableAsync<T7> src7,
+        IObservableAsync<T8> src8,
         Func<T1, T2, T3, T4, T5, T6, T7, T8, TResult> selector) => new CombineLatest8ObservableAsync<T1, T2, T3, T4, T5, T6, T7, T8, TResult>(src1, src2, src3, src4, src5, src6, src7, src8, selector);
 
-    private sealed class CombineLatest2ObservableAsync<T1, T2, TResult>(ObservableAsync<T1> src1, ObservableAsync<T2> src2, Func<T1, T2, TResult> selector) : ObservableAsync<TResult>
+    private sealed class CombineLatest2ObservableAsync<T1, T2, TResult>(IObservableAsync<T1> src1, IObservableAsync<T2> src2, Func<T1, T2, TResult> selector) : ObservableAsync<TResult>
     {
-        protected override async ValueTask<IAsyncDisposable> SubscribeAsyncCore(ObserverAsync<TResult> observer, CancellationToken cancellationToken)
+        protected override async ValueTask<IAsyncDisposable> SubscribeAsyncCore(IObserverAsync<TResult> observer, CancellationToken cancellationToken)
         {
             var subscription = new CombineLatestSubscription(observer, src1, src2, selector);
             try
@@ -250,9 +250,9 @@ public static partial class ObservableAsync
             private readonly AsyncGate _gate = new();
             private readonly CancellationTokenSource _disposeCts = new();
             private readonly CancellationToken _disposeCancellationToken;
-            private readonly ObserverAsync<TResult> _observer;
-            private readonly ObservableAsync<T1> _src1;
-            private readonly ObservableAsync<T2> _src2;
+            private readonly IObserverAsync<TResult> _observer;
+            private readonly IObservableAsync<T1> _src1;
+            private readonly IObservableAsync<T2> _src2;
             private readonly Func<T1, T2, TResult> _selector;
             private IAsyncDisposable? _d1;
             private IAsyncDisposable? _d2;
@@ -264,7 +264,7 @@ public static partial class ObservableAsync
             private bool _done2;
             private int _disposed;
 
-            public CombineLatestSubscription(ObserverAsync<TResult> observer, ObservableAsync<T1> src1, ObservableAsync<T2> src2, Func<T1, T2, TResult> selector)
+            public CombineLatestSubscription(IObserverAsync<TResult> observer, IObservableAsync<T1> src1, IObservableAsync<T2> src2, Func<T1, T2, TResult> selector)
             {
                 _observer = observer;
                 _src1 = src1;
@@ -408,9 +408,9 @@ public static partial class ObservableAsync
         }
     }
 
-    private sealed class CombineLatest3ObservableAsync<T1, T2, T3, TResult>(ObservableAsync<T1> src1, ObservableAsync<T2> src2, ObservableAsync<T3> src3, Func<T1, T2, T3, TResult> selector) : ObservableAsync<TResult>
+    private sealed class CombineLatest3ObservableAsync<T1, T2, T3, TResult>(IObservableAsync<T1> src1, IObservableAsync<T2> src2, IObservableAsync<T3> src3, Func<T1, T2, T3, TResult> selector) : ObservableAsync<TResult>
     {
-        protected override async ValueTask<IAsyncDisposable> SubscribeAsyncCore(ObserverAsync<TResult> observer, CancellationToken cancellationToken)
+        protected override async ValueTask<IAsyncDisposable> SubscribeAsyncCore(IObserverAsync<TResult> observer, CancellationToken cancellationToken)
         {
             var subscription = new CombineLatestSubscription(observer, src1, src2, src3, selector);
             try
@@ -431,10 +431,10 @@ public static partial class ObservableAsync
             private readonly AsyncGate _gate = new();
             private readonly CancellationTokenSource _disposeCts = new();
             private readonly CancellationToken _disposeCancellationToken;
-            private readonly ObserverAsync<TResult> _observer;
-            private readonly ObservableAsync<T1> _src1;
-            private readonly ObservableAsync<T2> _src2;
-            private readonly ObservableAsync<T3> _src3;
+            private readonly IObserverAsync<TResult> _observer;
+            private readonly IObservableAsync<T1> _src1;
+            private readonly IObservableAsync<T2> _src2;
+            private readonly IObservableAsync<T3> _src3;
             private readonly Func<T1, T2, T3, TResult> _selector;
             private IAsyncDisposable? _d1;
             private IAsyncDisposable? _d2;
@@ -449,7 +449,7 @@ public static partial class ObservableAsync
             private bool _done3;
             private int _disposed;
 
-            public CombineLatestSubscription(ObserverAsync<TResult> observer, ObservableAsync<T1> src1, ObservableAsync<T2> src2, ObservableAsync<T3> src3, Func<T1, T2, T3, TResult> selector)
+            public CombineLatestSubscription(IObserverAsync<TResult> observer, IObservableAsync<T1> src1, IObservableAsync<T2> src2, IObservableAsync<T3> src3, Func<T1, T2, T3, TResult> selector)
             {
                 _observer = observer;
                 _src1 = src1;
@@ -628,9 +628,9 @@ public static partial class ObservableAsync
         }
     }
 
-    private sealed class CombineLatest4ObservableAsync<T1, T2, T3, T4, TResult>(ObservableAsync<T1> src1, ObservableAsync<T2> src2, ObservableAsync<T3> src3, ObservableAsync<T4> src4, Func<T1, T2, T3, T4, TResult> selector) : ObservableAsync<TResult>
+    private sealed class CombineLatest4ObservableAsync<T1, T2, T3, T4, TResult>(IObservableAsync<T1> src1, IObservableAsync<T2> src2, IObservableAsync<T3> src3, IObservableAsync<T4> src4, Func<T1, T2, T3, T4, TResult> selector) : ObservableAsync<TResult>
     {
-        protected override async ValueTask<IAsyncDisposable> SubscribeAsyncCore(ObserverAsync<TResult> observer, CancellationToken cancellationToken)
+        protected override async ValueTask<IAsyncDisposable> SubscribeAsyncCore(IObserverAsync<TResult> observer, CancellationToken cancellationToken)
         {
             var subscription = new CombineLatestSubscription(observer, src1, src2, src3, src4, selector);
             try
@@ -651,11 +651,11 @@ public static partial class ObservableAsync
             private readonly AsyncGate _gate = new();
             private readonly CancellationTokenSource _disposeCts = new();
             private readonly CancellationToken _disposeCancellationToken;
-            private readonly ObserverAsync<TResult> _observer;
-            private readonly ObservableAsync<T1> _src1;
-            private readonly ObservableAsync<T2> _src2;
-            private readonly ObservableAsync<T3> _src3;
-            private readonly ObservableAsync<T4> _src4;
+            private readonly IObserverAsync<TResult> _observer;
+            private readonly IObservableAsync<T1> _src1;
+            private readonly IObservableAsync<T2> _src2;
+            private readonly IObservableAsync<T3> _src3;
+            private readonly IObservableAsync<T4> _src4;
             private readonly Func<T1, T2, T3, T4, TResult> _selector;
             private IAsyncDisposable? _d1;
             private IAsyncDisposable? _d2;
@@ -673,7 +673,7 @@ public static partial class ObservableAsync
             private bool _done4;
             private int _disposed;
 
-            public CombineLatestSubscription(ObserverAsync<TResult> observer, ObservableAsync<T1> src1, ObservableAsync<T2> src2, ObservableAsync<T3> src3, ObservableAsync<T4> src4, Func<T1, T2, T3, T4, TResult> selector)
+            public CombineLatestSubscription(IObserverAsync<TResult> observer, IObservableAsync<T1> src1, IObservableAsync<T2> src2, IObservableAsync<T3> src3, IObservableAsync<T4> src4, Func<T1, T2, T3, T4, TResult> selector)
             {
                 _observer = observer;
                 _src1 = src1;
@@ -891,9 +891,9 @@ public static partial class ObservableAsync
         }
     }
 
-    private sealed class CombineLatest5ObservableAsync<T1, T2, T3, T4, T5, TResult>(ObservableAsync<T1> src1, ObservableAsync<T2> src2, ObservableAsync<T3> src3, ObservableAsync<T4> src4, ObservableAsync<T5> src5, Func<T1, T2, T3, T4, T5, TResult> selector) : ObservableAsync<TResult>
+    private sealed class CombineLatest5ObservableAsync<T1, T2, T3, T4, T5, TResult>(IObservableAsync<T1> src1, IObservableAsync<T2> src2, IObservableAsync<T3> src3, IObservableAsync<T4> src4, IObservableAsync<T5> src5, Func<T1, T2, T3, T4, T5, TResult> selector) : ObservableAsync<TResult>
     {
-        protected override async ValueTask<IAsyncDisposable> SubscribeAsyncCore(ObserverAsync<TResult> observer, CancellationToken cancellationToken)
+        protected override async ValueTask<IAsyncDisposable> SubscribeAsyncCore(IObserverAsync<TResult> observer, CancellationToken cancellationToken)
         {
             var subscription = new CombineLatestSubscription(observer, src1, src2, src3, src4, src5, selector);
             try
@@ -914,12 +914,12 @@ public static partial class ObservableAsync
             private readonly AsyncGate _gate = new();
             private readonly CancellationTokenSource _disposeCts = new();
             private readonly CancellationToken _disposeCancellationToken;
-            private readonly ObserverAsync<TResult> _observer;
-            private readonly ObservableAsync<T1> _src1;
-            private readonly ObservableAsync<T2> _src2;
-            private readonly ObservableAsync<T3> _src3;
-            private readonly ObservableAsync<T4> _src4;
-            private readonly ObservableAsync<T5> _src5;
+            private readonly IObserverAsync<TResult> _observer;
+            private readonly IObservableAsync<T1> _src1;
+            private readonly IObservableAsync<T2> _src2;
+            private readonly IObservableAsync<T3> _src3;
+            private readonly IObservableAsync<T4> _src4;
+            private readonly IObservableAsync<T5> _src5;
             private readonly Func<T1, T2, T3, T4, T5, TResult> _selector;
             private IAsyncDisposable? _d1;
             private IAsyncDisposable? _d2;
@@ -940,7 +940,7 @@ public static partial class ObservableAsync
             private bool _done5;
             private int _disposed;
 
-            public CombineLatestSubscription(ObserverAsync<TResult> observer, ObservableAsync<T1> src1, ObservableAsync<T2> src2, ObservableAsync<T3> src3, ObservableAsync<T4> src4, ObservableAsync<T5> src5, Func<T1, T2, T3, T4, T5, TResult> selector)
+            public CombineLatestSubscription(IObserverAsync<TResult> observer, IObservableAsync<T1> src1, IObservableAsync<T2> src2, IObservableAsync<T3> src3, IObservableAsync<T4> src4, IObservableAsync<T5> src5, Func<T1, T2, T3, T4, T5, TResult> selector)
             {
                 _observer = observer;
                 _src1 = src1;
@@ -1197,9 +1197,9 @@ public static partial class ObservableAsync
         }
     }
 
-    private sealed class CombineLatest6ObservableAsync<T1, T2, T3, T4, T5, T6, TResult>(ObservableAsync<T1> src1, ObservableAsync<T2> src2, ObservableAsync<T3> src3, ObservableAsync<T4> src4, ObservableAsync<T5> src5, ObservableAsync<T6> src6, Func<T1, T2, T3, T4, T5, T6, TResult> selector) : ObservableAsync<TResult>
+    private sealed class CombineLatest6ObservableAsync<T1, T2, T3, T4, T5, T6, TResult>(IObservableAsync<T1> src1, IObservableAsync<T2> src2, IObservableAsync<T3> src3, IObservableAsync<T4> src4, IObservableAsync<T5> src5, IObservableAsync<T6> src6, Func<T1, T2, T3, T4, T5, T6, TResult> selector) : ObservableAsync<TResult>
     {
-        protected override async ValueTask<IAsyncDisposable> SubscribeAsyncCore(ObserverAsync<TResult> observer, CancellationToken cancellationToken)
+        protected override async ValueTask<IAsyncDisposable> SubscribeAsyncCore(IObserverAsync<TResult> observer, CancellationToken cancellationToken)
         {
             var subscription = new CombineLatestSubscription(observer, src1, src2, src3, src4, src5, src6, selector);
             try
@@ -1220,13 +1220,13 @@ public static partial class ObservableAsync
             private readonly AsyncGate _gate = new();
             private readonly CancellationTokenSource _disposeCts = new();
             private readonly CancellationToken _disposeCancellationToken;
-            private readonly ObserverAsync<TResult> _observer;
-            private readonly ObservableAsync<T1> _src1;
-            private readonly ObservableAsync<T2> _src2;
-            private readonly ObservableAsync<T3> _src3;
-            private readonly ObservableAsync<T4> _src4;
-            private readonly ObservableAsync<T5> _src5;
-            private readonly ObservableAsync<T6> _src6;
+            private readonly IObserverAsync<TResult> _observer;
+            private readonly IObservableAsync<T1> _src1;
+            private readonly IObservableAsync<T2> _src2;
+            private readonly IObservableAsync<T3> _src3;
+            private readonly IObservableAsync<T4> _src4;
+            private readonly IObservableAsync<T5> _src5;
+            private readonly IObservableAsync<T6> _src6;
             private readonly Func<T1, T2, T3, T4, T5, T6, TResult> _selector;
             private IAsyncDisposable? _d1;
             private IAsyncDisposable? _d2;
@@ -1250,7 +1250,7 @@ public static partial class ObservableAsync
             private bool _done6;
             private int _disposed;
 
-            public CombineLatestSubscription(ObserverAsync<TResult> observer, ObservableAsync<T1> src1, ObservableAsync<T2> src2, ObservableAsync<T3> src3, ObservableAsync<T4> src4, ObservableAsync<T5> src5, ObservableAsync<T6> src6, Func<T1, T2, T3, T4, T5, T6, TResult> selector)
+            public CombineLatestSubscription(IObserverAsync<TResult> observer, IObservableAsync<T1> src1, IObservableAsync<T2> src2, IObservableAsync<T3> src3, IObservableAsync<T4> src4, IObservableAsync<T5> src5, IObservableAsync<T6> src6, Func<T1, T2, T3, T4, T5, T6, TResult> selector)
             {
                 _observer = observer;
                 _src1 = src1;
@@ -1546,9 +1546,9 @@ public static partial class ObservableAsync
         }
     }
 
-    private sealed class CombineLatest7ObservableAsync<T1, T2, T3, T4, T5, T6, T7, TResult>(ObservableAsync<T1> src1, ObservableAsync<T2> src2, ObservableAsync<T3> src3, ObservableAsync<T4> src4, ObservableAsync<T5> src5, ObservableAsync<T6> src6, ObservableAsync<T7> src7, Func<T1, T2, T3, T4, T5, T6, T7, TResult> selector) : ObservableAsync<TResult>
+    private sealed class CombineLatest7ObservableAsync<T1, T2, T3, T4, T5, T6, T7, TResult>(IObservableAsync<T1> src1, IObservableAsync<T2> src2, IObservableAsync<T3> src3, IObservableAsync<T4> src4, IObservableAsync<T5> src5, IObservableAsync<T6> src6, IObservableAsync<T7> src7, Func<T1, T2, T3, T4, T5, T6, T7, TResult> selector) : ObservableAsync<TResult>
     {
-        protected override async ValueTask<IAsyncDisposable> SubscribeAsyncCore(ObserverAsync<TResult> observer, CancellationToken cancellationToken)
+        protected override async ValueTask<IAsyncDisposable> SubscribeAsyncCore(IObserverAsync<TResult> observer, CancellationToken cancellationToken)
         {
             var subscription = new CombineLatestSubscription(observer, src1, src2, src3, src4, src5, src6, src7, selector);
             try
@@ -1569,14 +1569,14 @@ public static partial class ObservableAsync
             private readonly AsyncGate _gate = new();
             private readonly CancellationTokenSource _disposeCts = new();
             private readonly CancellationToken _disposeCancellationToken;
-            private readonly ObserverAsync<TResult> _observer;
-            private readonly ObservableAsync<T1> _src1;
-            private readonly ObservableAsync<T2> _src2;
-            private readonly ObservableAsync<T3> _src3;
-            private readonly ObservableAsync<T4> _src4;
-            private readonly ObservableAsync<T5> _src5;
-            private readonly ObservableAsync<T6> _src6;
-            private readonly ObservableAsync<T7> _src7;
+            private readonly IObserverAsync<TResult> _observer;
+            private readonly IObservableAsync<T1> _src1;
+            private readonly IObservableAsync<T2> _src2;
+            private readonly IObservableAsync<T3> _src3;
+            private readonly IObservableAsync<T4> _src4;
+            private readonly IObservableAsync<T5> _src5;
+            private readonly IObservableAsync<T6> _src6;
+            private readonly IObservableAsync<T7> _src7;
             private readonly Func<T1, T2, T3, T4, T5, T6, T7, TResult> _selector;
             private IAsyncDisposable? _d1;
             private IAsyncDisposable? _d2;
@@ -1603,7 +1603,7 @@ public static partial class ObservableAsync
             private bool _done7;
             private int _disposed;
 
-            public CombineLatestSubscription(ObserverAsync<TResult> observer, ObservableAsync<T1> src1, ObservableAsync<T2> src2, ObservableAsync<T3> src3, ObservableAsync<T4> src4, ObservableAsync<T5> src5, ObservableAsync<T6> src6, ObservableAsync<T7> src7, Func<T1, T2, T3, T4, T5, T6, T7, TResult> selector)
+            public CombineLatestSubscription(IObserverAsync<TResult> observer, IObservableAsync<T1> src1, IObservableAsync<T2> src2, IObservableAsync<T3> src3, IObservableAsync<T4> src4, IObservableAsync<T5> src5, IObservableAsync<T6> src6, IObservableAsync<T7> src7, Func<T1, T2, T3, T4, T5, T6, T7, TResult> selector)
             {
                 _observer = observer;
                 _src1 = src1;
@@ -1938,9 +1938,9 @@ public static partial class ObservableAsync
         }
     }
 
-    private sealed class CombineLatest8ObservableAsync<T1, T2, T3, T4, T5, T6, T7, T8, TResult>(ObservableAsync<T1> src1, ObservableAsync<T2> src2, ObservableAsync<T3> src3, ObservableAsync<T4> src4, ObservableAsync<T5> src5, ObservableAsync<T6> src6, ObservableAsync<T7> src7, ObservableAsync<T8> src8, Func<T1, T2, T3, T4, T5, T6, T7, T8, TResult> selector) : ObservableAsync<TResult>
+    private sealed class CombineLatest8ObservableAsync<T1, T2, T3, T4, T5, T6, T7, T8, TResult>(IObservableAsync<T1> src1, IObservableAsync<T2> src2, IObservableAsync<T3> src3, IObservableAsync<T4> src4, IObservableAsync<T5> src5, IObservableAsync<T6> src6, IObservableAsync<T7> src7, IObservableAsync<T8> src8, Func<T1, T2, T3, T4, T5, T6, T7, T8, TResult> selector) : ObservableAsync<TResult>
     {
-        protected override async ValueTask<IAsyncDisposable> SubscribeAsyncCore(ObserverAsync<TResult> observer, CancellationToken cancellationToken)
+        protected override async ValueTask<IAsyncDisposable> SubscribeAsyncCore(IObserverAsync<TResult> observer, CancellationToken cancellationToken)
         {
             var subscription = new CombineLatestSubscription(observer, src1, src2, src3, src4, src5, src6, src7, src8, selector);
             try
@@ -1961,15 +1961,15 @@ public static partial class ObservableAsync
             private readonly AsyncGate _gate = new();
             private readonly CancellationTokenSource _disposeCts = new();
             private readonly CancellationToken _disposeCancellationToken;
-            private readonly ObserverAsync<TResult> _observer;
-            private readonly ObservableAsync<T1> _src1;
-            private readonly ObservableAsync<T2> _src2;
-            private readonly ObservableAsync<T3> _src3;
-            private readonly ObservableAsync<T4> _src4;
-            private readonly ObservableAsync<T5> _src5;
-            private readonly ObservableAsync<T6> _src6;
-            private readonly ObservableAsync<T7> _src7;
-            private readonly ObservableAsync<T8> _src8;
+            private readonly IObserverAsync<TResult> _observer;
+            private readonly IObservableAsync<T1> _src1;
+            private readonly IObservableAsync<T2> _src2;
+            private readonly IObservableAsync<T3> _src3;
+            private readonly IObservableAsync<T4> _src4;
+            private readonly IObservableAsync<T5> _src5;
+            private readonly IObservableAsync<T6> _src6;
+            private readonly IObservableAsync<T7> _src7;
+            private readonly IObservableAsync<T8> _src8;
             private readonly Func<T1, T2, T3, T4, T5, T6, T7, T8, TResult> _selector;
             private IAsyncDisposable? _d1;
             private IAsyncDisposable? _d2;
@@ -1999,7 +1999,7 @@ public static partial class ObservableAsync
             private bool _done8;
             private int _disposed;
 
-            public CombineLatestSubscription(ObserverAsync<TResult> observer, ObservableAsync<T1> src1, ObservableAsync<T2> src2, ObservableAsync<T3> src3, ObservableAsync<T4> src4, ObservableAsync<T5> src5, ObservableAsync<T6> src6, ObservableAsync<T7> src7, ObservableAsync<T8> src8, Func<T1, T2, T3, T4, T5, T6, T7, T8, TResult> selector)
+            public CombineLatestSubscription(IObserverAsync<TResult> observer, IObservableAsync<T1> src1, IObservableAsync<T2> src2, IObservableAsync<T3> src3, IObservableAsync<T4> src4, IObservableAsync<T5> src5, IObservableAsync<T6> src6, IObservableAsync<T7> src7, IObservableAsync<T8> src8, Func<T1, T2, T3, T4, T5, T6, T7, T8, TResult> selector)
             {
                 _observer = observer;
                 _src1 = src1;

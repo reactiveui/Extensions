@@ -19,7 +19,7 @@ namespace ReactiveUI.Extensions.Async;
 /// Instances are not thread-safe for concurrent notification handling; notifications are processed sequentially, and
 /// reentrant calls are detected and reported as unhandled exceptions.</remarks>
 /// <typeparam name="T">The type of the elements received by the observer.</typeparam>
-public abstract class ObserverAsync<T> : IAsyncDisposable
+public abstract class ObserverAsync<T> : IObserverAsync<T>
 {
     private readonly AsyncLocal<int> _reentrantCallsCount = new();
     private readonly CancellationTokenSource _disposeCts = new();

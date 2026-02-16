@@ -25,7 +25,7 @@ public static partial class ObservableAsync
     /// <param name="count">The number of sequential integers to emit. Must be non-negative.</param>
     /// <returns>An observable sequence that emits integers from <paramref name="start"/> to <paramref name="start"/> + <paramref
     /// name="count"/> - 1, in order.</returns>
-    public static ObservableAsync<int> Range(int start, int count) => CreateAsBackgroundJob<int>(
+    public static IObservableAsync<int> Range(int start, int count) => CreateAsBackgroundJob<int>(
             async (observer, cancellationToken) =>
         {
             for (var i = 0; i < count; i++)

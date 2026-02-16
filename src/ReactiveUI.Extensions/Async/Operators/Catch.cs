@@ -15,7 +15,7 @@ namespace ReactiveUI.Extensions.Async;
 /// composable, and resilient asynchronous data streams.</remarks>
 public static partial class ObservableAsync
 {
-    extension<T>(ObservableAsync<T> source)
+    extension<T>(IObservableAsync<T> source)
     {
         /// <summary>
         /// Creates a new observable sequence that continues with a handler-provided sequence when an exception occurs
@@ -32,7 +32,7 @@ public static partial class ObservableAsync
         /// <returns>An observable sequence that emits items from the source sequence, or from the handler-provided sequence if
         /// an exception is encountered.</returns>
         /// <exception cref="ArgumentNullException">Thrown if the source sequence or <paramref name="handler"/> is null.</exception>
-        public ObservableAsync<T> Catch(Func<Exception, ObservableAsync<T>> handler, Func<Exception, CancellationToken, ValueTask>? onErrorResume = null)
+        public IObservableAsync<T> Catch(Func<Exception, IObservableAsync<T>> handler, Func<Exception, CancellationToken, ValueTask>? onErrorResume = null)
         {
             if (source is null)
             {
@@ -90,7 +90,7 @@ public static partial class ObservableAsync
         /// an error occurs.</param>
         /// <returns>An observable sequence that resumes with the sequence returned by the handler when an error is encountered,
         /// and ignores the error after handling.</returns>
-        public ObservableAsync<T> CatchAndIgnoreErrorResume(Func<Exception, ObservableAsync<T>> handler) => source.Catch(handler, static (error, _) =>
+        public IObservableAsync<T> CatchAndIgnoreErrorResume(Func<Exception, IObservableAsync<T>> handler) => source.Catch(handler, static (error, _) =>
         {
             UnhandledExceptionHandler.OnUnhandledException(error);
             return default;

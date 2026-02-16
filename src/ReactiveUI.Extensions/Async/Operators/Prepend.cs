@@ -15,7 +15,7 @@ namespace ReactiveUI.Extensions.Async;
 /// building reactive, asynchronous workflows.</remarks>
 public static partial class ObservableAsync
 {
-    extension<T>(ObservableAsync<T> @this)
+    extension<T>(IObservableAsync<T> @this)
     {
         /// <summary>
         /// Returns a new observable sequence that begins with the specified value, followed by the elements of the
@@ -23,7 +23,7 @@ public static partial class ObservableAsync
         /// </summary>
         /// <param name="value">The value to prepend to the beginning of the sequence.</param>
         /// <returns>An observable sequence with the specified value prepended to the original sequence.</returns>
-        public ObservableAsync<T> Prepend(T value) => @this.Prepend([value]);
+        public IObservableAsync<T> Prepend(T value) => @this.Prepend([value]);
 
         /// <summary>
         /// Returns a new observable sequence that emits the specified values before the emissions from the current
@@ -35,7 +35,7 @@ public static partial class ObservableAsync
         /// <param name="values">The collection of values to emit before the original sequence. Cannot be null.</param>
         /// <returns>An observable sequence that emits the specified values first, followed by the items from the current
         /// sequence.</returns>
-        public ObservableAsync<T> Prepend(IEnumerable<T> values) => Create<T>((observer, _) =>
+        public IObservableAsync<T> Prepend(IEnumerable<T> values) => Create<T>((observer, _) =>
         {
             var cts = new CancellationTokenSource();
             SingleAssignmentDisposableAsync subscriptionDisposable = new();

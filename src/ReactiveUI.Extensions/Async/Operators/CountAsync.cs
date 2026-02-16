@@ -14,7 +14,7 @@ namespace ReactiveUI.Extensions.Async;
 /// methods are designed to work with types that implement asynchronous observation patterns.</remarks>
 public static partial class ObservableAsync
 {
-    extension<T>(ObservableAsync<T> @this)
+    extension<T>(IObservableAsync<T> @this)
     {
         /// <summary>
         /// Asynchronously counts the number of elements that satisfy a specified condition.
@@ -54,14 +54,8 @@ public static partial class ObservableAsync
             return default;
         }
 
-        protected override ValueTask OnErrorResumeAsyncCore(Exception error, CancellationToken cancellationToken)
-        {
-            return TrySetException(error);
-        }
+        protected override ValueTask OnErrorResumeAsyncCore(Exception error, CancellationToken cancellationToken) => TrySetException(error);
 
-        protected override ValueTask OnCompletedAsyncCore(Result result)
-        {
-            return !result.IsSuccess ? TrySetException(result.Exception) : TrySetCompleted(_count);
-        }
+        protected override ValueTask OnCompletedAsyncCore(Result result) => !result.IsSuccess ? TrySetException(result.Exception) : TrySetCompleted(_count);
     }
 }

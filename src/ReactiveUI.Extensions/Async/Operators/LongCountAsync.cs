@@ -14,7 +14,7 @@ namespace ReactiveUI.Extensions.Async;
 /// observable patterns, allowing for efficient and composable asynchronous data processing.</remarks>
 public static partial class ObservableAsync
 {
-    extension<T>(ObservableAsync<T> @this)
+    extension<T>(IObservableAsync<T> @this)
     {
         /// <summary>
         /// Asynchronously returns the number of elements in the sequence that satisfy an optional predicate.

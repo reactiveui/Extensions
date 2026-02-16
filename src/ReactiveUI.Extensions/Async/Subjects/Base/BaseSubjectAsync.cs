@@ -22,7 +22,7 @@ namespace ReactiveUI.Extensions.Async.Subjects;
 public abstract class BaseSubjectAsync<T> : ObservableAsync<T>, ISubjectAsync<T>
 {
     private readonly object _gate = new();
-    private ImmutableList<ObserverAsync<T>> _observers = [];
+    private ImmutableList<IObserverAsync<T>> _observers = [];
     private Result? _result;
 
     /// <summary>
@@ -30,7 +30,7 @@ public abstract class BaseSubjectAsync<T> : ObservableAsync<T>, ISubjectAsync<T>
     /// </summary>
     /// <remarks>Subscribers receive notifications for each value published after they subscribe. The sequence
     /// may complete or error according to the subject's state.</remarks>
-    ObservableAsync<T> ISubjectAsync<T>.Values => this;
+    IObservableAsync<T> ISubjectAsync<T>.Values => this;
 
     /// <summary>
     /// Asynchronously notifies all subscribed observers of a new value.
@@ -41,7 +41,7 @@ public abstract class BaseSubjectAsync<T> : ObservableAsync<T>, ISubjectAsync<T>
     /// <returns>A ValueTask that represents the asynchronous notification operation.</returns>
     public ValueTask OnNextAsync(T value, CancellationToken cancellationToken)
     {
-        ImmutableList<ObserverAsync<T>>? observers;
+        ImmutableList<IObserverAsync<T>>? observers;
 
         lock (_gate)
         {
@@ -66,7 +66,7 @@ public abstract class BaseSubjectAsync<T> : ObservableAsync<T>, ISubjectAsync<T>
     /// <returns>A ValueTask that represents the asynchronous operation of notifying observers of the error.</returns>
     public ValueTask OnErrorResumeAsync(Exception error, CancellationToken cancellationToken)
     {
-        ImmutableList<ObserverAsync<T>>? observers;
+        ImmutableList<IObserverAsync<T>>? observers;
 
         lock (_gate)
         {
@@ -91,7 +91,7 @@ public abstract class BaseSubjectAsync<T> : ObservableAsync<T>, ISubjectAsync<T>
     /// been notified.</returns>
     public ValueTask OnCompletedAsync(Result result)
     {
-        ImmutableList<ObserverAsync<T>>? observers;
+        ImmutableList<IObserverAsync<T>>? observers;
         lock (_gate)
         {
             if (_result is not null)
@@ -117,7 +117,7 @@ public abstract class BaseSubjectAsync<T> : ObservableAsync<T>, ISubjectAsync<T>
     /// <param name="cancellationToken">A cancellation token that can be used to cancel the subscription operation.</param>
     /// <returns>A task that represents the asynchronous subscription operation. The result contains a disposable object that can
     /// be used to unsubscribe the observer.</returns>
-    protected override async ValueTask<IAsyncDisposable> SubscribeAsyncCore(ObserverAsync<T> observer, CancellationToken cancellationToken)
+    protected override async ValueTask<IAsyncDisposable> SubscribeAsyncCore(IObserverAsync<T> observer, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         Result? result;
@@ -155,7 +155,7 @@ public abstract class BaseSubjectAsync<T> : ObservableAsync<T>, ISubjectAsync<T>
     /// <param name="value">The value to send to each observer.</param>
     /// <param name="cancellationToken">A cancellation token that can be used to cancel the notification operation.</param>
     /// <returns>A ValueTask that represents the asynchronous notification operation.</returns>
-    protected abstract ValueTask OnNextAsyncCore(IReadOnlyList<ObserverAsync<T>> observers, T value, CancellationToken cancellationToken);
+    protected abstract ValueTask OnNextAsyncCore(IReadOnlyList<IObserverAsync<T>> observers, T value, CancellationToken cancellationToken);
 
     /// <summary>
     /// Handles error recovery for the specified observers by resuming asynchronous processing after an error occurs.
@@ -168,7 +168,7 @@ public abstract class BaseSubjectAsync<T> : ObservableAsync<T>, ISubjectAsync<T>
     /// <param name="error">The exception that triggered the error handling logic. Cannot be null.</param>
     /// <param name="cancellationToken">A cancellation token that can be used to cancel the asynchronous error recovery operation.</param>
     /// <returns>A ValueTask that represents the asynchronous error recovery operation.</returns>
-    protected abstract ValueTask OnErrorResumeAsyncCore(IReadOnlyList<ObserverAsync<T>> observers, Exception error, CancellationToken cancellationToken);
+    protected abstract ValueTask OnErrorResumeAsyncCore(IReadOnlyList<IObserverAsync<T>> observers, Exception error, CancellationToken cancellationToken);
 
     /// <summary>
     /// Invoked to asynchronously notify all observers of the completion event with the specified result.
@@ -178,5 +178,5 @@ public abstract class BaseSubjectAsync<T> : ObservableAsync<T>, ISubjectAsync<T>
     /// <param name="observers">A read-only list of observers to be notified. Cannot be null.</param>
     /// <param name="result">The result to provide to each observer upon completion.</param>
     /// <returns>A ValueTask that represents the asynchronous notification operation.</returns>
-    protected abstract ValueTask OnCompletedAsyncCore(IReadOnlyList<ObserverAsync<T>> observers, Result result);
+    protected abstract ValueTask OnCompletedAsyncCore(IReadOnlyList<IObserverAsync<T>> observers, Result result);
 }

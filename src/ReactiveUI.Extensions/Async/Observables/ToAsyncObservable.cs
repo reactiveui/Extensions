@@ -27,10 +27,10 @@ public static partial class ObservableAsync
     /// <param name="this">The task to convert to an asynchronous observable sequence. Cannot be null.</param>
     /// <returns>An asynchronous observable sequence that emits the result of the task when it completes, followed by a
     /// completion notification.</returns>
-    public static ObservableAsync<T> ToObservableAsync<T>(this Task<T> @this) => CreateAsBackgroundJob<T>(
+    public static IObservableAsync<T> ToObservableAsync<T>(this Task<T> @this) => CreateAsBackgroundJob<T>(
             async (obs, cancellationToken) =>
         {
-            var result = await @this.WaitAsync(Timeout.InfiniteTimeSpan, cancellationToken);
+            var result = await @this.WaitAsync(System.Threading.Timeout.InfiniteTimeSpan, cancellationToken);
             await obs.OnNextAsync(result, cancellationToken);
             await obs.OnCompletedAsync(Result.Success);
         },
@@ -46,10 +46,10 @@ public static partial class ObservableAsync
     /// <param name="this">The task to be observed. Cannot be null.</param>
     /// <returns>An asynchronous observable sequence that emits a single value when the task completes successfully, followed by
     /// a completion notification.</returns>
-    public static ObservableAsync<Unit> ToObservableAsync(this Task @this) => CreateAsBackgroundJob<Unit>(
+    public static IObservableAsync<Unit> ToObservableAsync(this Task @this) => CreateAsBackgroundJob<Unit>(
             async (obs, cancellationToken) =>
         {
-            await @this.WaitAsync(Timeout.InfiniteTimeSpan, cancellationToken);
+            await @this.WaitAsync(System.Threading.Timeout.InfiniteTimeSpan, cancellationToken);
             await obs.OnNextAsync(Unit.Default, cancellationToken);
             await obs.OnCompletedAsync(Result.Success);
         },
@@ -64,7 +64,7 @@ public static partial class ObservableAsync
     /// <typeparam name="T">The type of elements in the source sequence.</typeparam>
     /// <param name="this">The asynchronous enumerable sequence to convert. Cannot be null.</param>
     /// <returns>An asynchronous observable sequence that emits the elements of the source sequence.</returns>
-    public static ObservableAsync<T> ToObservableAsync<T>(this IAsyncEnumerable<T> @this) => CreateAsBackgroundJob<T>(
+    public static IObservableAsync<T> ToObservableAsync<T>(this IAsyncEnumerable<T> @this) => CreateAsBackgroundJob<T>(
             async (obs, cancellationToken) =>
         {
             await foreach (var value in @this.WithCancellation(cancellationToken))
@@ -86,7 +86,7 @@ public static partial class ObservableAsync
     /// <param name="this">The enumerable sequence to convert to an asynchronous observable. Cannot be null.</param>
     /// <returns>An asynchronous observable sequence that emits each element from the source enumerable and completes when all
     /// elements have been emitted.</returns>
-    public static ObservableAsync<T> ToObservableAsync<T>(this IEnumerable<T> @this) => CreateAsBackgroundJob<T>(
+    public static IObservableAsync<T> ToObservableAsync<T>(this IEnumerable<T> @this) => CreateAsBackgroundJob<T>(
             async (obs, cancellationToken) =>
         {
             foreach (var value in @this)

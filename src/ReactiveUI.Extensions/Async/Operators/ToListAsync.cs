@@ -14,7 +14,7 @@ namespace ReactiveUI.Extensions.Async;
 /// intended to simplify common tasks when consuming asynchronous observable streams.</remarks>
 public static partial class ObservableAsync
 {
-    extension<T>(ObservableAsync<T> @this)
+    extension<T>(IObservableAsync<T> @this)
     {
         /// <summary>
         /// Asynchronously collects all elements from the source sequence into a list.

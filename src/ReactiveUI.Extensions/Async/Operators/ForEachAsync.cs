@@ -14,7 +14,7 @@ namespace ReactiveUI.Extensions.Async;
 /// when interacting with IAsyncObservable or similar asynchronous push-based data sources.</remarks>
 public static partial class ObservableAsync
 {
-    extension<T>(ObservableAsync<T> @this)
+    extension<T>(IObservableAsync<T> @this)
     {
         /// <summary>
         /// Asynchronously invokes the specified action for each element in the sequence as elements are received.

@@ -22,11 +22,11 @@ public static partial class ObservableAsync
     /// <param name="this">The source observable sequence to yield from.</param>
     /// <returns>An observable sequence that emits the same elements as the source, but yields control to the scheduler before
     /// each emission.</returns>
-    public static ObservableAsync<T> Yield<T>(this ObservableAsync<T> @this) => new YieldObservable<T>(@this);
+    public static IObservableAsync<T> Yield<T>(this IObservableAsync<T> @this) => new YieldObservable<T>(@this);
 
-    private sealed class YieldObservable<T>(ObservableAsync<T> source) : ObservableAsync<T>
+    private sealed class YieldObservable<T>(IObservableAsync<T> source) : ObservableAsync<T>
     {
-        protected override ValueTask<IAsyncDisposable> SubscribeAsyncCore(ObserverAsync<T> observer, CancellationToken cancellationToken)
+        protected override ValueTask<IAsyncDisposable> SubscribeAsyncCore(IObserverAsync<T> observer, CancellationToken cancellationToken)
         {
             var currentContext = AsyncContext.GetCurrent();
             return source.SubscribeAsync(new ObserveOnAsyncObservable<T>.ObserveOnObserver(observer, currentContext, true), cancellationToken);

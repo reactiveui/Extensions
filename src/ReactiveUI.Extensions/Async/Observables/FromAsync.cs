@@ -27,7 +27,7 @@ public static partial class ObservableAsync
     /// cref="CancellationToken"/>. Cannot be null.</param>
     /// <returns>An <see cref="ObservableAsync{T}"/> that emits the value returned by the factory function and then completes.</returns>
     /// <exception cref="ArgumentNullException">Thrown if <paramref name="factory"/> is null.</exception>
-    public static ObservableAsync<T> FromAsync<T>(Func<CancellationToken, ValueTask<T>> factory)
+    public static IObservableAsync<T> FromAsync<T>(Func<CancellationToken, ValueTask<T>> factory)
     {
         if (factory is null)
         {
@@ -56,7 +56,7 @@ public static partial class ObservableAsync
     /// <returns>An observable sequence that emits a single value of <see cref="Unit"/> when the factory function completes,
     /// followed by a completion notification.</returns>
     /// <exception cref="ArgumentNullException">Thrown if <paramref name="factory"/> is <see langword="null"/>.</exception>
-    public static ObservableAsync<Unit> FromAsync(Func<CancellationToken, ValueTask> factory)
+    public static IObservableAsync<Unit> FromAsync(Func<CancellationToken, ValueTask> factory)
     {
         if (factory is null)
         {

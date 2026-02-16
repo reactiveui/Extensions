@@ -25,14 +25,14 @@ public static partial class ObservableAsync
     /// <param name="this">The source asynchronous observable sequence to monitor for errors.</param>
     /// <returns>An observable sequence that emits the same elements as the source, but represents errors as failure results
     /// instead of throwing exceptions.</returns>
-    public static ObservableAsync<T> OnErrorResumeAsFailure<T>(this ObservableAsync<T> @this) => new OnErroreResumeAsFailureObservable<T>(@this);
+    public static IObservableAsync<T> OnErrorResumeAsFailure<T>(this IObservableAsync<T> @this) => new OnErrorResumeAsFailureObservable<T>(@this);
 
-    private sealed class OnErroreResumeAsFailureObservable<T>(ObservableAsync<T> source) : ObservableAsync<T>
+    private sealed class OnErrorResumeAsFailureObservable<T>(IObservableAsync<T> source) : ObservableAsync<T>
     {
-        protected override ValueTask<IAsyncDisposable> SubscribeAsyncCore(ObserverAsync<T> observer, CancellationToken cancellationToken) =>
-            source.SubscribeAsync(new OnErroreResumeAsFailureObserver(observer), cancellationToken);
+        protected override ValueTask<IAsyncDisposable> SubscribeAsyncCore(IObserverAsync<T> observer, CancellationToken cancellationToken) =>
+            source.SubscribeAsync(new OnErrorResumeAsFailureObserver(observer), cancellationToken);
 
-        private sealed class OnErroreResumeAsFailureObserver(ObserverAsync<T> observer) : ObserverAsync<T>
+        private sealed class OnErrorResumeAsFailureObserver(IObserverAsync<T> observer) : ObserverAsync<T>
         {
             protected override ValueTask OnNextAsyncCore(T value, CancellationToken cancellationToken) =>
                 observer.OnNextAsync(value, cancellationToken);

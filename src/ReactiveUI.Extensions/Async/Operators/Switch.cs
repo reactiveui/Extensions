@@ -9,7 +9,7 @@ namespace ReactiveUI.Extensions.Async;
 /// </summary>
 public static partial class ObservableAsync
 {
-    extension<T>(ObservableAsync<ObservableAsync<T>> @this)
+    extension<T>(IObservableAsync<IObservableAsync<T>> @this)
     {
         /// <summary>
         /// Transforms an observable sequence of observable sequences into a single observable sequence that emits
@@ -20,6 +20,6 @@ public static partial class ObservableAsync
         /// observable are emitted to subscribers.</remarks>
         /// <returns>An observable sequence that emits items from the most recently emitted inner observable sequence. When a new
         /// inner sequence is emitted, the previous one is unsubscribed.</returns>
-        public ObservableAsync<T> Switch() => new SwitchObservable<T>(@this);
+        public IObservableAsync<T> Switch() => new SwitchObservable<T>(@this);
     }
 }

@@ -4,8 +4,8 @@
 
 namespace ReactiveUI.Extensions.Async.Internals;
 
-internal class AnonymousObservableAsync<T>(Func<ObserverAsync<T>, CancellationToken, ValueTask<IAsyncDisposable>> subscribeAsync) : ObservableAsync<T>
+internal class AnonymousObservableAsync<T>(Func<IObserverAsync<T>, CancellationToken, ValueTask<IAsyncDisposable>> subscribeAsync) : ObservableAsync<T>
 {
-    protected override ValueTask<IAsyncDisposable> SubscribeAsyncCore(ObserverAsync<T> observer, CancellationToken cancellationToken) =>
+    protected override ValueTask<IAsyncDisposable> SubscribeAsyncCore(IObserverAsync<T> observer, CancellationToken cancellationToken) =>
         subscribeAsync(observer, cancellationToken);
 }

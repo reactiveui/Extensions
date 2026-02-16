@@ -13,7 +13,7 @@ namespace ReactiveUI.Extensions.Async;
 /// stop receiving notifications and release resources. This class is intended to be used as a base for custom
 /// asynchronous observable implementations.</remarks>
 /// <typeparam name="T">The type of the elements produced by the observable sequence.</typeparam>
-public abstract class ObservableAsync<T>
+public abstract class ObservableAsync<T> : IObservableAsync<T>
 {
     /// <summary>
     /// Asynchronously subscribes the specified asynchronous observer to receive notifications from the observable
@@ -26,7 +26,7 @@ public abstract class ObservableAsync<T>
     /// <param name="cancellationToken">A cancellation token that can be used to cancel the subscription operation.</param>
     /// <returns>A task that represents the asynchronous operation. The result contains an <see cref="IAsyncDisposable"/> that
     /// can be disposed to unsubscribe the observer.</returns>
-    public async ValueTask<IAsyncDisposable> SubscribeAsync(ObserverAsync<T> observer, CancellationToken cancellationToken)
+    public async ValueTask<IAsyncDisposable> SubscribeAsync(IObserverAsync<T> observer, CancellationToken cancellationToken)
     {
         var subscription = await SubscribeAsyncCore(observer, cancellationToken).ConfigureAwait(false);
         return subscription;
@@ -41,5 +41,5 @@ public abstract class ObservableAsync<T>
     /// <param name="cancellationToken">A cancellation token that can be used to cancel the subscription operation.</param>
     /// <returns>A task that represents the asynchronous subscription operation. The result contains an object that can be
     /// disposed to unsubscribe the observer.</returns>
-    protected abstract ValueTask<IAsyncDisposable> SubscribeAsyncCore(ObserverAsync<T> observer, CancellationToken cancellationToken);
+    protected abstract ValueTask<IAsyncDisposable> SubscribeAsyncCore(IObserverAsync<T> observer, CancellationToken cancellationToken);
 }

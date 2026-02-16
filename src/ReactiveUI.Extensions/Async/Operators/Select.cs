@@ -12,7 +12,7 @@ namespace ReactiveUI.Extensions.Async;
 /// similar to LINQ operations for synchronous observables.</remarks>
 public static partial class ObservableAsync
 {
-    extension<T>(ObservableAsync<T> @this)
+    extension<T>(IObservableAsync<T> @this)
     {
         /// <summary>
         /// Projects each element of the observable sequence into a new form using the specified asynchronous selector
@@ -26,7 +26,7 @@ public static partial class ObservableAsync
         /// name="TDest"/> asynchronously. The function receives the source element and a cancellation token.</param>
         /// <returns>An observable sequence of type <typeparamref name="TDest"/> containing the results of applying the selector
         /// function to each element of the source sequence.</returns>
-        public ObservableAsync<TDest> Select<TDest>(Func<T, CancellationToken, ValueTask<TDest>> selector) =>
+        public IObservableAsync<TDest> Select<TDest>(Func<T, CancellationToken, ValueTask<TDest>> selector) =>
             Create<TDest>(async (observer, subscribeToken) => await @this.SubscribeAsync(
                 async (x, token) =>
             {
@@ -47,7 +47,7 @@ public static partial class ObservableAsync
         /// <param name="selector">A function that transforms each element of the source sequence into a new value. Cannot be null.</param>
         /// <returns>An observable sequence whose elements are the result of invoking the selector function on each element of
         /// the source sequence.</returns>
-        public ObservableAsync<TDest> Select<TDest>(Func<T, TDest> selector) =>
+        public IObservableAsync<TDest> Select<TDest>(Func<T, TDest> selector) =>
             Create<TDest>(async (observer, subscribeToken) => await @this.SubscribeAsync(
                 (x, token) =>
             {

@@ -6,15 +6,15 @@ using ReactiveUI.Extensions.Async.Internals;
 
 namespace ReactiveUI.Extensions.Async;
 
-internal sealed class ObserveOnAsyncObservable<T>(ObservableAsync<T> source, AsyncContext asyncContext, bool forceYielding) : ObservableAsync<T>
+internal sealed class ObserveOnAsyncObservable<T>(IObservableAsync<T> source, AsyncContext asyncContext, bool forceYielding) : ObservableAsync<T>
 {
-    protected override async ValueTask<IAsyncDisposable> SubscribeAsyncCore(ObserverAsync<T> observer, CancellationToken cancellationToken)
+    protected override async ValueTask<IAsyncDisposable> SubscribeAsyncCore(IObserverAsync<T> observer, CancellationToken cancellationToken)
     {
         var observeOnObserver = new ObserveOnObserver(observer, asyncContext, forceYielding);
         return await source.SubscribeAsync(observeOnObserver, cancellationToken);
     }
 
-    internal sealed class ObserveOnObserver(ObserverAsync<T> observer, AsyncContext asyncContext, bool forceYielding) : ObserverAsync<T>
+    internal sealed class ObserveOnObserver(IObserverAsync<T> observer, AsyncContext asyncContext, bool forceYielding) : ObserverAsync<T>
     {
         protected override async ValueTask OnNextAsyncCore(T value, CancellationToken cancellationToken)
         {

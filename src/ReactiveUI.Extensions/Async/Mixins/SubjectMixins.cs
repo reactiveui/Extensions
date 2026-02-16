@@ -21,7 +21,7 @@ public static class SubjectMixins
     /// <typeparam name="T">The type of the elements processed by the subject and observer.</typeparam>
     /// <param name="subject">The subject to wrap as an asynchronous observer. Cannot be null.</param>
     /// <returns>An asynchronous observer that forwards notifications to the specified subject.</returns>
-    public static ObserverAsync<T> AsObserverAsync<T>(this ISubjectAsync<T> subject) => new SubjectAsyncObserver<T>(subject);
+    public static IObserverAsync<T> AsObserverAsync<T>(this ISubjectAsync<T> subject) => new SubjectAsyncObserver<T>(subject);
 
     /// <summary>
     /// Creates a new subject that applies a transformation to the values of the source subject using the specified
@@ -35,11 +35,11 @@ public static class SubjectMixins
     /// <param name="mapper">A function that takes an asynchronous observable of type T and returns a transformed asynchronous observable of
     /// type T. This function defines how the values are mapped.</param>
     /// <returns>A subject that emits values transformed by the specified mapping function.</returns>
-    public static ISubjectAsync<T> MapValues<T>(this ISubjectAsync<T> @this, Func<ObservableAsync<T>, ObservableAsync<T>> mapper) => new MappedSubject<T>(@this, mapper);
+    public static ISubjectAsync<T> MapValues<T>(this ISubjectAsync<T> @this, Func<IObservableAsync<T>, IObservableAsync<T>> mapper) => new MappedSubject<T>(@this, mapper);
 
-    private sealed class MappedSubject<T>(ISubjectAsync<T> original, Func<ObservableAsync<T>, ObservableAsync<T>> mapper) : ISubjectAsync<T>
+    private sealed class MappedSubject<T>(ISubjectAsync<T> original, Func<IObservableAsync<T>, IObservableAsync<T>> mapper) : ISubjectAsync<T>
     {
-        public ObservableAsync<T> Values { get; } = mapper(original.Values);
+        public IObservableAsync<T> Values { get; } = mapper(original.Values);
 
         public ValueTask OnNextAsync(T value, CancellationToken cancellationToken) => original.OnNextAsync(value, cancellationToken);
 

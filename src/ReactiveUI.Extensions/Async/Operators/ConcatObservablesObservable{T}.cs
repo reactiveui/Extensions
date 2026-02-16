@@ -7,9 +7,9 @@ using ReactiveUI.Extensions.Async.Internals;
 
 namespace ReactiveUI.Extensions.Async;
 
-internal sealed class ConcatObservablesObservable<T>(ObservableAsync<ObservableAsync<T>> source) : ObservableAsync<T>
+internal sealed class ConcatObservablesObservable<T>(IObservableAsync<IObservableAsync<T>> source) : ObservableAsync<T>
 {
-    protected override async ValueTask<IAsyncDisposable> SubscribeAsyncCore(ObserverAsync<T> observer, CancellationToken cancellationToken)
+    protected override async ValueTask<IAsyncDisposable> SubscribeAsyncCore(IObserverAsync<T> observer, CancellationToken cancellationToken)
     {
         var subscription = new ConcatSubscription(observer);
         try
@@ -27,29 +27,29 @@ internal sealed class ConcatObservablesObservable<T>(ObservableAsync<ObservableA
 
     private sealed class ConcatSubscription : IAsyncDisposable
     {
-        private readonly ConcurrentQueue<ObservableAsync<T>> _buffer = new();
+        private readonly ConcurrentQueue<IObservableAsync<T>> _buffer = new();
         private readonly CancellationTokenSource _disposeCts = new();
         private readonly CancellationToken _disposedCancellationToken;
         private readonly SingleAssignmentDisposableAsync _outerDisposable = new();
         private readonly SerialDisposableAsync _innerSubscription = new();
-        private readonly ObserverAsync<T> _observer;
+        private readonly IObserverAsync<T> _observer;
         private readonly AsyncGate _observerOnSomethingGate = new();
         private bool _outerCompleted;
         private int _disposed;
 
-        public ConcatSubscription(ObserverAsync<T> observer)
+        public ConcatSubscription(IObserverAsync<T> observer)
         {
             _observer = observer;
             _disposedCancellationToken = _disposeCts.Token;
         }
 
-        public async ValueTask SubscribeAsync(ObservableAsync<ObservableAsync<T>> source, CancellationToken subscriptionToken)
+        public async ValueTask SubscribeAsync(IObservableAsync<IObservableAsync<T>> source, CancellationToken subscriptionToken)
         {
             var outerSubscription = await source.SubscribeAsync(new ConcatOuterObserver(this), subscriptionToken);
             await _outerDisposable.SetDisposableAsync(outerSubscription);
         }
 
-        public ValueTask OnNextOuterAsync(ObservableAsync<T> inner)
+        public ValueTask OnNextOuterAsync(IObservableAsync<T> inner)
         {
             bool shouldSubscribe = false;
             lock (_buffer)
@@ -93,7 +93,7 @@ internal sealed class ConcatObservablesObservable<T>(ObservableAsync<ObservableA
                 return CompleteAsync(result);
             }
 
-            ObservableAsync<T>? nextInner;
+            IObservableAsync<T>? nextInner;
             bool outerCompleted;
             lock (_buffer)
             {
@@ -112,7 +112,7 @@ internal sealed class ConcatObservablesObservable<T>(ObservableAsync<ObservableA
 
         public ValueTask DisposeAsync() => CompleteAsync(null);
 
-        private async ValueTask SubscribeToInnerLoop(ObservableAsync<T> currentInner)
+        private async ValueTask SubscribeToInnerLoop(IObservableAsync<T> currentInner)
         {
             try
             {
@@ -149,9 +149,9 @@ internal sealed class ConcatObservablesObservable<T>(ObservableAsync<ObservableA
             _observerOnSomethingGate.Dispose();
         }
 
-        private sealed class ConcatOuterObserver(ConcatSubscription subscription) : ObserverAsync<ObservableAsync<T>>
+        private sealed class ConcatOuterObserver(ConcatSubscription subscription) : ObserverAsync<IObservableAsync<T>>
         {
-            protected override ValueTask OnNextAsyncCore(ObservableAsync<T> value, CancellationToken cancellationToken)
+            protected override ValueTask OnNextAsyncCore(IObservableAsync<T> value, CancellationToken cancellationToken)
                 => subscription.OnNextOuterAsync(value);
 
             protected override async ValueTask OnErrorResumeAsyncCore(Exception error, CancellationToken cancellationToken)

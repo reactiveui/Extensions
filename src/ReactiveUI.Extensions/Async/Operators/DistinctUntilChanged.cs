@@ -13,7 +13,7 @@ namespace ReactiveUI.Extensions.Async;
 /// distinct consecutive values are of interest, such as event streams or state change notifications.</remarks>
 public static partial class ObservableAsync
 {
-    extension<T>(ObservableAsync<T> @this)
+    extension<T>(IObservableAsync<T> @this)
     {
         /// <summary>
         /// Returns an observable sequence that emits only distinct consecutive elements, suppressing duplicates that
@@ -24,7 +24,7 @@ public static partial class ObservableAsync
         /// affected.</remarks>
         /// <returns>An observable sequence that contains only the elements from the source sequence that are not equal to their
         /// immediate predecessor.</returns>
-        public ObservableAsync<T> DistinctUntilChanged() => @this.DistinctUntilChanged(EqualityComparer<T>.Default);
+        public IObservableAsync<T> DistinctUntilChanged() => @this.DistinctUntilChanged(EqualityComparer<T>.Default);
 
         /// <summary>
         /// Returns an observable sequence that emits elements from the source sequence only when the current element is
@@ -37,7 +37,7 @@ public static partial class ObservableAsync
         /// <returns>An observable sequence that contains only distinct consecutive elements from the source sequence, as
         /// determined by the specified equality comparer.</returns>
         /// <exception cref="ArgumentNullException">Thrown if <paramref name="equalityComparer"/> is <see langword="null"/>.</exception>
-        public ObservableAsync<T> DistinctUntilChanged(IEqualityComparer<T> equalityComparer)
+        public IObservableAsync<T> DistinctUntilChanged(IEqualityComparer<T> equalityComparer)
         {
             if (equalityComparer is null)
             {
@@ -77,7 +77,7 @@ public static partial class ObservableAsync
         /// <param name="keySelector">A function that extracts the comparison key from each element in the source sequence.</param>
         /// <returns>An observable sequence that contains only the elements from the source sequence that are not consecutive
         /// duplicates according to the specified key.</returns>
-        public ObservableAsync<T> DistinctUntilChangedBy<TKey>(Func<T, TKey> keySelector) => @this.DistinctUntilChangedBy(keySelector, EqualityComparer<TKey>.Default);
+        public IObservableAsync<T> DistinctUntilChangedBy<TKey>(Func<T, TKey> keySelector) => @this.DistinctUntilChangedBy(keySelector, EqualityComparer<TKey>.Default);
 
         /// <summary>
         /// Returns an observable sequence that emits elements from the source sequence, suppressing consecutive
@@ -92,7 +92,7 @@ public static partial class ObservableAsync
         /// <returns>An observable sequence that contains only the elements from the source sequence that are not consecutive
         /// duplicates according to the specified key and comparer.</returns>
         /// <exception cref="ArgumentNullException">Thrown if <paramref name="keySelector"/> or <paramref name="equalityComparer"/> is null.</exception>
-        public ObservableAsync<T> DistinctUntilChangedBy<TKey>(Func<T, TKey> keySelector, IEqualityComparer<TKey> equalityComparer)
+        public IObservableAsync<T> DistinctUntilChangedBy<TKey>(Func<T, TKey> keySelector, IEqualityComparer<TKey> equalityComparer)
         {
             if (keySelector is null)
             {

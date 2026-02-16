@@ -22,7 +22,7 @@ public static partial class ObservableAsync
     /// scenarios. The returned sequence signals completion to observers as soon as it is subscribed to.</remarks>
     /// <typeparam name="T">The type of elements in the observable sequence.</typeparam>
     /// <returns>An observable sequence of type <typeparamref name="T"/> that completes immediately without producing any values.</returns>
-    public static ObservableAsync<T> Empty<T>() => Create<T>(async (observer, _) =>
+    public static IObservableAsync<T> Empty<T>() => Create<T>(async (observer, _) =>
                                                         {
                                                             await observer.OnCompletedAsync(Result.Success);
                                                             return DisposableAsync.Empty;

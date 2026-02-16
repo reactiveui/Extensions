@@ -26,7 +26,7 @@ public sealed class SerialStatelessReplayLastSubjectAsync<T>(Optional<T> startVa
     /// <param name="value">The value to send to each observer.</param>
     /// <param name="cancellationToken">A cancellation token that can be used to cancel the notification operation.</param>
     /// <returns>A task that represents the asynchronous notification operation.</returns>
-    protected override async ValueTask OnNextAsyncCore(IReadOnlyList<ObserverAsync<T>> observers, T value, CancellationToken cancellationToken)
+    protected override async ValueTask OnNextAsyncCore(IReadOnlyList<IObserverAsync<T>> observers, T value, CancellationToken cancellationToken)
     {
         foreach (var observer in observers)
         {
@@ -41,7 +41,7 @@ public sealed class SerialStatelessReplayLastSubjectAsync<T>(Optional<T> startVa
     /// <param name="error">The exception that caused the error. Cannot be null.</param>
     /// <param name="cancellationToken">A cancellation token that can be used to cancel the asynchronous operation.</param>
     /// <returns>A task that represents the asynchronous notification operation.</returns>
-    protected override async ValueTask OnErrorResumeAsyncCore(IReadOnlyList<ObserverAsync<T>> observers, Exception error, CancellationToken cancellationToken)
+    protected override async ValueTask OnErrorResumeAsyncCore(IReadOnlyList<IObserverAsync<T>> observers, Exception error, CancellationToken cancellationToken)
     {
         foreach (var observer in observers)
         {
@@ -59,7 +59,7 @@ public sealed class SerialStatelessReplayLastSubjectAsync<T>(Optional<T> startVa
     /// <param name="observers">A read-only list of observers to be notified of the operation's completion. Cannot be null.</param>
     /// <param name="result">The result to provide to each observer upon completion.</param>
     /// <returns>A task that represents the asynchronous notification operation.</returns>
-    protected override async ValueTask OnCompletedAsyncCore(IReadOnlyList<ObserverAsync<T>> observers, Result result)
+    protected override async ValueTask OnCompletedAsyncCore(IReadOnlyList<IObserverAsync<T>> observers, Result result)
     {
         foreach (var observer in observers)
         {

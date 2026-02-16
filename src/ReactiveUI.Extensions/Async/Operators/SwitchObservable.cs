@@ -7,9 +7,9 @@ using ReactiveUI.Extensions.Async.Internals;
 
 namespace ReactiveUI.Extensions.Async;
 
-internal sealed class SwitchObservable<T>(ObservableAsync<ObservableAsync<T>> source) : ObservableAsync<T>
+internal sealed class SwitchObservable<T>(IObservableAsync<IObservableAsync<T>> source) : ObservableAsync<T>
 {
-    protected override async ValueTask<IAsyncDisposable> SubscribeAsyncCore(ObserverAsync<T> observer, CancellationToken cancellationToken)
+    protected override async ValueTask<IAsyncDisposable> SubscribeAsyncCore(IObserverAsync<T> observer, CancellationToken cancellationToken)
     {
         var subscription = new SwitchSubscription(observer);
         try
@@ -27,7 +27,7 @@ internal sealed class SwitchObservable<T>(ObservableAsync<ObservableAsync<T>> so
 
     private sealed class SwitchSubscription : IAsyncDisposable
     {
-        private readonly ObserverAsync<T> _observer;
+        private readonly IObserverAsync<T> _observer;
         private readonly SingleAssignmentDisposableAsync _outerDisposable = new();
         private readonly CancellationTokenSource _disposeCts = new();
         private readonly CancellationToken _disposeCancellationToken;
@@ -37,19 +37,19 @@ internal sealed class SwitchObservable<T>(ObservableAsync<ObservableAsync<T>> so
         private bool _outerCompleted;
         private bool _disposed;
 
-        public SwitchSubscription(ObserverAsync<T> observer)
+        public SwitchSubscription(IObserverAsync<T> observer)
         {
             _observer = observer;
             _disposeCancellationToken = _disposeCts.Token;
         }
 
-        public async ValueTask SubscribeAsync(ObservableAsync<ObservableAsync<T>> source, CancellationToken subscriptionToken)
+        public async ValueTask SubscribeAsync(IObservableAsync<IObservableAsync<T>> source, CancellationToken subscriptionToken)
         {
             var outerSubscription = await source.SubscribeAsync(new SwitchOuterObserver(this), subscriptionToken);
             await _outerDisposable.SetDisposableAsync(outerSubscription);
         }
 
-        public ValueTask OnNextOuterAsync(ObservableAsync<T> inner)
+        public ValueTask OnNextOuterAsync(IObservableAsync<T> inner)
         {
             IAsyncDisposable? previousSubscription;
             lock (_gate)
@@ -117,7 +117,7 @@ internal sealed class SwitchObservable<T>(ObservableAsync<ObservableAsync<T>> so
 
         public ValueTask DisposeAsync() => CompleteAsync(null);
 
-        private async ValueTask SubscribeToInnerAfterDisposingPrevious(ObservableAsync<T> inner, IAsyncDisposable? previousSubscription)
+        private async ValueTask SubscribeToInnerAfterDisposingPrevious(IObservableAsync<T> inner, IAsyncDisposable? previousSubscription)
         {
             try
             {
@@ -192,9 +192,9 @@ internal sealed class SwitchObservable<T>(ObservableAsync<ObservableAsync<T>> so
             _observerOnSomethingGate.Dispose();
         }
 
-        private sealed class SwitchOuterObserver(SwitchSubscription subscription) : ObserverAsync<ObservableAsync<T>>
+        private sealed class SwitchOuterObserver(SwitchSubscription subscription) : ObserverAsync<IObservableAsync<T>>
         {
-            protected override ValueTask OnNextAsyncCore(ObservableAsync<T> value, CancellationToken cancellationToken)
+            protected override ValueTask OnNextAsyncCore(IObservableAsync<T> value, CancellationToken cancellationToken)
                 => subscription.OnNextOuterAsync(value);
 
             protected override async ValueTask OnErrorResumeAsyncCore(Exception error, CancellationToken cancellationToken)

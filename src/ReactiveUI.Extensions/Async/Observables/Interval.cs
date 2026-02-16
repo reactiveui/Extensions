@@ -24,7 +24,7 @@ public static partial class ObservableAsync
     /// system clock is used.</param>
     /// <returns>An ObservableAsync{long} that emits an increasing long value at each interval, starting from 1, until the
     /// sequence is cancelled.</returns>
-    public static ObservableAsync<long> Interval(TimeSpan period, TimeProvider? timeProvider = null) => CreateAsBackgroundJob<long>(
+    public static IObservableAsync<long> Interval(TimeSpan period, TimeProvider? timeProvider = null) => CreateAsBackgroundJob<long>(
             async (observer, cancellationToken) =>
         {
             long tick = 1;
@@ -37,7 +37,7 @@ public static partial class ObservableAsync
                 else
                 {
                     var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-                    await using var tp = timeProvider.CreateTimer(x => ((TaskCompletionSource<bool>)x!).TrySetResult(true), tcs, period, Timeout.InfiniteTimeSpan);
+                    await using var tp = timeProvider.CreateTimer(x => ((TaskCompletionSource<bool>)x!).TrySetResult(true), tcs, period, System.Threading.Timeout.InfiniteTimeSpan);
                     using var ct = cancellationToken.Register(x => ((TaskCompletionSource<bool>)x!).TrySetCanceled(cancellationToken), tcs);
                     await tcs.Task;
                 }

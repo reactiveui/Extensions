@@ -14,7 +14,7 @@ namespace ReactiveUI.Extensions.Async;
 /// that implement asynchronous observable patterns.</remarks>
 public static partial class ObservableAsync
 {
-    extension<T>(ObservableAsync<T> @this)
+    extension<T>(IObservableAsync<T> @this)
     {
         /// <summary>
         /// Asynchronously returns the first element in the sequence that satisfies the specified predicate.

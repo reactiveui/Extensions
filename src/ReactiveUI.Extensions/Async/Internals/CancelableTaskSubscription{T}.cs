@@ -14,7 +14,7 @@ namespace ReactiveUI.Extensions.Async.Internals;
 /// core execution logic in RunCoreAsync.</remarks>
 /// <typeparam name="T">The type of the elements observed by the subscription.</typeparam>
 /// <param name="observer">The observer that receives notifications for the subscription. Cannot be null.</param>
-internal abstract class CancelableTaskSubscription<T>(ObserverAsync<T> observer) : IAsyncDisposable
+internal abstract class CancelableTaskSubscription<T>(IObserverAsync<T> observer) : IAsyncDisposable
 {
     private readonly TaskCompletionSource<bool> _tcs = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly CancellationTokenSource _cts = new();
@@ -45,7 +45,7 @@ internal abstract class CancelableTaskSubscription<T>(ObserverAsync<T> observer)
         _cts.Dispose();
     }
 
-    protected abstract ValueTask RunAsyncCore(ObserverAsync<T> observer, CancellationToken cancellationToken);
+    protected abstract ValueTask RunAsyncCore(IObserverAsync<T> observer, CancellationToken cancellationToken);
 
     private async ValueTask RunAsync(CancellationToken cancellationToken)
     {

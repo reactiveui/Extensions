@@ -12,7 +12,7 @@ namespace ReactiveUI.Extensions.Async;
 /// be used with types implementing asynchronous observable patterns, such as ObservableAsync{T}.</remarks>
 public static partial class ObservableAsync
 {
-    extension<T>(ObservableAsync<T> @this)
+    extension<T>(IObservableAsync<T> @this)
     {
         /// <summary>
         /// Projects each element of the observable sequence to the specified reference type and filters out elements
@@ -23,7 +23,7 @@ public static partial class ObservableAsync
         /// allowing subscribers to focus on elements of a specific type.</remarks>
         /// <typeparam name="TResult">The reference type to filter and project elements to. Must be a class.</typeparam>
         /// <returns>An observable sequence containing only the elements of type TResult from the original sequence.</returns>
-        public ObservableAsync<TResult> OfType<TResult>()
+        public IObservableAsync<TResult> OfType<TResult>()
             where TResult : class => Create<TResult>(async (observer, subscribeToken) => await @this.SubscribeAsync(
                                                       async (x, token) =>
                                                   {

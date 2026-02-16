@@ -14,7 +14,7 @@ namespace ReactiveUI.Extensions.Async;
 /// similar to LINQ, supporting scenarios such as retrieving single elements or default values asynchronously.</remarks>
 public static partial class ObservableAsync
 {
-    extension<T>(ObservableAsync<T> @this)
+    extension<T>(IObservableAsync<T> @this)
     {
         /// <summary>
         /// Asynchronously returns the only element of a sequence that satisfies a specified condition, or a default

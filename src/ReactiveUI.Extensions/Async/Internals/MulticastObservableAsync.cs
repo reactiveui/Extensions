@@ -7,7 +7,7 @@ using ReactiveUI.Extensions.Async.Subjects;
 
 namespace ReactiveUI.Extensions.Async.Internals;
 
-internal class MulticastObservableAsync<T>(ObservableAsync<T> observable, ISubjectAsync<T> subject) : ConnectableObservableAsync<T>, IDisposable
+internal class MulticastObservableAsync<T>(IObservableAsync<T> observable, ISubjectAsync<T> subject) : ConnectableObservableAsync<T>, IDisposable
 {
     private readonly AsyncGate _gate = new();
     private SingleAssignmentDisposableAsync? _connection;
@@ -70,7 +70,7 @@ internal class MulticastObservableAsync<T>(ObservableAsync<T> observable, ISubje
     /// <param name="cancellationToken">A cancellation token that can be used to cancel the subscription operation.</param>
     /// <returns>A task that represents the asynchronous subscription operation. The result contains an object that can be
     /// disposed to unsubscribe the observer.</returns>
-    protected override ValueTask<IAsyncDisposable> SubscribeAsyncCore(ObserverAsync<T> observer, CancellationToken cancellationToken) =>
+    protected override ValueTask<IAsyncDisposable> SubscribeAsyncCore(IObserverAsync<T> observer, CancellationToken cancellationToken) =>
         subject.Values.SubscribeAsync(observer.Wrap(), cancellationToken);
 
     /// <summary>

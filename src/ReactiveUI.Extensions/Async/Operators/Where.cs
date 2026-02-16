@@ -13,7 +13,7 @@ namespace ReactiveUI.Extensions.Async;
 /// functions for filtering sequences.</remarks>
 public static partial class ObservableAsync
 {
-    extension<T>(ObservableAsync<T> @this)
+    extension<T>(IObservableAsync<T> @this)
     {
         /// <summary>
         /// Creates a new observable sequence that contains only the elements from the source sequence that satisfy the
@@ -28,7 +28,7 @@ public static partial class ObservableAsync
         /// langword="false"/>.</param>
         /// <returns>An observable sequence that emits only those elements for which the predicate returns <see
         /// langword="true"/>.</returns>
-        public ObservableAsync<T> Where(Func<T, CancellationToken, ValueTask<bool>> predicate) =>
+        public IObservableAsync<T> Where(Func<T, CancellationToken, ValueTask<bool>> predicate) =>
             Create<T>(async (observer, subscribeToken) => await @this.SubscribeAsync(
                 async (x, token) =>
             {
@@ -52,7 +52,7 @@ public static partial class ObservableAsync
         /// function returns <see langword="true"/>.</param>
         /// <returns>An observable sequence that contains elements from the current sequence that satisfy the specified
         /// predicate.</returns>
-        public ObservableAsync<T> Where(Func<T, bool> predicate) =>
+        public IObservableAsync<T> Where(Func<T, bool> predicate) =>
             Create<T>(async (observer, subscribeToken) => await @this.SubscribeAsync(
                 (x, token) =>
                 {

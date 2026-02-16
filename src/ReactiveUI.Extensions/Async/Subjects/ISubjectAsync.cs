@@ -22,7 +22,7 @@ public interface ISubjectAsync<T>
     /// </summary>
     /// <remarks>The returned sequence emits updates whenever the underlying collection changes. Subscribers
     /// receive notifications asynchronously as values are added, removed, or updated.</remarks>
-    ObservableAsync<T> Values { get; }
+    IObservableAsync<T> Values { get; }
 
     /// <summary>
     /// Asynchronously processes the next value in the sequence.

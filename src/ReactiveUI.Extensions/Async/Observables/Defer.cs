@@ -25,7 +25,7 @@ public static partial class ObservableAsync
     /// subscribe to.</param>
     /// <returns>An observable sequence that, upon each subscription, invokes the factory function to obtain the actual
     /// observable sequence to subscribe to.</returns>
-    public static ObservableAsync<T> Defer<T>(Func<CancellationToken, ValueTask<ObservableAsync<T>>> factory) =>
+    public static IObservableAsync<T> Defer<T>(Func<CancellationToken, ValueTask<IObservableAsync<T>>> factory) =>
         Create<T>(async (observer, token) =>
         {
             var observable = await factory(token);
@@ -42,7 +42,7 @@ public static partial class ObservableAsync
     /// <typeparam name="T">The type of the elements produced by the observable sequence.</typeparam>
     /// <param name="factory">A function that returns a new instance of an observable sequence to be subscribed to for each observer.</param>
     /// <returns>An observable sequence whose observers trigger the invocation of the factory function upon subscription.</returns>
-    public static ObservableAsync<T> Defer<T>(Func<ObservableAsync<T>> factory) =>
+    public static IObservableAsync<T> Defer<T>(Func<IObservableAsync<T>> factory) =>
         Create<T>(async (observer, token) =>
         {
             var observable = factory();

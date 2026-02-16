@@ -94,6 +94,34 @@ public record AsyncContext
     }
 
     /// <summary>
+    /// Creates a new AsyncContext using the specified scheduler for task and synchronization context management.
+    /// </summary>
+    /// <remarks>If the provided scheduler directly implements <see cref="SynchronizationContext"/> or
+    /// <see cref="TaskScheduler"/>, those instances are used directly. Otherwise, the scheduler is wrapped
+    /// in a <see cref="TaskScheduler"/> adapter that delegates task execution to the scheduler.</remarks>
+    /// <param name="scheduler">The scheduler to use for configuring the AsyncContext.</param>
+    /// <returns>An AsyncContext instance configured with the provided scheduler.</returns>
+    /// <exception cref="ArgumentNullException">Thrown if scheduler is null.</exception>
+    public static AsyncContext From(IScheduler scheduler)
+    {
+        if (scheduler is null)
+        {
+            throw new ArgumentNullException(nameof(scheduler));
+        }
+
+        if (scheduler is SynchronizationContext sc)
+        {
+            return From(sc);
+        }
+
+        return new()
+        {
+            SynchronizationContext = null,
+            TaskScheduler = scheduler as TaskScheduler ?? new SchedulerTaskScheduler(scheduler)
+        };
+    }
+
+    /// <summary>
     /// Gets the current asynchronous context associated with the calling thread.
     /// </summary>
     /// <remarks>Use this method to capture the context for scheduling asynchronous operations that should
@@ -179,5 +207,30 @@ public record AsyncContext
             var ts = asyncContext.TaskScheduler ?? TaskScheduler.Default;
             Task.Factory.StartNew(continuation, CancellationToken.None, TaskCreationOptions.DenyChildAttach, ts);
         }
+    }
+
+    /// <summary>
+    /// Provides a custom TaskScheduler that schedules tasks using the specified IScheduler.
+    /// </summary>
+    /// <remarks>This TaskScheduler enables integration of Task-based asynchronous code with reactive or
+    /// custom scheduling strategies by delegating task execution to the provided IScheduler. Tasks scheduled through
+    /// this TaskScheduler will be executed according to the policies of the specified IScheduler. This class is
+    /// intended for advanced scenarios where control over task scheduling is required.</remarks>
+    /// <param name="scheduler">The IScheduler used to schedule and execute tasks. Cannot be null.</param>
+    private sealed class SchedulerTaskScheduler(IScheduler scheduler) : TaskScheduler
+    {
+        /// <inheritdoc/>
+        protected override IEnumerable<Task>? GetScheduledTasks() => null;
+
+        /// <inheritdoc/>
+        protected override void QueueTask(Task task) =>
+            scheduler.Schedule(task, (_, t) =>
+            {
+                TryExecuteTask(t);
+                return Disposable.Empty;
+            });
+
+        /// <inheritdoc/>
+        protected override bool TryExecuteTaskInline(Task task, bool taskWasPreviouslyQueued) => false;
     }
 }

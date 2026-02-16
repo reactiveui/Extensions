@@ -13,7 +13,7 @@ namespace ReactiveUI.Extensions.Async;
 /// composable manner.</remarks>
 public static partial class ObservableAsync
 {
-    extension<T>(ObservableAsync<T> @this)
+    extension<T>(IObservableAsync<T> @this)
     {
         /// <summary>
         /// Returns a sequence that contains only distinct elements from the source sequence, using the default equality
@@ -22,7 +22,7 @@ public static partial class ObservableAsync
         /// <remarks>Elements are considered distinct based on the default equality comparer for type T.
         /// The order of elements is preserved.</remarks>
         /// <returns>An observable sequence that contains distinct elements from the source sequence.</returns>
-        public ObservableAsync<T> Distinct() => @this.Distinct(EqualityComparer<T>.Default);
+        public IObservableAsync<T> Distinct() => @this.Distinct(EqualityComparer<T>.Default);
 
         /// <summary>
         /// Returns an observable sequence that contains only distinct elements from the source sequence, using the
@@ -34,7 +34,7 @@ public static partial class ObservableAsync
         /// used.</param>
         /// <returns>An observable sequence that emits each distinct element from the source sequence, in the order in which they
         /// are received.</returns>
-        public ObservableAsync<T> Distinct(IEqualityComparer<T> equalityComparer)
+        public IObservableAsync<T> Distinct(IEqualityComparer<T> equalityComparer)
         {
             return Create<T>(async (observer, subscribeToken) =>
             {
@@ -63,7 +63,7 @@ public static partial class ObservableAsync
         /// <param name="keySelector">A function to extract the key for each element. Cannot be null.</param>
         /// <returns>An observable sequence that contains only the first occurrence of each distinct key as determined by the key
         /// selector.</returns>
-        public ObservableAsync<T> DistinctBy<TKey>(Func<T, TKey> keySelector) => @this.DistinctBy(keySelector, EqualityComparer<TKey>.Default);
+        public IObservableAsync<T> DistinctBy<TKey>(Func<T, TKey> keySelector) => @this.DistinctBy(keySelector, EqualityComparer<TKey>.Default);
 
         /// <summary>
         /// Returns an observable sequence that contains only distinct elements from the source sequence, comparing
@@ -78,7 +78,7 @@ public static partial class ObservableAsync
         /// <returns>An observable sequence that contains only the first occurrence of each distinct key as determined by the
         /// specified key selector and equality comparer.</returns>
         /// <exception cref="ArgumentNullException">Thrown if <paramref name="keySelector"/> or <paramref name="equalityComparer"/> is null.</exception>
-        public ObservableAsync<T> DistinctBy<TKey>(Func<T, TKey> keySelector, IEqualityComparer<TKey> equalityComparer)
+        public IObservableAsync<T> DistinctBy<TKey>(Func<T, TKey> keySelector, IEqualityComparer<TKey> equalityComparer)
         {
             if (keySelector is null)
             {

@@ -17,7 +17,7 @@ namespace ReactiveUI.Extensions.Async;
 /// scenarios.</remarks>
 public static partial class ObservableAsync
 {
-    extension<T>(ObservableAsync<T> @this)
+    extension<T>(IObservableAsync<T> @this)
     {
         /// <summary>
         /// Returns a new observable sequence that emits only the first specified number of elements from the source
@@ -31,7 +31,7 @@ public static partial class ObservableAsync
         /// sequence. If <paramref name="count"/> is zero, the resulting sequence completes immediately without emitting
         /// any elements.</returns>
         /// <exception cref="ArgumentOutOfRangeException">Thrown if <paramref name="count"/> is less than zero.</exception>
-        public ObservableAsync<T> Take(int count)
+        public IObservableAsync<T> Take(int count)
         {
             if (count < 0)
             {

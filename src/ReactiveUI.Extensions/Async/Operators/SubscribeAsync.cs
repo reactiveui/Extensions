@@ -18,7 +18,7 @@ namespace ReactiveUI.Extensions.Async;
 /// requiring explicit implementation of observer interfaces.</remarks>
 public static partial class ObservableAsync
 {
-    extension<T>(ObservableAsync<T> source)
+    extension<T>(IObservableAsync<T> source)
     {
         /// <summary>
         /// Subscribes to the asynchronous data source and invokes the specified callbacks for each item, error, or

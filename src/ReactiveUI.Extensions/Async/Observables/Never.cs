@@ -22,13 +22,13 @@ public static partial class ObservableAsync
     /// error.</remarks>
     /// <typeparam name="T">The type of elements in the observable sequence.</typeparam>
     /// <returns>An observable sequence of type <typeparamref name="T"/> that never emits any items and never terminates.</returns>
-    public static ObservableAsync<T> Never<T>() => NeverObservableAsync<T>.Instance;
+    public static IObservableAsync<T> Never<T>() => NeverObservableAsync<T>.Instance;
 
     private sealed class NeverObservableAsync<T> : ObservableAsync<T>
     {
         public static NeverObservableAsync<T> Instance { get; } = new();
 
-        protected override ValueTask<IAsyncDisposable> SubscribeAsyncCore(ObserverAsync<T> observer, CancellationToken cancellationToken) =>
+        protected override ValueTask<IAsyncDisposable> SubscribeAsyncCore(IObserverAsync<T> observer, CancellationToken cancellationToken) =>
             new(DisposableAsync.Empty);
     }
 }

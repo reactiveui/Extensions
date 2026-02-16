@@ -22,14 +22,14 @@ public abstract class BaseReplayLatestSubjectAsync<T>(Optional<T> startValue) : 
 {
     private readonly AsyncGate _gate = new();
     private Optional<T> _lastValue = startValue;
-    private ImmutableList<ObserverAsync<T>> _observers = [];
+    private ImmutableList<IObserverAsync<T>> _observers = [];
     private Result? _result;
     private bool _disposedValue;
 
     /// <summary>
     /// Gets an observable sequence that represents the asynchronous values of the subject.
     /// </summary>
-    ObservableAsync<T> ISubjectAsync<T>.Values => this;
+    IObservableAsync<T> ISubjectAsync<T>.Values => this;
 
     /// <summary>
     /// Asynchronously notifies all subscribed observers with the specified value.
@@ -40,7 +40,7 @@ public abstract class BaseReplayLatestSubjectAsync<T>(Optional<T> startValue) : 
     /// <returns>A task that represents the asynchronous notification operation.</returns>
     public async ValueTask OnNextAsync(T value, CancellationToken cancellationToken)
     {
-        ImmutableList<ObserverAsync<T>> observers;
+        ImmutableList<IObserverAsync<T>> observers;
         using (await _gate.LockAsync())
         {
             if (_result is not null)
@@ -65,7 +65,7 @@ public abstract class BaseReplayLatestSubjectAsync<T>(Optional<T> startValue) : 
     /// <returns>A task that represents the asynchronous notification operation.</returns>
     public async ValueTask OnErrorResumeAsync(Exception error, CancellationToken cancellationToken)
     {
-        ImmutableList<ObserverAsync<T>> observers;
+        ImmutableList<IObserverAsync<T>> observers;
         using (await _gate.LockAsync())
         {
             if (_result is not null)
@@ -89,7 +89,7 @@ public abstract class BaseReplayLatestSubjectAsync<T>(Optional<T> startValue) : 
     /// been notified.</returns>
     public ValueTask OnCompletedAsync(Result result)
     {
-        ImmutableList<ObserverAsync<T>>? observers;
+        ImmutableList<IObserverAsync<T>>? observers;
         lock (_gate)
         {
             if (_result is not null)
@@ -123,7 +123,7 @@ public abstract class BaseReplayLatestSubjectAsync<T>(Optional<T> startValue) : 
     /// <param name="value">The value to send to each observer.</param>
     /// <param name="cancellationToken">A cancellation token that can be used to cancel the notification operation.</param>
     /// <returns>A ValueTask that represents the asynchronous notification operation.</returns>
-    protected abstract ValueTask OnNextAsyncCore(IReadOnlyList<ObserverAsync<T>> observers, T value, CancellationToken cancellationToken);
+    protected abstract ValueTask OnNextAsyncCore(IReadOnlyList<IObserverAsync<T>> observers, T value, CancellationToken cancellationToken);
 
     /// <summary>
     /// Handles error recovery for the specified observers by resuming asynchronous processing after an error occurs.
@@ -135,7 +135,7 @@ public abstract class BaseReplayLatestSubjectAsync<T>(Optional<T> startValue) : 
     /// <param name="error">The exception that triggered the error handling logic. Cannot be null.</param>
     /// <param name="cancellationToken">A cancellation token that can be used to cancel the asynchronous operation.</param>
     /// <returns>A ValueTask that represents the asynchronous error recovery operation.</returns>
-    protected abstract ValueTask OnErrorResumeAsyncCore(IReadOnlyList<ObserverAsync<T>> observers, Exception error, CancellationToken cancellationToken);
+    protected abstract ValueTask OnErrorResumeAsyncCore(IReadOnlyList<IObserverAsync<T>> observers, Exception error, CancellationToken cancellationToken);
 
     /// <summary>
     /// Invoked to asynchronously notify all observers of the completion event with the specified result.
@@ -146,7 +146,7 @@ public abstract class BaseReplayLatestSubjectAsync<T>(Optional<T> startValue) : 
     /// <param name="observers">A read-only list of observers to be notified of the completion event. Cannot be null.</param>
     /// <param name="result">The result to provide to each observer upon completion.</param>
     /// <returns>A ValueTask that represents the asynchronous notification operation.</returns>
-    protected abstract ValueTask OnCompletedAsyncCore(IReadOnlyList<ObserverAsync<T>> observers, Result result);
+    protected abstract ValueTask OnCompletedAsyncCore(IReadOnlyList<IObserverAsync<T>> observers, Result result);
 
     /// <summary>
     /// Subscribes the specified asynchronous observer to receive notifications from the observable sequence.
@@ -158,7 +158,7 @@ public abstract class BaseReplayLatestSubjectAsync<T>(Optional<T> startValue) : 
     /// <param name="cancellationToken">A cancellation token that can be used to cancel the subscription operation.</param>
     /// <returns>A disposable object that can be used to unsubscribe the observer from the sequence. If the sequence has already
     /// completed, returns an empty disposable.</returns>
-    protected override async ValueTask<IAsyncDisposable> SubscribeAsyncCore(ObserverAsync<T> observer, CancellationToken cancellationToken)
+    protected override async ValueTask<IAsyncDisposable> SubscribeAsyncCore(IObserverAsync<T> observer, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         Result? result;

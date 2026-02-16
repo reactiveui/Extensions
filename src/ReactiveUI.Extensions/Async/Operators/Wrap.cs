@@ -20,7 +20,7 @@ public static partial class ObservableAsync
     /// <param name="observer">The asynchronous observer to wrap. Cannot be null.</param>
     /// <returns>A wrapped asynchronous observer that delegates calls to the specified observer.</returns>
     /// <exception cref="ArgumentNullException">Thrown if <paramref name="observer"/> is null.</exception>
-    public static ObserverAsync<T> Wrap<T>(this ObserverAsync<T> observer) => observer is null
+    public static IObserverAsync<T> Wrap<T>(this IObserverAsync<T> observer) => observer is null
             ? throw new ArgumentNullException(nameof(observer))
             : new WrappedObserverAsync<T>(observer);
 }

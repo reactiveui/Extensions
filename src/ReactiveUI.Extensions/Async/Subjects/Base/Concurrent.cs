@@ -29,7 +29,7 @@ public static class Concurrent
     /// <returns>A ValueTask that represents the asynchronous operation of forwarding the value to all observers. The task
     /// completes when all observers have processed the value.</returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static ValueTask ForwardOnNextConcurrently<T>(IReadOnlyList<ObserverAsync<T>> observers, T value, CancellationToken cancellationToken)
+    public static ValueTask ForwardOnNextConcurrently<T>(IReadOnlyList<IObserverAsync<T>> observers, T value, CancellationToken cancellationToken)
     {
         if (observers.Count == 0)
         {
@@ -53,7 +53,7 @@ public static class Concurrent
     /// <returns>A ValueTask that represents the asynchronous operation of forwarding the error to all observers. The task
     /// completes when all observers have processed the error notification.</returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static ValueTask ForwardOnErrorResumeConcurrently<T>(IReadOnlyList<ObserverAsync<T>> observers, Exception error, CancellationToken cancellationToken)
+    public static ValueTask ForwardOnErrorResumeConcurrently<T>(IReadOnlyList<IObserverAsync<T>> observers, Exception error, CancellationToken cancellationToken)
     {
         if (observers.Count == 0)
         {
@@ -77,7 +77,7 @@ public static class Concurrent
     /// observers have finished processing the completion notification. If the observers list is empty, a default
     /// ValueTask is returned.</returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static ValueTask ForwardOnCompletedConcurrently<T>(IReadOnlyList<ObserverAsync<T>> observers, Result result)
+    public static ValueTask ForwardOnCompletedConcurrently<T>(IReadOnlyList<IObserverAsync<T>> observers, Result result)
     {
         if (observers.Count == 0)
         {

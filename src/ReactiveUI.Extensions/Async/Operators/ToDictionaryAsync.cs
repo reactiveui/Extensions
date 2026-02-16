@@ -15,7 +15,7 @@ namespace ReactiveUI.Extensions.Async;
 /// in the source sequence, consistent with the behavior of Dictionary{TKey, TValue}.</remarks>
 public static partial class ObservableAsync
 {
-    extension<T>(ObservableAsync<T> @this)
+    extension<T>(IObservableAsync<T> @this)
     {
         /// <summary>
         /// Asynchronously creates a dictionary from the elements of the sequence, using the specified key selector

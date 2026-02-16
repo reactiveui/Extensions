@@ -28,7 +28,7 @@ public static partial class ObservableAsync
     /// subscription.</param>
     /// <returns>An ObservableAsync{T} that invokes the specified subscription function for each observer.</returns>
     /// <exception cref="ArgumentNullException">Thrown if <paramref name="subscribeAsync"/> is <see langword="null"/>.</exception>
-    public static ObservableAsync<T> Create<T>(Func<ObserverAsync<T>, CancellationToken, ValueTask<IAsyncDisposable>> subscribeAsync) => subscribeAsync is null
+    public static IObservableAsync<T> Create<T>(Func<IObserverAsync<T>, CancellationToken, ValueTask<IAsyncDisposable>> subscribeAsync) => subscribeAsync is null
             ? throw new ArgumentNullException(nameof(subscribeAsync))
             : new AnonymousObservableAsync<T>(subscribeAsync);
 
@@ -41,7 +41,7 @@ public static partial class ObservableAsync
     /// <param name="startSynchronously">true to start the job synchronously on the calling thread; otherwise, false to schedule it to run
     /// asynchronously.</param>
     /// <returns>An ObservableAsync{T} that represents the observable sequence produced by the background job.</returns>
-    public static ObservableAsync<T> CreateAsBackgroundJob<T>(Func<ObserverAsync<T>, CancellationToken, ValueTask> job, bool startSynchronously = false) =>
+    public static IObservableAsync<T> CreateAsBackgroundJob<T>(Func<IObserverAsync<T>, CancellationToken, ValueTask> job, bool startSynchronously = false) =>
         CreateAsBackgroundJob(job, startSynchronously, null);
 
     /// <summary>
@@ -53,10 +53,10 @@ public static partial class ObservableAsync
     /// a cancellation token to observe cancellation requests.</param>
     /// <param name="taskScheduler">The task scheduler that is used to schedule the background job.</param>
     /// <returns>An ObservableAsync{T} that represents the asynchronous background job and emits the results produced by the job.</returns>
-    public static ObservableAsync<T> CreateAsBackgroundJob<T>(Func<ObserverAsync<T>, CancellationToken, ValueTask> job, TaskScheduler taskScheduler) =>
+    public static IObservableAsync<T> CreateAsBackgroundJob<T>(Func<IObserverAsync<T>, CancellationToken, ValueTask> job, TaskScheduler taskScheduler) =>
         CreateAsBackgroundJob(job, false, taskScheduler);
 
-    private static ObservableAsync<T> CreateAsBackgroundJob<T>(Func<ObserverAsync<T>, CancellationToken, ValueTask> job, bool startSynchronously, TaskScheduler? taskScheduler)
+    private static IObservableAsync<T> CreateAsBackgroundJob<T>(Func<IObserverAsync<T>, CancellationToken, ValueTask> job, bool startSynchronously, TaskScheduler? taskScheduler)
     {
         if (job is null)
         {

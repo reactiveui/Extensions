@@ -15,7 +15,7 @@ namespace ReactiveUI.Extensions.Async;
 /// scenarios.</remarks>
 public static partial class ObservableAsync
 {
-    extension<T>(ObservableAsync<T> @this)
+    extension<T>(IObservableAsync<T> @this)
     {
         /// <summary>
         /// Registers a callback to be invoked asynchronously when the observable sequence is disposed.
@@ -26,7 +26,7 @@ public static partial class ObservableAsync
         /// <param name="onDispose">A function that returns a ValueTask representing the asynchronous operation to execute upon disposal of the
         /// observable sequence. Cannot be null.</param>
         /// <returns>An ObservableAsync{T} that invokes the specified asynchronous callback when disposed.</returns>
-        public ObservableAsync<T> OnDispose(Func<ValueTask> onDispose) => Create<T>((observer, token) =>
+        public IObservableAsync<T> OnDispose(Func<ValueTask> onDispose) => Create<T>((observer, token) =>
                                                                                    {
                                                                                        var newObserver = new OnDisposeObserver<T>(observer, onDispose);
                                                                                        return @this.SubscribeAsync(newObserver, token);
@@ -40,14 +40,14 @@ public static partial class ObservableAsync
         /// actions are registered through chained calls, each will be invoked in the order registered.</remarks>
         /// <param name="onDispose">The action to execute when the subscription is disposed. Cannot be null.</param>
         /// <returns>An observable sequence that invokes the specified action upon disposal of the subscription.</returns>
-        public ObservableAsync<T> OnDispose(Action onDispose) => Create<T>((observer, token) =>
+        public IObservableAsync<T> OnDispose(Action onDispose) => Create<T>((observer, token) =>
                                                                           {
                                                                               var newObserver = new OnDisposeObserverSync<T>(observer, onDispose);
                                                                               return @this.SubscribeAsync(newObserver, token);
                                                                           });
     }
 
-    private sealed class OnDisposeObserverSync<T>(ObserverAsync<T> observer, Action finallySync) : ObserverAsync<T>
+    private sealed class OnDisposeObserverSync<T>(IObserverAsync<T> observer, Action finallySync) : ObserverAsync<T>
     {
         protected override ValueTask OnNextAsyncCore(T value, CancellationToken cancellationToken)
             => observer.OnNextAsync(value, cancellationToken);
@@ -71,7 +71,7 @@ public static partial class ObservableAsync
         }
     }
 
-    private class OnDisposeObserver<T>(ObserverAsync<T> observer, Func<ValueTask> finallyAsync) : ObserverAsync<T>
+    private class OnDisposeObserver<T>(IObserverAsync<T> observer, Func<ValueTask> finallyAsync) : ObserverAsync<T>
     {
         protected override ValueTask OnNextAsyncCore(T value, CancellationToken cancellationToken)
             => observer.OnNextAsync(value, cancellationToken);

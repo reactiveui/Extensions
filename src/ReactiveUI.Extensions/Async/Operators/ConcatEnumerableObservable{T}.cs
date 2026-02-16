@@ -7,11 +7,11 @@ using ReactiveUI.Extensions.Async.Internals;
 
 namespace ReactiveUI.Extensions.Async;
 
-internal sealed class ConcatEnumerableObservable<T>(IEnumerable<ObservableAsync<T>> observables) : ObservableAsync<T>
+internal sealed class ConcatEnumerableObservable<T>(IEnumerable<IObservableAsync<T>> observables) : ObservableAsync<T>
 {
-    private readonly IEnumerable<ObservableAsync<T>> _observables = observables;
+    private readonly IEnumerable<IObservableAsync<T>> _observables = observables;
 
-    protected override async ValueTask<IAsyncDisposable> SubscribeAsyncCore(ObserverAsync<T> observer, CancellationToken cancellationToken)
+    protected override async ValueTask<IAsyncDisposable> SubscribeAsyncCore(IObserverAsync<T> observer, CancellationToken cancellationToken)
     {
         var subscription = new ConcatEnumerableSubscription(this, observer);
         try
@@ -29,14 +29,14 @@ internal sealed class ConcatEnumerableObservable<T>(IEnumerable<ObservableAsync<
 
     private sealed class ConcatEnumerableSubscription : IAsyncDisposable
     {
-        private readonly IEnumerator<ObservableAsync<T>> _enumerator;
+        private readonly IEnumerator<IObservableAsync<T>> _enumerator;
         private readonly SerialDisposableAsync _innerDisposable = new();
         private readonly CancellationTokenSource _cts = new();
         private readonly CancellationToken _disposedCancellationToken;
-        private readonly ObserverAsync<T> _observer;
+        private readonly IObserverAsync<T> _observer;
         private int _disposed;
 
-        public ConcatEnumerableSubscription(ConcatEnumerableObservable<T> parent, ObserverAsync<T> observer)
+        public ConcatEnumerableSubscription(ConcatEnumerableObservable<T> parent, IObserverAsync<T> observer)
         {
             _observer = observer;
             _enumerator = parent._observables.GetEnumerator();

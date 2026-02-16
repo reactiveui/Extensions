@@ -23,7 +23,7 @@ public static partial class ObservableAsync
     /// <typeparam name="T">The type of the value to be emitted by the observable sequence.</typeparam>
     /// <param name="value">The value to be emitted by the observable sequence.</param>
     /// <returns>An observable sequence that emits the specified value and then signals completion.</returns>
-    public static ObservableAsync<T> Return<T>(T value) => CreateAsBackgroundJob<T>(
+    public static IObservableAsync<T> Return<T>(T value) => CreateAsBackgroundJob<T>(
             async (obs, token) =>
         {
             await obs.OnNextAsync(value, token);

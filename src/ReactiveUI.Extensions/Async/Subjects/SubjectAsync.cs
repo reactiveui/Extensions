@@ -39,7 +39,7 @@ public static class SubjectAsync
         (PublishingOption.Serial, false) => new SerialSubjectAsync<T>(),
         (PublishingOption.Concurrent, false) => new ConcurrentSubjectAsync<T>(),
         (PublishingOption.Serial, true) => new SerialStatelessSubjectAsync<T>(),
-        (PublishingOption.Concurrent, true) => new ConcurrentlStatelessSubjectAsync<T>(),
+        (PublishingOption.Concurrent, true) => new ConcurrentStatelessSubjectAsync<T>(),
         _ => throw new ArgumentOutOfRangeException()
     };
 

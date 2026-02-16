@@ -15,7 +15,7 @@ namespace ReactiveUI.Extensions.Async;
 /// via cancellation tokens.</remarks>
 public static partial class ObservableAsync
 {
-    extension<T>(ObservableAsync<T> @this)
+    extension<T>(IObservableAsync<T> @this)
     {
         /// <summary>
         /// Asynchronously returns the first element that matches the specified predicate, or a default value if no such

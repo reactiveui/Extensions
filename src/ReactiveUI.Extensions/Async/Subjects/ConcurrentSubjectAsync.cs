@@ -24,7 +24,7 @@ public sealed class ConcurrentSubjectAsync<T> : BaseSubjectAsync<T>
     /// <param name="value">The value to be sent to each observer.</param>
     /// <param name="cancellationToken">A cancellation token that can be used to cancel the forwarding operation.</param>
     /// <returns>A ValueTask that represents the asynchronous forwarding operation.</returns>
-    protected override ValueTask OnNextAsyncCore(IReadOnlyList<ObserverAsync<T>> observers, T value, CancellationToken cancellationToken) =>
+    protected override ValueTask OnNextAsyncCore(IReadOnlyList<IObserverAsync<T>> observers, T value, CancellationToken cancellationToken) =>
         Concurrent.ForwardOnNextConcurrently(observers, value, cancellationToken);
 
     /// <summary>
@@ -37,7 +37,7 @@ public sealed class ConcurrentSubjectAsync<T> : BaseSubjectAsync<T>
     /// <param name="cancellationToken">A cancellation token that can be used to cancel the asynchronous operation.</param>
     /// <returns>A ValueTask representing the asynchronous operation of forwarding the error and resuming observation for all
     /// observers.</returns>
-    protected override ValueTask OnErrorResumeAsyncCore(IReadOnlyList<ObserverAsync<T>> observers, Exception error, CancellationToken cancellationToken) =>
+    protected override ValueTask OnErrorResumeAsyncCore(IReadOnlyList<IObserverAsync<T>> observers, Exception error, CancellationToken cancellationToken) =>
         Concurrent.ForwardOnErrorResumeConcurrently(observers, error, cancellationToken);
 
     /// <summary>
@@ -49,6 +49,6 @@ public sealed class ConcurrentSubjectAsync<T> : BaseSubjectAsync<T>
     /// <param name="result">The result information to be provided to each observer upon completion.</param>
     /// <returns>A ValueTask that represents the asynchronous notification operation. The task completes when all observers have
     /// been notified.</returns>
-    protected override ValueTask OnCompletedAsyncCore(IReadOnlyList<ObserverAsync<T>> observers, Result result) =>
+    protected override ValueTask OnCompletedAsyncCore(IReadOnlyList<IObserverAsync<T>> observers, Result result) =>
         Concurrent.ForwardOnCompletedConcurrently(observers, result);
 }

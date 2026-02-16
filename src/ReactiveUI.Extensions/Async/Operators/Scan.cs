@@ -14,9 +14,19 @@ namespace ReactiveUI.Extensions.Async;
 /// via tokens.</remarks>
 public static partial class ObservableAsync
 {
-    extension<T>(ObservableAsync<T> @this)
+    extension<T>(IObservableAsync<T> @this)
     {
-        public ObservableAsync<TAcc> Scan<TAcc>(TAcc seed, Func<TAcc, T, CancellationToken, ValueTask<TAcc>> accumulator)
+        /// <summary>
+        /// Applies an accumulator function over the observable sequence and returns each intermediate result
+        /// using the specified asynchronous accumulator.
+        /// </summary>
+        /// <typeparam name="TAcc">The type of the accumulated value.</typeparam>
+        /// <param name="seed">The initial accumulator value.</param>
+        /// <param name="accumulator">An asynchronous accumulator function to be invoked on each element. Receives the current accumulator value,
+        /// the current element, and a cancellation token.</param>
+        /// <returns>An observable sequence containing the accumulated values produced after each element is processed.</returns>
+        /// <exception cref="ArgumentNullException">Thrown if <paramref name="accumulator"/> is null.</exception>
+        public IObservableAsync<TAcc> Scan<TAcc>(TAcc seed, Func<TAcc, T, CancellationToken, ValueTask<TAcc>> accumulator)
         {
             if (accumulator is null)
             {
@@ -38,7 +48,16 @@ public static partial class ObservableAsync
             });
         }
 
-        public ObservableAsync<TAcc> Scan<TAcc>(TAcc seed, Func<TAcc, T, TAcc> accumulator)
+        /// <summary>
+        /// Applies an accumulator function over the observable sequence and returns each intermediate result.
+        /// </summary>
+        /// <typeparam name="TAcc">The type of the accumulated value.</typeparam>
+        /// <param name="seed">The initial accumulator value.</param>
+        /// <param name="accumulator">An accumulator function to be invoked on each element. Receives the current accumulator value and the
+        /// current element.</param>
+        /// <returns>An observable sequence containing the accumulated values produced after each element is processed.</returns>
+        /// <exception cref="ArgumentNullException">Thrown if <paramref name="accumulator"/> is null.</exception>
+        public IObservableAsync<TAcc> Scan<TAcc>(TAcc seed, Func<TAcc, T, TAcc> accumulator)
         {
             if (accumulator is null)
             {

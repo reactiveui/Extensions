@@ -16,7 +16,7 @@ namespace ReactiveUI.Extensions.Async;
 /// elements in an asynchronous context.</remarks>
 public static partial class ObservableAsync
 {
-    extension<T>(ObservableAsync<T> @this)
+    extension<T>(IObservableAsync<T> @this)
     {
         /// <summary>
         /// Asynchronously returns the single element of a sequence that satisfies a specified condition, or throws an

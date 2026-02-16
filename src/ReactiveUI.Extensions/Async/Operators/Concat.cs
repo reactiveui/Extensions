@@ -24,7 +24,7 @@ public static partial class ObservableAsync
     /// null.</param>
     /// <returns>An observable sequence that emits the elements of each inner observable sequence in order, waiting for each to
     /// complete before subscribing to the next.</returns>
-    public static ObservableAsync<T> Concat<T>(this ObservableAsync<ObservableAsync<T>> @this) => new ConcatObservablesObservable<T>(@this);
+    public static IObservableAsync<T> Concat<T>(this IObservableAsync<IObservableAsync<T>> @this) => new ConcatObservablesObservable<T>(@this);
 
     /// <summary>
     /// Concatenates multiple asynchronous observable sequences into a single sequence that emits items from each source
@@ -36,7 +36,7 @@ public static partial class ObservableAsync
     /// <param name="this">A collection of asynchronous observable sequences to concatenate. Cannot be null.</param>
     /// <returns>An asynchronous observable sequence that emits all items from each source sequence in the order they appear in
     /// the collection.</returns>
-    public static ObservableAsync<T> Concat<T>(this IEnumerable<ObservableAsync<T>> @this) => new ConcatEnumerableObservable<T>(@this);
+    public static IObservableAsync<T> Concat<T>(this IEnumerable<IObservableAsync<T>> @this) => new ConcatEnumerableObservable<T>(@this);
 
     /// <summary>
     /// Concatenates two asynchronous observable sequences into a single sequence that emits all elements from the first
@@ -50,5 +50,5 @@ public static partial class ObservableAsync
     /// <param name="second">The second observable sequence to concatenate. Cannot be null.</param>
     /// <returns>An observable sequence that emits all elements from the first sequence, followed by all elements from the second
     /// sequence.</returns>
-    public static ObservableAsync<T> Concat<T>(this ObservableAsync<T> @this, ObservableAsync<T> second) => new ConcatEnumerableObservable<T>([@this, second]);
+    public static IObservableAsync<T> Concat<T>(this IObservableAsync<T> @this, IObservableAsync<T> second) => new ConcatEnumerableObservable<T>([@this, second]);
 }

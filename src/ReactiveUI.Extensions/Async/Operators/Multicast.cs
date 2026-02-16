@@ -32,7 +32,7 @@ public static partial class ObservableAsync
         IsStateless = true
     };
 
-    extension<T>(ObservableAsync<T> source)
+    extension<T>(IObservableAsync<T> source)
     {
         /// <summary>
         /// Creates a connectable observable sequence that shares a single subscription to the underlying sequence using

@@ -15,7 +15,7 @@ namespace ReactiveUI.Extensions.Async;
 /// scenarios.</remarks>
 public static partial class ObservableAsync
 {
-    extension<T>(ObservableAsync<T> @this)
+    extension<T>(IObservableAsync<T> @this)
     {
         /// <summary>
         /// Projects each element of the observable sequence to the specified result type by performing a runtime cast.
@@ -26,7 +26,7 @@ public static partial class ObservableAsync
         /// <typeparam name="TResult">The type to which the elements of the sequence are cast.</typeparam>
         /// <returns>An observable sequence whose elements are the result of casting each element of the source sequence to
         /// <typeparamref name="TResult"/>.</returns>
-        public ObservableAsync<TResult> Cast<TResult>() => Create<TResult>(async (observer, subscribeToken) => await @this.SubscribeAsync(
+        public IObservableAsync<TResult> Cast<TResult>() => Create<TResult>(async (observer, subscribeToken) => await @this.SubscribeAsync(
                 async (x, token) =>
                 {
                     try

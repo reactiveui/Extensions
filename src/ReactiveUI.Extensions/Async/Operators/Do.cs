@@ -14,7 +14,7 @@ namespace ReactiveUI.Extensions.Async;
 /// intended to be used as part of a fluent query or processing pipeline for asynchronous observables.</remarks>
 public static partial class ObservableAsync
 {
-    extension<T>(ObservableAsync<T> @this)
+    extension<T>(IObservableAsync<T> @this)
     {
         /// <summary>
         /// Invokes the specified asynchronous actions for each element, error, or completion notification in the
@@ -31,7 +31,7 @@ public static partial class ObservableAsync
         /// sequence. If null, no action is taken on completion.</param>
         /// <returns>An observable sequence that is identical to the source sequence but invokes the specified callbacks for side
         /// effects.</returns>
-        public ObservableAsync<T> Do(
+        public IObservableAsync<T> Do(
             Func<T, CancellationToken, ValueTask>? onNext,
             Func<Exception, CancellationToken, ValueTask>? onErrorResume = null,
             Func<Result, ValueTask>? onCompleted = null) => new DoAsyncObservable<T>(@this, onNext, onErrorResume, onCompleted);
@@ -51,24 +51,24 @@ public static partial class ObservableAsync
         /// completion.</param>
         /// <returns>An observable sequence that is identical to the source sequence but invokes the specified actions for each
         /// notification.</returns>
-        public ObservableAsync<T> Do(
+        public IObservableAsync<T> Do(
             Action<T>? onNext = null,
             Action<Exception>? onErrorResume = null,
             Action<Result>? onCompleted = null) => new DoSyncObservable<T>(@this, onNext, onErrorResume, onCompleted);
     }
 
-    private sealed class DoAsyncObservable<T>(ObservableAsync<T> source,
+    private sealed class DoAsyncObservable<T>(IObservableAsync<T> source,
                                       Func<T, CancellationToken, ValueTask>? onNext,
                                       Func<Exception, CancellationToken, ValueTask>? onErrorResume,
                                       Func<Result, ValueTask>? onCompleted) : ObservableAsync<T>
     {
-        protected override async ValueTask<IAsyncDisposable> SubscribeAsyncCore(ObserverAsync<T> observer, CancellationToken cancellationToken)
+        protected override async ValueTask<IAsyncDisposable> SubscribeAsyncCore(IObserverAsync<T> observer, CancellationToken cancellationToken)
         {
             var doObserver = new DoAsyncObserver(observer, onNext, onErrorResume, onCompleted);
             return await source.SubscribeAsync(doObserver, cancellationToken);
         }
 
-        private sealed class DoAsyncObserver(ObserverAsync<T> observer,
+        private sealed class DoAsyncObserver(IObserverAsync<T> observer,
                                       Func<T, CancellationToken, ValueTask>? onNext,
                                       Func<Exception, CancellationToken, ValueTask>? onErrorResume,
                                       Func<Result, ValueTask>? onCompleted) : ObserverAsync<T>
@@ -105,18 +105,18 @@ public static partial class ObservableAsync
         }
     }
 
-    private sealed class DoSyncObservable<T>(ObservableAsync<T> source,
+    private sealed class DoSyncObservable<T>(IObservableAsync<T> source,
                                      Action<T>? onNext,
                                      Action<Exception>? onErrorResume,
                                      Action<Result>? onCompleted) : ObservableAsync<T>
     {
-        protected override async ValueTask<IAsyncDisposable> SubscribeAsyncCore(ObserverAsync<T> observer, CancellationToken cancellationToken)
+        protected override async ValueTask<IAsyncDisposable> SubscribeAsyncCore(IObserverAsync<T> observer, CancellationToken cancellationToken)
         {
             var doObserver = new DoSyncObserver(observer, onNext, onErrorResume, onCompleted);
             return await source.SubscribeAsync(doObserver, cancellationToken);
         }
 
-        private sealed class DoSyncObserver(ObserverAsync<T> observer,
+        private sealed class DoSyncObserver(IObserverAsync<T> observer,
                                     Action<T>? onNext,
                                     Action<Exception>? onErrorResume,
                                     Action<Result>? onCompleted) : ObserverAsync<T>
