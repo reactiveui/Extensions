@@ -341,6 +341,11 @@ public static partial class ObservableAsync
                     _reentrant.Value = true;
                     try
                     {
+                        // Sentinel: prevents premature completion while the loop is subscribing to sources.
+                        // Without this, a synchronously-completing source (e.g. Return) can decrement _active
+                        // to zero before the next source is subscribed, terminating the merge early.
+                        Interlocked.Increment(ref _active);
+
                         foreach (var src in _sources)
                         {
                             Interlocked.Increment(ref _active);
@@ -362,7 +367,8 @@ public static partial class ObservableAsync
                             }
                         }
 
-                        if (Volatile.Read(ref _active) == 0)
+                        // Remove sentinel: if all inner sources completed during the loop, this triggers final completion.
+                        if (Interlocked.Decrement(ref _active) == 0)
                         {
                             await CompleteAsync(Result.Success);
                         }
