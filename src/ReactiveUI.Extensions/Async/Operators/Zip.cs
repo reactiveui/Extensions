@@ -62,6 +62,20 @@ public static partial class ObservableAsync
         this IObservableAsync<T1> first,
         IObservableAsync<T2> second) => Zip(first, second, static (a, b) => (a, b));
 
+    /// <summary>
+    /// Represents an observable sequence that combines the latest values from two asynchronous observable sequences
+    /// into a single result sequence using a specified selector function.
+    /// </summary>
+    /// <remarks>The resulting sequence produces a value each time both source sequences have produced an
+    /// element, pairing elements in the order they are received. The sequence completes when either source sequence
+    /// completes and there are no more pairs to combine. If either source sequence signals an error, the resulting
+    /// sequence will propagate that error.</remarks>
+    /// <typeparam name="T1">The type of the elements in the first source sequence.</typeparam>
+    /// <typeparam name="T2">The type of the elements in the second source sequence.</typeparam>
+    /// <typeparam name="TResult">The type of the elements in the resulting sequence produced by the selector function.</typeparam>
+    /// <param name="first">The first asynchronous observable sequence to combine.</param>
+    /// <param name="second">The second asynchronous observable sequence to combine.</param>
+    /// <param name="resultSelector">A function that specifies how to combine elements from the first and second sequences into a result element.</param>
     private sealed class ZipObservable<T1, T2, TResult>(
         IObservableAsync<T1> first,
         IObservableAsync<T2> second,

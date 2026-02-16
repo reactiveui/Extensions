@@ -7,6 +7,17 @@ using ReactiveUI.Extensions.Async.Internals;
 
 namespace ReactiveUI.Extensions.Async;
 
+/// <summary>
+/// Represents an asynchronous observable sequence that concatenates multiple asynchronous observables, emitting their
+/// elements in order as each completes.
+/// </summary>
+/// <remarks>This class enables sequential composition of multiple asynchronous observables, ensuring that items
+/// from each source are emitted in order and that subsequent observables are not subscribed to until the preceding one
+/// has completed. If any observable in the sequence signals an error, the concatenation terminates and the error is
+/// propagated to the observer.</remarks>
+/// <typeparam name="T">The type of elements produced by the concatenated observable sequences.</typeparam>
+/// <param name="observables">A collection of asynchronous observables to be concatenated. Each observable is subscribed to sequentially; the next
+/// begins only after the previous completes.</param>
 internal sealed class ConcatEnumerableObservable<T>(IEnumerable<IObservableAsync<T>> observables) : ObservableAsync<T>
 {
     private readonly IEnumerable<IObservableAsync<T>> _observables = observables;

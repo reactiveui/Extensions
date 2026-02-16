@@ -173,8 +173,6 @@ public static class ObservableBridgeExtensions
 
             var cts = new CancellationTokenSource();
             var asyncObserver = new BridgeAsyncObserver(observer);
-
-            // Start subscription asynchronously; capture the disposable for cleanup.
             var subscriptionTask = SubscribeAndCaptureAsync(asyncObserver, cts.Token);
 
             return System.Reactive.Disposables.Disposable.Create(() =>
@@ -183,7 +181,6 @@ public static class ObservableBridgeExtensions
 
                 try
                 {
-                    // Best-effort dispose of the async subscription.
                     var task = subscriptionTask;
                     if (task.IsCompleted && task.Result is { } subscription)
                     {
@@ -191,7 +188,6 @@ public static class ObservableBridgeExtensions
                     }
                     else
                     {
-                        // Schedule async cleanup so we don't block indefinitely.
                         _ = CleanupAsync(task);
                     }
                 }

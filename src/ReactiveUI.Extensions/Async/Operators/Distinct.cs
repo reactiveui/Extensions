@@ -34,9 +34,8 @@ public static partial class ObservableAsync
         /// used.</param>
         /// <returns>An observable sequence that emits each distinct element from the source sequence, in the order in which they
         /// are received.</returns>
-        public IObservableAsync<T> Distinct(IEqualityComparer<T> equalityComparer)
-        {
-            return Create<T>(async (observer, subscribeToken) =>
+        public IObservableAsync<T> Distinct(IEqualityComparer<T> equalityComparer) =>
+            Create<T>(async (observer, subscribeToken) =>
             {
                 var seen = new HashSet<T>(equalityComparer);
                 return await @this.SubscribeAsync(
@@ -51,7 +50,6 @@ public static partial class ObservableAsync
                     observer.OnCompletedAsync,
                     subscribeToken);
             });
-        }
 
         /// <summary>
         /// Returns a sequence that contains distinct elements from the source sequence according to a specified key

@@ -51,7 +51,7 @@ internal sealed class ConcatObservablesObservable<T>(IObservableAsync<IObservabl
 
         public ValueTask OnNextOuterAsync(IObservableAsync<T> inner)
         {
-            bool shouldSubscribe = false;
+            var shouldSubscribe = false;
             lock (_buffer)
             {
                 _buffer.Enqueue(inner);
@@ -76,7 +76,7 @@ internal sealed class ConcatObservablesObservable<T>(IObservableAsync<IObservabl
             lock (_buffer)
             {
                 _outerCompleted = true;
-                if (result.IsFailure || _buffer.Count == 0)
+                if (result.IsFailure || _buffer.IsEmpty)
                 {
                     shouldComplete = true;
                     completeResult = result;

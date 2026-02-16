@@ -3,7 +3,6 @@
 // See the LICENSE file in the project root for full license information.
 
 using System.Collections.Immutable;
-using System.Runtime.CompilerServices;
 using ReactiveUI.Extensions.Async.Disposables;
 using ReactiveUI.Extensions.Async.Internals;
 

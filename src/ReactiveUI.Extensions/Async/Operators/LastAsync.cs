@@ -64,10 +64,7 @@ public static partial class ObservableAsync
             return default;
         }
 
-        protected override ValueTask OnErrorResumeAsyncCore(Exception error, CancellationToken cancellationToken)
-        {
-            return TrySetException(error);
-        }
+        protected override ValueTask OnErrorResumeAsyncCore(Exception error, CancellationToken cancellationToken) => TrySetException(error);
 
         protected override ValueTask OnCompletedAsyncCore(Result result)
         {

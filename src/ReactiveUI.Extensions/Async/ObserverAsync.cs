@@ -221,7 +221,7 @@ public abstract class ObserverAsync<T> : IObserverAsync<T>
                 return false;
             }
 
-            int reentrantCallsCount = _reentrantCallsCount.Value;
+            var reentrantCallsCount = _reentrantCallsCount.Value;
             if (_callsCount != reentrantCallsCount)
             {
                 UnhandledExceptionHandler.OnUnhandledException(new ConcurrentObserverCallsException());
@@ -243,7 +243,7 @@ public abstract class ObserverAsync<T> : IObserverAsync<T>
         lock (_reentrantCallsCount)
         {
             _callsCount--;
-            int reentrantCallsCount = --_reentrantCallsCount.Value;
+            var reentrantCallsCount = --_reentrantCallsCount.Value;
             Debug.Assert(reentrantCallsCount >= 0, "Reentrant calls count should never be negative.");
             Debug.Assert(_callsCount == reentrantCallsCount, "Calls count and reentrant calls count should be equal when exiting a call.");
             if (_allCallsCompletedTcs is not null)

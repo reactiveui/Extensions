@@ -46,7 +46,7 @@ public static partial class ObservableAsync
 
             return Create<T>(async (observer, subscribeToken) =>
             {
-                bool hasPrevious = false;
+                var hasPrevious = false;
                 T? previous = default;
                 return await @this.SubscribeAsync(
                     async (x, token) =>
@@ -106,7 +106,7 @@ public static partial class ObservableAsync
 
             return Create<T>(async (observer, subscribeToken) =>
             {
-                bool hasPrevious = false;
+                var hasPrevious = false;
                 TKey? previousKey = default;
                 return await @this.SubscribeAsync(
                     async (x, token) =>
