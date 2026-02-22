@@ -21,13 +21,12 @@ namespace ReactiveUI.Extensions.Async.Subjects;
 /// <typeparam name="T">The type of the elements processed and published by the subject.</typeparam>
 /// <param name="startValue">The optional initial value to be used as the starting point for the subject. If provided, this value is immediately
 /// available to new subscribers until a new value is published.</param>
-public abstract class BaseStatelessReplayLastSubjectAsync<T>(Optional<T> startValue) : ObservableAsync<T>, ISubjectAsync<T>, IDisposable
+public abstract class BaseStatelessReplayLastSubjectAsync<T>(Optional<T> startValue) : ObservableAsync<T>, ISubjectAsync<T>
 {
     private readonly Optional<T> _startValue = startValue;
     private readonly AsyncGate _gate = new();
     private Optional<T> _value = startValue;
     private ImmutableList<IObserverAsync<T>> _observers = [];
-    private bool _disposedValue;
 
     /// <summary>
     /// Gets an observable sequence that represents the asynchronous values published by the subject.
@@ -93,14 +92,14 @@ public abstract class BaseStatelessReplayLastSubjectAsync<T>(Optional<T> startVa
     }
 
     /// <summary>
-    /// Releases all resources used by the current instance of the class.
+    /// Asynchronously releases the unmanaged resources used by the object.
     /// </summary>
-    /// <remarks>Call this method when you are finished using the object to free unmanaged resources and
-    /// perform other cleanup operations. After calling Dispose, the object should not be used further.</remarks>
-    public void Dispose()
+    /// <returns>A ValueTask that represents the asynchronous dispose operation.</returns>
+    public ValueTask DisposeAsync()
     {
-        Dispose(disposing: true);
+        _gate.Dispose();
         GC.SuppressFinalize(this);
+        return default;
     }
 
     /// <summary>
@@ -116,6 +115,11 @@ public abstract class BaseStatelessReplayLastSubjectAsync<T>(Optional<T> startVa
     protected override async ValueTask<IAsyncDisposable> SubscribeAsyncCore(IObserverAsync<T> observer, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        if (observer is null)
+        {
+            throw new ArgumentNullException(nameof(observer));
+        }
+
         var disposable = DisposableAsync.Create(async () =>
         {
             using (await _gate.LockAsync())
@@ -174,24 +178,4 @@ public abstract class BaseStatelessReplayLastSubjectAsync<T>(Optional<T> startVa
     /// <param name="result">The result to provide to observers upon completion. Represents the outcome of the observed sequence.</param>
     /// <returns>A ValueTask that represents the asynchronous notification operation.</returns>
     protected abstract ValueTask OnCompletedAsyncCore(IReadOnlyList<IObserverAsync<T>> observers, Result result);
-
-    /// <summary>
-    /// Releases the unmanaged resources used by the object and, optionally, releases the managed resources.
-    /// </summary>
-    /// <remarks>This method is called by public Dispose methods and the finalizer. When disposing is true,
-    /// this method releases all resources held by managed objects. When disposing is false, only unmanaged resources
-    /// are released. Override this method to release additional resources in a derived class.</remarks>
-    /// <param name="disposing">true to release both managed and unmanaged resources; false to release only unmanaged resources.</param>
-    protected virtual void Dispose(bool disposing)
-    {
-        if (!_disposedValue)
-        {
-            if (disposing)
-            {
-                _gate.Dispose();
-            }
-
-            _disposedValue = true;
-        }
-    }
 }

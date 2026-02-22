@@ -89,11 +89,6 @@ public sealed class CompositeDisposableAsync : IAsyncDisposable
     }
 
     /// <summary>
-    /// Gets a value indicating whether the collection is read-only.
-    /// </summary>
-    public bool IsReadOnly => false;
-
-    /// <summary>
     /// Adds an asynchronous disposable item to the collection, or disposes it immediately if the collection has already
     /// been disposed.
     /// </summary>
@@ -103,6 +98,11 @@ public sealed class CompositeDisposableAsync : IAsyncDisposable
     /// was added; otherwise, it represents the asynchronous disposal of the item.</returns>
     public ValueTask AddAsync(IAsyncDisposable item)
     {
+        if (item is null)
+        {
+            throw new ArgumentNullException(nameof(item));
+        }
+
         lock (_gate)
         {
             if (!_isDisposed)
@@ -126,6 +126,11 @@ public sealed class CompositeDisposableAsync : IAsyncDisposable
     /// was found and removed; otherwise, <see langword="false"/>.</returns>
     public async ValueTask<bool> Remove(IAsyncDisposable item)
     {
+        if (item is null)
+        {
+            throw new ArgumentNullException(nameof(item));
+        }
+
         lock (_gate)
         {
             if (_isDisposed)
@@ -243,7 +248,7 @@ public sealed class CompositeDisposableAsync : IAsyncDisposable
     /// enough space from arrayIndex to the end of array to accommodate all elements in the collection.</exception>
     public void CopyTo(IAsyncDisposable[] array, int arrayIndex)
     {
-        if (arrayIndex < 0 || arrayIndex >= array.Length)
+        if (arrayIndex < 0 || arrayIndex >= array?.Length)
         {
             throw new ArgumentOutOfRangeException(nameof(arrayIndex));
         }
@@ -255,7 +260,7 @@ public sealed class CompositeDisposableAsync : IAsyncDisposable
                 return;
             }
 
-            if (arrayIndex + _count > array.Length)
+            if (arrayIndex + _count > array?.Length)
             {
                 throw new ArgumentOutOfRangeException(nameof(arrayIndex));
             }
@@ -265,7 +270,7 @@ public sealed class CompositeDisposableAsync : IAsyncDisposable
             {
                 if (item != null)
                 {
-                    array[arrayIndex + i++] = item;
+                    array?[arrayIndex + i++] = item;
                 }
             }
         }

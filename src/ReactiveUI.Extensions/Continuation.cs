@@ -47,7 +47,7 @@ public class Continuation : IDisposable
         }
 
         _locked = true;
-        observer.OnNext((item, this));
+        observer?.OnNext((item, this));
         return Task.Run(() => _phaseSync?.SignalAndWait(CancellationToken.None));
     }
 

@@ -2,7 +2,6 @@
 // ReactiveUI Association Incorporated licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using NUnit.Framework;
 using ReactiveUI.Extensions.Async;
 using ReactiveUI.Extensions.Async.Disposables;
 using ReactiveUI.Extensions.Async.Internals;
@@ -22,8 +21,8 @@ public class FactoryObservableTests
     {
         var result = await ObservableAsync.Return(42).ToListAsync();
 
-        Assert.That(result, Has.Count.EqualTo(1));
-        Assert.That(result[0], Is.EqualTo(42));
+        await Assert.That(result).Count().IsEqualTo(1);
+        await Assert.That(result[0]).IsEqualTo(42);
     }
 
     /// <summary>
@@ -34,7 +33,7 @@ public class FactoryObservableTests
     {
         var result = await ObservableAsync.Return("hello").ToListAsync();
 
-        Assert.That(result, Is.EqualTo(new[] { "hello" }));
+        await Assert.That(result).IsEquivalentTo(new[] { "hello" });
     }
 
     /// <summary>
@@ -45,21 +44,30 @@ public class FactoryObservableTests
     {
         var result = await ObservableAsync.Empty<int>().ToListAsync();
 
-        Assert.That(result, Is.Empty);
+        await Assert.That(result).IsEmpty();
     }
 
     /// <summary>
     /// Tests Throw completes with exception.
     /// </summary>
     [Test]
-    public void WhenThrow_ThenCompletesWithException()
+    public async Task WhenThrow_ThenCompletesWithException()
     {
         var ex = new InvalidOperationException("test error");
         var source = ObservableAsync.Throw<int>(ex);
 
-        var thrown = Assert.ThrowsAsync<InvalidOperationException>(
-            async () => await source.ToListAsync());
-        Assert.That(thrown!.Message, Is.EqualTo("test error"));
+        InvalidOperationException? thrown = null;
+        try
+        {
+            await source.ToListAsync();
+        }
+        catch (InvalidOperationException caught)
+        {
+            thrown = caught;
+        }
+
+        await Assert.That(thrown).IsNotNull();
+        await Assert.That(thrown!.Message).IsEqualTo("test error");
     }
 
     /// <summary>
@@ -97,8 +105,8 @@ public class FactoryObservableTests
 
         await Task.Delay(250);
 
-        Assert.That(items, Is.Empty);
-        Assert.That(completed, Is.False);
+        await Assert.That(items).IsEmpty();
+        await Assert.That(completed).IsFalse();
     }
 
     /// <summary>
@@ -109,7 +117,7 @@ public class FactoryObservableTests
     {
         var result = await ObservableAsync.Range(0, 5).ToListAsync();
 
-        Assert.That(result, Is.EqualTo(new[] { 0, 1, 2, 3, 4 }));
+        await Assert.That(result).IsEquivalentTo(new[] { 0, 1, 2, 3, 4 });
     }
 
     /// <summary>
@@ -120,7 +128,7 @@ public class FactoryObservableTests
     {
         var result = await ObservableAsync.Range(10, 3).ToListAsync();
 
-        Assert.That(result, Is.EqualTo(new[] { 10, 11, 12 }));
+        await Assert.That(result).IsEquivalentTo(new[] { 10, 11, 12 });
     }
 
     /// <summary>
@@ -131,7 +139,7 @@ public class FactoryObservableTests
     {
         var result = await ObservableAsync.Range(0, 0).ToListAsync();
 
-        Assert.That(result, Is.Empty);
+        await Assert.That(result).IsEmpty();
     }
 
     /// <summary>
@@ -148,7 +156,7 @@ public class FactoryObservableTests
 
         var result = await source.ToListAsync();
 
-        Assert.That(result, Is.EqualTo(new[] { 99 }));
+        await Assert.That(result).IsEquivalentTo(new[] { 99 });
     }
 
     /// <summary>
@@ -166,7 +174,7 @@ public class FactoryObservableTests
 
         await source.WaitCompletionAsync();
 
-        Assert.That(executed, Is.True);
+        await Assert.That(executed).IsTrue();
     }
 
     /// <summary>
@@ -185,8 +193,8 @@ public class FactoryObservableTests
         var first = await source.FirstAsync();
         var second = await source.FirstAsync();
 
-        Assert.That(first, Is.EqualTo(1));
-        Assert.That(second, Is.EqualTo(2));
+        await Assert.That(first).IsEqualTo(1);
+        await Assert.That(second).IsEqualTo(2);
     }
 
     /// <summary>
@@ -206,8 +214,8 @@ public class FactoryObservableTests
         var first = await source.FirstAsync();
         var second = await source.FirstAsync();
 
-        Assert.That(first, Is.EqualTo(1));
-        Assert.That(second, Is.EqualTo(2));
+        await Assert.That(first).IsEqualTo(1);
+        await Assert.That(second).IsEqualTo(2);
     }
 
     /// <summary>
@@ -226,7 +234,7 @@ public class FactoryObservableTests
 
         var result = await source.ToListAsync();
 
-        Assert.That(result, Is.EqualTo(new[] { 1, 2 }));
+        await Assert.That(result).IsEquivalentTo(new[] { 1, 2 });
     }
 
     /// <summary>
@@ -254,7 +262,7 @@ public class FactoryObservableTests
 
         var result = await source.ToListAsync();
 
-        Assert.That(result, Is.EqualTo(new[] { 42 }));
+        await Assert.That(result).IsEquivalentTo(new[] { 42 });
     }
 
     /// <summary>
@@ -267,8 +275,8 @@ public class FactoryObservableTests
 
         var result = await source.ToListAsync();
 
-        Assert.That(result, Has.Count.EqualTo(1));
-        Assert.That(result[0], Is.EqualTo(0L));
+        await Assert.That(result).Count().IsEqualTo(1);
+        await Assert.That(result[0]).IsEqualTo(0L);
     }
 
     /// <summary>
@@ -300,8 +308,8 @@ public class FactoryObservableTests
         {
         }
 
-        Assert.That(items.Count, Is.GreaterThanOrEqualTo(2));
-        Assert.That(items[0], Is.EqualTo(0L));
+        await Assert.That(items.Count).IsGreaterThanOrEqualTo(2);
+        await Assert.That(items[0]).IsEqualTo(0L);
     }
 
     /// <summary>
@@ -334,7 +342,7 @@ public class FactoryObservableTests
 
         var result = await source.ToListAsync();
 
-        Assert.That(result, Is.EqualTo(new[] { 1, 2, 3 }));
+        await Assert.That(result).IsEquivalentTo(new[] { 1, 2, 3 });
     }
 
     /// <summary>
@@ -347,7 +355,7 @@ public class FactoryObservableTests
 
         var result = await source.ToListAsync();
 
-        Assert.That(result, Is.EqualTo(new[] { 10, 20, 30 }));
+        await Assert.That(result).IsEquivalentTo(new[] { 10, 20, 30 });
 
         static async IAsyncEnumerable<int> AsyncEnumerable()
         {
@@ -370,7 +378,7 @@ public class FactoryObservableTests
 
         var result = await source.FirstAsync();
 
-        Assert.That(result, Is.EqualTo(7));
+        await Assert.That(result).IsEqualTo(7);
     }
 
     /// <summary>
@@ -412,7 +420,7 @@ public class FactoryObservableTests
         {
         }
 
-        Assert.That(items.Count, Is.GreaterThanOrEqualTo(2));
-        Assert.That(items[0], Is.EqualTo(1L));
+        await Assert.That(items.Count).IsGreaterThanOrEqualTo(2);
+        await Assert.That(items[0]).IsEqualTo(1L);
     }
 }

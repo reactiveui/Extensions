@@ -2,7 +2,6 @@
 // ReactiveUI Association Incorporated licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using NUnit.Framework;
 using ReactiveUI.Extensions.Async;
 
 namespace ReactiveUI.Extensions.Tests.Async;
@@ -20,7 +19,7 @@ public class FilteringOperatorTests
             .Where(x => x % 2 == 0)
             .ToListAsync();
 
-        Assert.That(result, Is.EqualTo(new[] { 2, 4, 6 }));
+        await Assert.That(result).IsEquivalentTo(new[] { 2, 4, 6 });
     }
 
     /// <summary>Tests async Where filters elements.</summary>
@@ -35,7 +34,7 @@ public class FilteringOperatorTests
             })
             .ToListAsync();
 
-        Assert.That(result, Is.EqualTo(new[] { 4, 5 }));
+        await Assert.That(result).IsEquivalentTo(new[] { 4, 5 });
     }
 
     /// <summary>Tests Where filtering all emits nothing.</summary>
@@ -46,7 +45,7 @@ public class FilteringOperatorTests
             .Where(x => false)
             .ToListAsync();
 
-        Assert.That(result, Is.Empty);
+        await Assert.That(result).IsEmpty();
     }
 
     /// <summary>Tests Take emits only first N.</summary>
@@ -57,7 +56,7 @@ public class FilteringOperatorTests
             .Take(3)
             .ToListAsync();
 
-        Assert.That(result, Is.EqualTo(new[] { 1, 2, 3 }));
+        await Assert.That(result).IsEquivalentTo(new[] { 1, 2, 3 });
     }
 
     /// <summary>Tests Take zero emits nothing.</summary>
@@ -68,7 +67,7 @@ public class FilteringOperatorTests
             .Take(0)
             .ToListAsync();
 
-        Assert.That(result, Is.Empty);
+        await Assert.That(result).IsEmpty();
     }
 
     /// <summary>Tests Take more than available emits all.</summary>
@@ -79,7 +78,7 @@ public class FilteringOperatorTests
             .Take(100)
             .ToListAsync();
 
-        Assert.That(result, Is.EqualTo(new[] { 1, 2, 3 }));
+        await Assert.That(result).IsEquivalentTo(new[] { 1, 2, 3 });
     }
 
     /// <summary>Tests Take negative throws.</summary>
@@ -98,7 +97,7 @@ public class FilteringOperatorTests
             .Skip(2)
             .ToListAsync();
 
-        Assert.That(result, Is.EqualTo(new[] { 3, 4, 5 }));
+        await Assert.That(result).IsEquivalentTo(new[] { 3, 4, 5 });
     }
 
     /// <summary>Tests Skip zero emits all.</summary>
@@ -109,7 +108,7 @@ public class FilteringOperatorTests
             .Skip(0)
             .ToListAsync();
 
-        Assert.That(result, Is.EqualTo(new[] { 1, 2, 3 }));
+        await Assert.That(result).IsEquivalentTo(new[] { 1, 2, 3 });
     }
 
     /// <summary>Tests Skip more than available emits nothing.</summary>
@@ -120,7 +119,7 @@ public class FilteringOperatorTests
             .Skip(100)
             .ToListAsync();
 
-        Assert.That(result, Is.Empty);
+        await Assert.That(result).IsEmpty();
     }
 
     /// <summary>Tests Skip negative throws.</summary>
@@ -139,7 +138,7 @@ public class FilteringOperatorTests
             .TakeWhile(x => x < 4)
             .ToListAsync();
 
-        Assert.That(result, Is.EqualTo(new[] { 1, 2, 3 }));
+        await Assert.That(result).IsEquivalentTo(new[] { 1, 2, 3 });
     }
 
     /// <summary>Tests async TakeWhile emits while true.</summary>
@@ -154,7 +153,7 @@ public class FilteringOperatorTests
             })
             .ToListAsync();
 
-        Assert.That(result, Is.EqualTo(new[] { 1, 2 }));
+        await Assert.That(result).IsEquivalentTo(new[] { 1, 2 });
     }
 
     /// <summary>Tests TakeWhile all true emits all.</summary>
@@ -165,7 +164,7 @@ public class FilteringOperatorTests
             .TakeWhile(x => true)
             .ToListAsync();
 
-        Assert.That(result, Is.EqualTo(new[] { 1, 2, 3 }));
+        await Assert.That(result).IsEquivalentTo(new[] { 1, 2, 3 });
     }
 
     /// <summary>Tests TakeWhile all false emits nothing.</summary>
@@ -176,7 +175,7 @@ public class FilteringOperatorTests
             .TakeWhile(x => false)
             .ToListAsync();
 
-        Assert.That(result, Is.Empty);
+        await Assert.That(result).IsEmpty();
     }
 
     /// <summary>Tests TakeWhile null predicate throws.</summary>
@@ -195,7 +194,7 @@ public class FilteringOperatorTests
             .SkipWhile(x => x < 4)
             .ToListAsync();
 
-        Assert.That(result, Is.EqualTo(new[] { 4, 5, 6 }));
+        await Assert.That(result).IsEquivalentTo(new[] { 4, 5, 6 });
     }
 
     /// <summary>Tests async SkipWhile skips while true.</summary>
@@ -210,7 +209,7 @@ public class FilteringOperatorTests
             })
             .ToListAsync();
 
-        Assert.That(result, Is.EqualTo(new[] { 3, 4, 5 }));
+        await Assert.That(result).IsEquivalentTo(new[] { 3, 4, 5 });
     }
 
     /// <summary>Tests SkipWhile always true emits nothing.</summary>
@@ -221,7 +220,7 @@ public class FilteringOperatorTests
             .SkipWhile(x => true)
             .ToListAsync();
 
-        Assert.That(result, Is.Empty);
+        await Assert.That(result).IsEmpty();
     }
 
     /// <summary>Tests SkipWhile always false emits all.</summary>
@@ -232,7 +231,7 @@ public class FilteringOperatorTests
             .SkipWhile(x => false)
             .ToListAsync();
 
-        Assert.That(result, Is.EqualTo(new[] { 1, 2, 3 }));
+        await Assert.That(result).IsEquivalentTo(new[] { 1, 2, 3 });
     }
 
     /// <summary>Tests SkipWhile null predicate throws.</summary>
@@ -251,7 +250,7 @@ public class FilteringOperatorTests
 
         var result = await source.Distinct().ToListAsync();
 
-        Assert.That(result, Is.EqualTo(new[] { 1, 2, 3 }));
+        await Assert.That(result).IsEquivalentTo(new[] { 1, 2, 3 });
     }
 
     /// <summary>Tests Distinct with comparer uses case insensitive.</summary>
@@ -262,7 +261,7 @@ public class FilteringOperatorTests
 
         var result = await source.Distinct(StringComparer.OrdinalIgnoreCase).ToListAsync();
 
-        Assert.That(result, Is.EqualTo(new[] { "a", "b" }));
+        await Assert.That(result).IsEquivalentTo(new[] { "a", "b" });
     }
 
     /// <summary>Tests DistinctBy distinguishes by key.</summary>
@@ -273,7 +272,7 @@ public class FilteringOperatorTests
 
         var result = await source.DistinctBy(s => s.Length).ToListAsync();
 
-        Assert.That(result, Is.EqualTo(new[] { "abc", "ab", "a" }));
+        await Assert.That(result).IsEquivalentTo(new[] { "abc", "ab", "a" });
     }
 
     /// <summary>Tests DistinctUntilChanged suppresses consecutive duplicates.</summary>
@@ -284,7 +283,7 @@ public class FilteringOperatorTests
 
         var result = await source.DistinctUntilChanged().ToListAsync();
 
-        Assert.That(result, Is.EqualTo(new[] { 1, 2, 3, 1 }));
+        await Assert.That(result).IsEquivalentTo(new[] { 1, 2, 3, 1 });
     }
 
     /// <summary>Tests DistinctUntilChanged with comparer.</summary>
@@ -295,7 +294,7 @@ public class FilteringOperatorTests
 
         var result = await source.DistinctUntilChanged(StringComparer.OrdinalIgnoreCase).ToListAsync();
 
-        Assert.That(result, Is.EqualTo(new[] { "a", "b" }));
+        await Assert.That(result).IsEquivalentTo(new[] { "a", "b" });
     }
 
     /// <summary>Tests DistinctUntilChangedBy distinguishes by key.</summary>
@@ -306,6 +305,6 @@ public class FilteringOperatorTests
 
         var result = await source.DistinctUntilChangedBy(s => s[0]).ToListAsync();
 
-        Assert.That(result, Is.EqualTo(new[] { "aa", "ba" }));
+        await Assert.That(result).IsEquivalentTo(new[] { "aa", "ba" });
     }
 }

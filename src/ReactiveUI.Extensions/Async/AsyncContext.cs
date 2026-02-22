@@ -154,16 +154,16 @@ public record AsyncContext
     /// continuation is scheduled, the continuation is invoked immediately and an OperationCanceledException will be
     /// thrown when GetResult is called. This type is intended for advanced scenarios where precise control over
     /// asynchronous context switching is required.</remarks>
-    /// <param name="asyncContext">The asynchronous context to which execution should be switched when awaited.</param>
-    /// <param name="forceYielding">true to always yield execution even if already in the target context; otherwise, false to avoid yielding if
+    /// <param name="AsyncContext">The asynchronous context to which execution should be switched when awaited.</param>
+    /// <param name="ForceYielding">true to always yield execution even if already in the target context; otherwise, false to avoid yielding if
     /// already in the specified context.</param>
-    /// <param name="cancellationToken">A cancellation token that can be used to cancel the await operation before the continuation is scheduled.</param>
-    public readonly struct AsyncContextSwitcherAwaitable(AsyncContext asyncContext, bool forceYielding, CancellationToken cancellationToken) : INotifyCompletion
+    /// <param name="CancellationToken">A cancellation token that can be used to cancel the await operation before the continuation is scheduled.</param>
+    public readonly record struct AsyncContextSwitcherAwaitable(AsyncContext AsyncContext, bool ForceYielding, CancellationToken CancellationToken) : INotifyCompletion
     {
         /// <summary>
         /// Gets a value indicating whether the asynchronous operation has completed in the current context.
         /// </summary>
-        public bool IsCompleted => !forceYielding && asyncContext.IsSameAsCurrentAsyncContext();
+        public bool IsCompleted => !ForceYielding && AsyncContext.IsSameAsCurrentAsyncContext();
 
         /// <summary>
         /// Checks whether the associated cancellation token has had cancellation requested and throws an exception if
@@ -172,7 +172,7 @@ public record AsyncContext
         /// <remarks>This method is typically used to observe cancellation requests and respond by
         /// throwing an OperationCanceledException if cancellation has been signaled. If cancellation has not been
         /// requested, the method returns normally.</remarks>
-        public void GetResult() => cancellationToken.ThrowIfCancellationRequested();
+        public void GetResult() => CancellationToken.ThrowIfCancellationRequested();
 
         /// <summary>
         /// Returns an awaiter for this AsyncContextSwitcherAwaitable instance, enabling use of the await keyword to
@@ -191,20 +191,25 @@ public record AsyncContext
         /// <param name="continuation">The action to execute when the operation is complete. Cannot be null.</param>
         public void OnCompleted(Action continuation)
         {
-            if (cancellationToken.IsCancellationRequested)
+            if (continuation is null)
+            {
+                throw new ArgumentNullException(nameof(continuation));
+            }
+
+            if (CancellationToken.IsCancellationRequested)
             {
                 continuation();
                 return;
             }
 
-            var sc = asyncContext.SynchronizationContext;
+            var sc = AsyncContext.SynchronizationContext;
             if (sc is not null)
             {
                 sc.Post(c => ((Action)c!).Invoke(), continuation);
                 return;
             }
 
-            var ts = asyncContext.TaskScheduler ?? TaskScheduler.Default;
+            var ts = AsyncContext.TaskScheduler ?? TaskScheduler.Default;
             Task.Factory.StartNew(continuation, CancellationToken.None, TaskCreationOptions.DenyChildAttach, ts);
         }
     }

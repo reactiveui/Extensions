@@ -107,6 +107,16 @@ public abstract class BaseSubjectAsync<T> : ObservableAsync<T>, ISubjectAsync<T>
     }
 
     /// <summary>
+    /// Asynchronously releases the unmanaged resources used by the object.
+    /// </summary>
+    /// <returns>A ValueTask that represents the asynchronous dispose operation.</returns>
+    public ValueTask DisposeAsync()
+    {
+        GC.SuppressFinalize(this);
+        return default;
+    }
+
+    /// <summary>
     /// Subscribes the specified asynchronous observer to receive notifications from the observable sequence.
     /// </summary>
     /// <remarks>If the observable sequence has already completed, the observer receives the completion
@@ -119,6 +129,11 @@ public abstract class BaseSubjectAsync<T> : ObservableAsync<T>, ISubjectAsync<T>
     protected override async ValueTask<IAsyncDisposable> SubscribeAsyncCore(IObserverAsync<T> observer, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        if (observer is null)
+        {
+            throw new ArgumentNullException(nameof(observer));
+        }
+
         Result? result;
 
         lock (_gate)

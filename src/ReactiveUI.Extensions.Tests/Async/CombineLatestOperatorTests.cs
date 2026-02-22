@@ -2,7 +2,6 @@
 // ReactiveUI Association Incorporated licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using NUnit.Framework;
 using ReactiveUI.Extensions.Async;
 using ReactiveUI.Extensions.Async.Internals;
 using ReactiveUI.Extensions.Async.Subjects;
@@ -40,13 +39,13 @@ public class CombineLatestOperatorTests
         await s1.OnNextAsync(1, CancellationToken.None);
         await Task.Delay(50);
 
-        Assert.That(results, Is.Empty);
+        await Assert.That(results).IsEmpty();
 
         await s2.OnNextAsync(10, CancellationToken.None);
         await Task.Delay(50);
 
-        Assert.That(results, Has.Count.EqualTo(1));
-        Assert.That(results[0], Is.EqualTo(11));
+        await Assert.That(results).Count().IsEqualTo(1);
+        await Assert.That(results[0]).IsEqualTo(11);
     }
 
     /// <summary>Multiple emissions use the latest value from each source.</summary>
@@ -74,10 +73,10 @@ public class CombineLatestOperatorTests
         await s2.OnNextAsync(20, CancellationToken.None);
         await Task.Delay(50);
 
-        Assert.That(results, Has.Count.GreaterThanOrEqualTo(3));
-        Assert.That(results[0], Is.EqualTo(11));
-        Assert.That(results[1], Is.EqualTo(12));
-        Assert.That(results[2], Is.EqualTo(22));
+        await Assert.That(results).Count().IsGreaterThanOrEqualTo(3);
+        await Assert.That(results[0]).IsEqualTo(11);
+        await Assert.That(results[1]).IsEqualTo(12);
+        await Assert.That(results[2]).IsEqualTo(22);
     }
 
     /// <summary>Error from source 1 completes the combined sequence with failure.</summary>
@@ -102,9 +101,9 @@ public class CombineLatestOperatorTests
         await s1.OnCompletedAsync(Result.Failure(new InvalidOperationException("src1 error")));
         await Task.Delay(50);
 
-        Assert.That(completionResult, Is.Not.Null);
-        Assert.That(completionResult!.Value.IsFailure, Is.True);
-        Assert.That(completionResult.Value.Exception, Is.InstanceOf<InvalidOperationException>());
+        await Assert.That(completionResult).IsNotNull();
+        await Assert.That(completionResult!.Value.IsFailure).IsTrue();
+        await Assert.That(completionResult.Value.Exception is InvalidOperationException).IsTrue();
     }
 
     /// <summary>Error from source 2 completes the combined sequence with failure.</summary>
@@ -129,8 +128,8 @@ public class CombineLatestOperatorTests
         await s2.OnCompletedAsync(Result.Failure(new InvalidOperationException("src2 error")));
         await Task.Delay(50);
 
-        Assert.That(completionResult, Is.Not.Null);
-        Assert.That(completionResult!.Value.IsFailure, Is.True);
+        await Assert.That(completionResult).IsNotNull();
+        await Assert.That(completionResult!.Value.IsFailure).IsTrue();
     }
 
     /// <summary>Combined sequence completes only when both sources complete successfully.</summary>
@@ -154,12 +153,12 @@ public class CombineLatestOperatorTests
 
         await s1.OnCompletedAsync(Result.Success);
         await Task.Delay(50);
-        Assert.That(completionResult, Is.Null);
+        await Assert.That(completionResult).IsNull();
 
         await s2.OnCompletedAsync(Result.Success);
         await Task.Delay(50);
-        Assert.That(completionResult, Is.Not.Null);
-        Assert.That(completionResult!.Value.IsSuccess, Is.True);
+        await Assert.That(completionResult).IsNotNull();
+        await Assert.That(completionResult!.Value.IsSuccess).IsTrue();
     }
 
     /// <summary>Partial completion does not complete the combined sequence.</summary>
@@ -184,7 +183,7 @@ public class CombineLatestOperatorTests
         await s1.OnCompletedAsync(Result.Success);
         await Task.Delay(50);
 
-        Assert.That(completionResult, Is.Null);
+        await Assert.That(completionResult).IsNull();
     }
 
     /// <summary>Disposal stops further emissions.</summary>
@@ -216,7 +215,7 @@ public class CombineLatestOperatorTests
         await s1.OnNextAsync(2, CancellationToken.None);
         await Task.Delay(50);
 
-        Assert.That(results, Has.Count.EqualTo(countBefore));
+        await Assert.That(results).Count().IsEqualTo(countBefore);
     }
 
     /// <summary>Double disposal is safe and does not throw.</summary>
@@ -260,8 +259,8 @@ public class CombineLatestOperatorTests
         await s1.OnErrorResumeAsync(expected, CancellationToken.None);
         await Task.Delay(50);
 
-        Assert.That(errors, Has.Count.EqualTo(1));
-        Assert.That(errors[0], Is.SameAs(expected));
+        await Assert.That(errors).Count().IsEqualTo(1);
+        await Assert.That(errors[0]).IsEquivalentTo(expected);
     }
 
     /// <summary>Error resume from source 2 is also forwarded.</summary>
@@ -287,8 +286,8 @@ public class CombineLatestOperatorTests
         await s2.OnErrorResumeAsync(expected, CancellationToken.None);
         await Task.Delay(50);
 
-        Assert.That(errors, Has.Count.EqualTo(1));
-        Assert.That(errors[0], Is.SameAs(expected));
+        await Assert.That(errors).Count().IsEqualTo(1);
+        await Assert.That(errors[0]).IsEquivalentTo(expected);
     }
 
     // ???????????????????????????? 3-source ????????????????????????????
@@ -318,8 +317,8 @@ public class CombineLatestOperatorTests
         await s3.OnNextAsync(100, CancellationToken.None);
         await Task.Delay(50);
 
-        Assert.That(results, Has.Count.GreaterThanOrEqualTo(1));
-        Assert.That(results[0], Is.EqualTo(111));
+        await Assert.That(results).Count().IsGreaterThanOrEqualTo(1);
+        await Assert.That(results[0]).IsEqualTo(111);
     }
 
     /// <summary>No emission until all three sources have values.</summary>
@@ -346,7 +345,7 @@ public class CombineLatestOperatorTests
         await s2.OnNextAsync(10, CancellationToken.None);
         await Task.Delay(50);
 
-        Assert.That(results, Is.Empty);
+        await Assert.That(results).IsEmpty();
     }
 
     /// <summary>Error from any source propagates in 3-source variant.</summary>
@@ -372,8 +371,8 @@ public class CombineLatestOperatorTests
         await s2.OnCompletedAsync(Result.Failure(new InvalidOperationException("err")));
         await Task.Delay(50);
 
-        Assert.That(completionResult, Is.Not.Null);
-        Assert.That(completionResult!.Value.IsFailure, Is.True);
+        await Assert.That(completionResult).IsNotNull();
+        await Assert.That(completionResult!.Value.IsFailure).IsTrue();
     }
 
     /// <summary>All three sources complete successfully.</summary>
@@ -399,12 +398,12 @@ public class CombineLatestOperatorTests
         await s1.OnCompletedAsync(Result.Success);
         await s2.OnCompletedAsync(Result.Success);
         await Task.Delay(50);
-        Assert.That(completionResult, Is.Null);
+        await Assert.That(completionResult).IsNull();
 
         await s3.OnCompletedAsync(Result.Success);
         await Task.Delay(50);
-        Assert.That(completionResult, Is.Not.Null);
-        Assert.That(completionResult!.Value.IsSuccess, Is.True);
+        await Assert.That(completionResult).IsNotNull();
+        await Assert.That(completionResult!.Value.IsSuccess).IsTrue();
     }
 
     /// <summary>Error resume forwarded in 3-source variant.</summary>
@@ -431,8 +430,8 @@ public class CombineLatestOperatorTests
         await s3.OnErrorResumeAsync(expected, CancellationToken.None);
         await Task.Delay(50);
 
-        Assert.That(errors, Has.Count.EqualTo(1));
-        Assert.That(errors[0], Is.SameAs(expected));
+        await Assert.That(errors).Count().IsEqualTo(1);
+        await Assert.That(errors[0]).IsEquivalentTo(expected);
     }
 
     // ???????????????????????????? 4-source ????????????????????????????
@@ -463,8 +462,8 @@ public class CombineLatestOperatorTests
         await subjects[3].OnCompletedAsync(Result.Failure(new InvalidOperationException("err")));
         await Task.Delay(50);
 
-        Assert.That(completionResult, Is.Not.Null);
-        Assert.That(completionResult!.Value.IsFailure, Is.True);
+        await Assert.That(completionResult).IsNotNull();
+        await Assert.That(completionResult!.Value.IsFailure).IsTrue();
     }
 
     /// <summary>All four sources complete successfully.</summary>
@@ -496,12 +495,12 @@ public class CombineLatestOperatorTests
         }
 
         await Task.Delay(50);
-        Assert.That(completionResult, Is.Null);
+        await Assert.That(completionResult).IsNull();
 
         await subjects[3].OnCompletedAsync(Result.Success);
         await Task.Delay(50);
-        Assert.That(completionResult, Is.Not.Null);
-        Assert.That(completionResult!.Value.IsSuccess, Is.True);
+        await Assert.That(completionResult).IsNotNull();
+        await Assert.That(completionResult!.Value.IsSuccess).IsTrue();
     }
 
     /// <summary>Error resume forwarded in 4-source variant.</summary>
@@ -531,8 +530,8 @@ public class CombineLatestOperatorTests
         await subjects[2].OnErrorResumeAsync(expected, CancellationToken.None);
         await Task.Delay(50);
 
-        Assert.That(errors, Has.Count.EqualTo(1));
-        Assert.That(errors[0], Is.SameAs(expected));
+        await Assert.That(errors).Count().IsEqualTo(1);
+        await Assert.That(errors[0]).IsEquivalentTo(expected);
     }
 
     // ???????????????????????????? 5-source ????????????????????????????
@@ -564,8 +563,8 @@ public class CombineLatestOperatorTests
         await subjects[0].OnCompletedAsync(Result.Failure(new InvalidOperationException("err")));
         await Task.Delay(50);
 
-        Assert.That(completionResult, Is.Not.Null);
-        Assert.That(completionResult!.Value.IsFailure, Is.True);
+        await Assert.That(completionResult).IsNotNull();
+        await Assert.That(completionResult!.Value.IsFailure).IsTrue();
     }
 
     /// <summary>All five sources complete successfully.</summary>
@@ -598,12 +597,12 @@ public class CombineLatestOperatorTests
         }
 
         await Task.Delay(50);
-        Assert.That(completionResult, Is.Null);
+        await Assert.That(completionResult).IsNull();
 
         await subjects[4].OnCompletedAsync(Result.Success);
         await Task.Delay(50);
-        Assert.That(completionResult, Is.Not.Null);
-        Assert.That(completionResult!.Value.IsSuccess, Is.True);
+        await Assert.That(completionResult).IsNotNull();
+        await Assert.That(completionResult!.Value.IsSuccess).IsTrue();
     }
 
     /// <summary>Error resume forwarded in 5-source variant.</summary>
@@ -634,8 +633,8 @@ public class CombineLatestOperatorTests
         await subjects[4].OnErrorResumeAsync(expected, CancellationToken.None);
         await Task.Delay(50);
 
-        Assert.That(errors, Has.Count.EqualTo(1));
-        Assert.That(errors[0], Is.SameAs(expected));
+        await Assert.That(errors).Count().IsEqualTo(1);
+        await Assert.That(errors[0]).IsEquivalentTo(expected);
     }
 
     // ???????????????????????????? 6-source ????????????????????????????
@@ -668,8 +667,8 @@ public class CombineLatestOperatorTests
         await subjects[5].OnCompletedAsync(Result.Failure(new InvalidOperationException("err")));
         await Task.Delay(50);
 
-        Assert.That(completionResult, Is.Not.Null);
-        Assert.That(completionResult!.Value.IsFailure, Is.True);
+        await Assert.That(completionResult).IsNotNull();
+        await Assert.That(completionResult!.Value.IsFailure).IsTrue();
     }
 
     /// <summary>All six sources complete successfully.</summary>
@@ -703,12 +702,12 @@ public class CombineLatestOperatorTests
         }
 
         await Task.Delay(50);
-        Assert.That(completionResult, Is.Null);
+        await Assert.That(completionResult).IsNull();
 
         await subjects[5].OnCompletedAsync(Result.Success);
         await Task.Delay(50);
-        Assert.That(completionResult, Is.Not.Null);
-        Assert.That(completionResult!.Value.IsSuccess, Is.True);
+        await Assert.That(completionResult).IsNotNull();
+        await Assert.That(completionResult!.Value.IsSuccess).IsTrue();
     }
 
     /// <summary>Error resume forwarded in 6-source variant.</summary>
@@ -740,8 +739,8 @@ public class CombineLatestOperatorTests
         await subjects[3].OnErrorResumeAsync(expected, CancellationToken.None);
         await Task.Delay(50);
 
-        Assert.That(errors, Has.Count.EqualTo(1));
-        Assert.That(errors[0], Is.SameAs(expected));
+        await Assert.That(errors).Count().IsEqualTo(1);
+        await Assert.That(errors[0]).IsEquivalentTo(expected);
     }
 
     // ???????????????????????????? 7-source ????????????????????????????
@@ -775,8 +774,8 @@ public class CombineLatestOperatorTests
         await subjects[6].OnCompletedAsync(Result.Failure(new InvalidOperationException("err")));
         await Task.Delay(50);
 
-        Assert.That(completionResult, Is.Not.Null);
-        Assert.That(completionResult!.Value.IsFailure, Is.True);
+        await Assert.That(completionResult).IsNotNull();
+        await Assert.That(completionResult!.Value.IsFailure).IsTrue();
     }
 
     /// <summary>All seven sources complete successfully.</summary>
@@ -811,12 +810,12 @@ public class CombineLatestOperatorTests
         }
 
         await Task.Delay(50);
-        Assert.That(completionResult, Is.Null);
+        await Assert.That(completionResult).IsNull();
 
         await subjects[6].OnCompletedAsync(Result.Success);
         await Task.Delay(50);
-        Assert.That(completionResult, Is.Not.Null);
-        Assert.That(completionResult!.Value.IsSuccess, Is.True);
+        await Assert.That(completionResult).IsNotNull();
+        await Assert.That(completionResult!.Value.IsSuccess).IsTrue();
     }
 
     /// <summary>Error resume forwarded in 7-source variant.</summary>
@@ -849,8 +848,8 @@ public class CombineLatestOperatorTests
         await subjects[0].OnErrorResumeAsync(expected, CancellationToken.None);
         await Task.Delay(50);
 
-        Assert.That(errors, Has.Count.EqualTo(1));
-        Assert.That(errors[0], Is.SameAs(expected));
+        await Assert.That(errors).Count().IsEqualTo(1);
+        await Assert.That(errors[0]).IsEquivalentTo(expected);
     }
 
     // ???????????????????????????? 8-source ????????????????????????????
@@ -885,8 +884,8 @@ public class CombineLatestOperatorTests
         await subjects[7].OnCompletedAsync(Result.Failure(new InvalidOperationException("err")));
         await Task.Delay(50);
 
-        Assert.That(completionResult, Is.Not.Null);
-        Assert.That(completionResult!.Value.IsFailure, Is.True);
+        await Assert.That(completionResult).IsNotNull();
+        await Assert.That(completionResult!.Value.IsFailure).IsTrue();
     }
 
     /// <summary>All eight sources complete successfully.</summary>
@@ -922,12 +921,12 @@ public class CombineLatestOperatorTests
         }
 
         await Task.Delay(50);
-        Assert.That(completionResult, Is.Null);
+        await Assert.That(completionResult).IsNull();
 
         await subjects[7].OnCompletedAsync(Result.Success);
         await Task.Delay(50);
-        Assert.That(completionResult, Is.Not.Null);
-        Assert.That(completionResult!.Value.IsSuccess, Is.True);
+        await Assert.That(completionResult).IsNotNull();
+        await Assert.That(completionResult!.Value.IsSuccess).IsTrue();
     }
 
     /// <summary>Error resume forwarded in 8-source variant.</summary>
@@ -961,8 +960,8 @@ public class CombineLatestOperatorTests
         await subjects[5].OnErrorResumeAsync(expected, CancellationToken.None);
         await Task.Delay(50);
 
-        Assert.That(errors, Has.Count.EqualTo(1));
-        Assert.That(errors[0], Is.SameAs(expected));
+        await Assert.That(errors).Count().IsEqualTo(1);
+        await Assert.That(errors[0]).IsEquivalentTo(expected);
     }
 
     // ???????????????????????? Cross-cutting ????????????????????????
@@ -991,7 +990,7 @@ public class CombineLatestOperatorTests
         await s1.OnErrorResumeAsync(new InvalidOperationException("after dispose"), CancellationToken.None);
         await Task.Delay(50);
 
-        Assert.That(errors, Is.Empty);
+        await Assert.That(errors).IsEmpty();
     }
 
     /// <summary>Error from source before any values still propagates.</summary>
@@ -1017,8 +1016,8 @@ public class CombineLatestOperatorTests
         await s1.OnCompletedAsync(Result.Failure(new InvalidOperationException("early error")));
         await Task.Delay(50);
 
-        Assert.That(completionResult, Is.Not.Null);
-        Assert.That(completionResult!.Value.IsFailure, Is.True);
+        await Assert.That(completionResult).IsNotNull();
+        await Assert.That(completionResult!.Value.IsFailure).IsTrue();
     }
 
     /// <summary>Emission continues after error resume (non-terminal).</summary>
@@ -1055,9 +1054,9 @@ public class CombineLatestOperatorTests
         await s1.OnNextAsync(2, CancellationToken.None);
         await Task.Delay(50);
 
-        Assert.That(errors, Has.Count.EqualTo(1));
-        Assert.That(results, Has.Count.GreaterThanOrEqualTo(2));
-        Assert.That(results[^1], Is.EqualTo(12));
+        await Assert.That(errors).Count().IsEqualTo(1);
+        await Assert.That(results).Count().IsGreaterThanOrEqualTo(2);
+        await Assert.That(results[^1]).IsEqualTo(12);
     }
 
     /// <summary>No emission until all N sources have values for 4-source variant.</summary>
@@ -1089,12 +1088,12 @@ public class CombineLatestOperatorTests
         }
 
         await Task.Delay(50);
-        Assert.That(results, Is.Empty);
+        await Assert.That(results).IsEmpty();
 
         await subjects[3].OnNextAsync(4, CancellationToken.None);
         await Task.Delay(50);
-        Assert.That(results, Has.Count.EqualTo(1));
-        Assert.That(results[0], Is.EqualTo(10));
+        await Assert.That(results).Count().IsEqualTo(1);
+        await Assert.That(results[0]).IsEqualTo(10);
     }
 
     /// <summary>Disposal of 3-source variant stops emissions.</summary>
@@ -1128,7 +1127,7 @@ public class CombineLatestOperatorTests
         await s1.OnNextAsync(2, CancellationToken.None);
         await Task.Delay(50);
 
-        Assert.That(results, Has.Count.EqualTo(countBefore));
+        await Assert.That(results).Count().IsEqualTo(countBefore);
     }
 
     /// <summary>Multiple emissions with updated latest values for 5-source variant.</summary>
@@ -1161,11 +1160,11 @@ public class CombineLatestOperatorTests
         }
 
         await Task.Delay(50);
-        Assert.That(results, Has.Count.GreaterThanOrEqualTo(1));
-        Assert.That(results[0], Is.EqualTo(5));
+        await Assert.That(results).Count().IsGreaterThanOrEqualTo(1);
+        await Assert.That(results[0]).IsEqualTo(5);
 
         await subjects[0].OnNextAsync(10, CancellationToken.None);
         await Task.Delay(50);
-        Assert.That(results[^1], Is.EqualTo(14));
+        await Assert.That(results[^1]).IsEqualTo(14);
     }
 }

@@ -2,7 +2,6 @@
 // ReactiveUI Association Incorporated licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using NUnit.Framework;
 using ReactiveUI.Extensions.Async;
 using ReactiveUI.Extensions.Async.Internals;
 
@@ -21,7 +20,7 @@ public class TransformationOperatorTests
             .Select(x => x * 10)
             .ToListAsync();
 
-        Assert.That(result, Is.EqualTo(new[] { 10, 20, 30 }));
+        await Assert.That(result).IsEquivalentTo(new[] { 10, 20, 30 });
     }
 
     /// <summary>Tests async Select projects each element.</summary>
@@ -36,7 +35,7 @@ public class TransformationOperatorTests
             })
             .ToListAsync();
 
-        Assert.That(result, Is.EqualTo(new[] { "1", "2", "3" }));
+        await Assert.That(result).IsEquivalentTo(new[] { "1", "2", "3" });
     }
 
     /// <summary>Tests sync SelectMany flattens inner sequences.</summary>
@@ -47,9 +46,9 @@ public class TransformationOperatorTests
             .SelectMany(x => ObservableAsync.Range(x * 10, 2))
             .ToListAsync();
 
-        Assert.That(result, Has.Count.EqualTo(6));
-        Assert.That(result, Does.Contain(10));
-        Assert.That(result, Does.Contain(30));
+        await Assert.That(result).Count().IsEqualTo(6);
+        await Assert.That(result).Contains(10);
+        await Assert.That(result).Contains(30);
     }
 
     /// <summary>Tests async SelectMany flattens inner sequences.</summary>
@@ -64,9 +63,9 @@ public class TransformationOperatorTests
             })
             .ToListAsync();
 
-        Assert.That(result, Has.Count.EqualTo(2));
-        Assert.That(result, Does.Contain(100));
-        Assert.That(result, Does.Contain(200));
+        await Assert.That(result).Count().IsEqualTo(2);
+        await Assert.That(result).Contains(100);
+        await Assert.That(result).Contains(200);
     }
 
     /// <summary>Tests SelectMany with result selector projects pairs.</summary>
@@ -79,9 +78,9 @@ public class TransformationOperatorTests
                 (outer, inner) => $"{outer}:{inner}")
             .ToListAsync();
 
-        Assert.That(result, Has.Count.EqualTo(2));
-        Assert.That(result, Does.Contain("1:10"));
-        Assert.That(result, Does.Contain("2:20"));
+        await Assert.That(result).Count().IsEqualTo(2);
+        await Assert.That(result).Contains("1:10");
+        await Assert.That(result).Contains("2:20");
     }
 
     /// <summary>Tests SelectMany null selector throws.</summary>
@@ -100,7 +99,7 @@ public class TransformationOperatorTests
             .Scan(0, (acc, x) => acc + x)
             .ToListAsync();
 
-        Assert.That(result, Is.EqualTo(new[] { 1, 3, 6, 10 }));
+        await Assert.That(result).IsEquivalentTo(new[] { 1, 3, 6, 10 });
     }
 
     /// <summary>Tests async Scan emits running accumulation.</summary>
@@ -115,7 +114,7 @@ public class TransformationOperatorTests
             })
             .ToListAsync();
 
-        Assert.That(result, Is.EqualTo(new[] { "1", "12", "123" }));
+        await Assert.That(result).IsEquivalentTo(new[] { "1", "12", "123" });
     }
 
     /// <summary>Tests Scan null accumulator throws.</summary>
@@ -136,8 +135,8 @@ public class TransformationOperatorTests
             .Do(onNext: x => sideEffects.Add(x))
             .ToListAsync();
 
-        Assert.That(result, Is.EqualTo(new[] { 1, 2, 3 }));
-        Assert.That(sideEffects, Is.EqualTo(new[] { 1, 2, 3 }));
+        await Assert.That(result).IsEquivalentTo(new[] { 1, 2, 3 });
+        await Assert.That(sideEffects).IsEquivalentTo(new[] { 1, 2, 3 });
     }
 
     /// <summary>Tests async Do invokes side effects.</summary>
@@ -154,8 +153,8 @@ public class TransformationOperatorTests
             })
             .ToListAsync();
 
-        Assert.That(result, Is.EqualTo(new[] { 1, 2, 3 }));
-        Assert.That(sideEffects, Is.EqualTo(new[] { 1, 2, 3 }));
+        await Assert.That(result).IsEquivalentTo(new[] { 1, 2, 3 });
+        await Assert.That(sideEffects).IsEquivalentTo(new[] { 1, 2, 3 });
     }
 
     /// <summary>Tests Do with completion handler invokes on completed.</summary>
@@ -168,8 +167,8 @@ public class TransformationOperatorTests
             .Do(onCompleted: r => completion = r)
             .WaitCompletionAsync();
 
-        Assert.That(completion, Is.Not.Null);
-        Assert.That(completion!.Value.IsSuccess, Is.True);
+        await Assert.That(completion).IsNotNull();
+        await Assert.That(completion!.Value.IsSuccess).IsTrue();
     }
 
     /// <summary>Tests Cast with compatible type casts correctly.</summary>
@@ -180,7 +179,7 @@ public class TransformationOperatorTests
 
         var result = await source.Cast<object, string>().ToListAsync();
 
-        Assert.That(result, Is.EqualTo(new[] { "hello" }));
+        await Assert.That(result).IsEquivalentTo(new[] { "hello" });
     }
 
     /// <summary>Tests OfType with matching type filters correctly.</summary>
@@ -192,7 +191,7 @@ public class TransformationOperatorTests
 
         var strings = await source.OfType<object, string>().ToListAsync();
 
-        Assert.That(strings, Is.EqualTo(new[] { "two", "four" }));
+        await Assert.That(strings).IsEquivalentTo(new[] { "two", "four" });
     }
 
     /// <summary>Tests OfType with no matches emits nothing.</summary>
@@ -203,6 +202,6 @@ public class TransformationOperatorTests
 
         var strings = await source.OfType<object, string>().ToListAsync();
 
-        Assert.That(strings, Is.Empty);
+        await Assert.That(strings).IsEmpty();
     }
 }

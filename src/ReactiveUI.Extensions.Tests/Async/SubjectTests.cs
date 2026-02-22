@@ -2,7 +2,6 @@
 // ReactiveUI Association Incorporated licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using NUnit.Framework;
 using ReactiveUI.Extensions.Async;
 using ReactiveUI.Extensions.Async.Internals;
 using ReactiveUI.Extensions.Async.Subjects;
@@ -37,7 +36,7 @@ public class SubjectTests
 
         await Task.Delay(100);
 
-        Assert.That(items, Is.EqualTo(new[] { 1, 2, 3 }));
+        await Assert.That(items).IsEquivalentTo(new[] { 1, 2, 3 });
     }
 
     /// <summary>Tests concurrent subject pushes values to all observers.</summary>
@@ -71,7 +70,7 @@ public class SubjectTests
 
         await Task.Delay(100);
 
-        Assert.That(items, Has.Count.EqualTo(2));
+        await Assert.That(items).Count().IsEqualTo(2);
     }
 
     /// <summary>Tests serial stateless subject pushes values.</summary>
@@ -101,7 +100,7 @@ public class SubjectTests
 
         await Task.Delay(100);
 
-        Assert.That(items, Is.EqualTo(new[] { "a", "b" }));
+        await Assert.That(items).IsEquivalentTo(new[] { "a", "b" });
     }
 
     /// <summary>Tests concurrent stateless subject pushes values.</summary>
@@ -134,7 +133,7 @@ public class SubjectTests
 
         await Task.Delay(100);
 
-        Assert.That(items, Is.EqualTo(new[] { 5 }));
+        await Assert.That(items).IsEquivalentTo(new[] { 5 });
     }
 
     /// <summary>Tests behavior subject with start value emits latest first to new subscriber.</summary>
@@ -155,8 +154,8 @@ public class SubjectTests
 
         await Task.Delay(100);
 
-        Assert.That(items, Has.Count.GreaterThanOrEqualTo(1));
-        Assert.That(items[0], Is.EqualTo(42));
+        await Assert.That(items).Count().IsGreaterThanOrEqualTo(1);
+        await Assert.That(items[0]).IsEqualTo(42);
     }
 
     /// <summary>Tests concurrent behavior subject emits latest to new subscriber.</summary>
@@ -186,8 +185,8 @@ public class SubjectTests
 
         await Task.Delay(100);
 
-        Assert.That(items, Has.Count.GreaterThanOrEqualTo(1));
-        Assert.That(items[0], Is.EqualTo(100));
+        await Assert.That(items).Count().IsGreaterThanOrEqualTo(1);
+        await Assert.That(items[0]).IsEqualTo(100);
     }
 
     /// <summary>Tests replay latest subject replays last value to late subscriber.</summary>
@@ -211,8 +210,8 @@ public class SubjectTests
 
         await Task.Delay(100);
 
-        Assert.That(items, Has.Count.GreaterThanOrEqualTo(1));
-        Assert.That(items[0], Is.EqualTo(20));
+        await Assert.That(items).Count().IsGreaterThanOrEqualTo(1);
+        await Assert.That(items[0]).IsEqualTo(20);
     }
 
     /// <summary>Tests concurrent replay latest subject replays latest to new subscriber.</summary>
@@ -244,8 +243,8 @@ public class SubjectTests
 
         await Task.Delay(100);
 
-        Assert.That(items, Has.Count.GreaterThanOrEqualTo(1));
-        Assert.That(items[0], Is.EqualTo(5));
+        await Assert.That(items).Count().IsGreaterThanOrEqualTo(1);
+        await Assert.That(items[0]).IsEqualTo(5);
     }
 
     /// <summary>Tests subject OnErrorResume delivers error to observer.</summary>
@@ -267,8 +266,8 @@ public class SubjectTests
         await subject.OnErrorResumeAsync(new InvalidOperationException("test"), CancellationToken.None);
         await Task.Delay(100);
 
-        Assert.That(errors, Has.Count.EqualTo(1));
-        Assert.That(errors[0].Message, Is.EqualTo("test"));
+        await Assert.That(errors).Count().IsEqualTo(1);
+        await Assert.That(errors[0].Message).IsEqualTo("test");
     }
 
     /// <summary>Tests subject OnCompleted delivers completion to observer.</summary>
@@ -290,8 +289,8 @@ public class SubjectTests
         await subject.OnCompletedAsync(Result.Success);
         await Task.Delay(100);
 
-        Assert.That(completionResult, Is.Not.Null);
-        Assert.That(completionResult!.Value.IsSuccess, Is.True);
+        await Assert.That(completionResult).IsNotNull();
+        await Assert.That(completionResult!.Value.IsSuccess).IsTrue();
     }
 
     /// <summary>Tests subject OnCompleted with failure delivers failure to observer.</summary>
@@ -313,8 +312,8 @@ public class SubjectTests
         await subject.OnCompletedAsync(Result.Failure(new InvalidOperationException("fatal")));
         await Task.Delay(100);
 
-        Assert.That(completionResult, Is.Not.Null);
-        Assert.That(completionResult!.Value.IsFailure, Is.True);
+        await Assert.That(completionResult).IsNotNull();
+        await Assert.That(completionResult!.Value.IsFailure).IsTrue();
     }
 
     /// <summary>Tests multiple observers all receive values.</summary>
@@ -349,8 +348,8 @@ public class SubjectTests
 
         await Task.Delay(100);
 
-        Assert.That(items1, Is.EqualTo(new[] { 1, 2 }));
-        Assert.That(items2, Is.EqualTo(new[] { 1, 2 }));
+        await Assert.That(items1).IsEquivalentTo(new[] { 1, 2 });
+        await Assert.That(items2).IsEquivalentTo(new[] { 1, 2 });
     }
 
     /// <summary>Tests AsObserverAsync forwards to subject.</summary>
@@ -376,7 +375,7 @@ public class SubjectTests
 
         await Task.Delay(100);
 
-        Assert.That(items, Is.EqualTo(new[] { 1, 2 }));
+        await Assert.That(items).IsEquivalentTo(new[] { 1, 2 });
     }
 
     /// <summary>Tests MapValues transforms observable.</summary>
@@ -402,37 +401,37 @@ public class SubjectTests
 
         await Task.Delay(100);
 
-        Assert.That(items, Is.EqualTo(new[] { 10, 20 }));
+        await Assert.That(items).IsEquivalentTo(new[] { 10, 20 });
     }
 
     /// <summary>Tests default SubjectCreationOptions is serial and stateful.</summary>
     [Test]
-    public void WhenDefaultSubjectCreationOptions_ThenSerialAndStateful()
+    public async Task WhenDefaultSubjectCreationOptions_ThenSerialAndStateful()
     {
         var options = SubjectCreationOptions.Default;
 
-        Assert.That(options.PublishingOption, Is.EqualTo(PublishingOption.Serial));
-        Assert.That(options.IsStateless, Is.False);
+        await Assert.That(options.PublishingOption).IsEqualTo(PublishingOption.Serial);
+        await Assert.That(options.IsStateless).IsFalse();
     }
 
     /// <summary>Tests default BehaviorSubjectCreationOptions is serial and stateful.</summary>
     [Test]
-    public void WhenDefaultBehaviorSubjectCreationOptions_ThenSerialAndStateful()
+    public async Task WhenDefaultBehaviorSubjectCreationOptions_ThenSerialAndStateful()
     {
         var options = BehaviorSubjectCreationOptions.Default;
 
-        Assert.That(options.PublishingOption, Is.EqualTo(PublishingOption.Serial));
-        Assert.That(options.IsStateless, Is.False);
+        await Assert.That(options.PublishingOption).IsEqualTo(PublishingOption.Serial);
+        await Assert.That(options.IsStateless).IsFalse();
     }
 
     /// <summary>Tests default ReplayLatestSubjectCreationOptions is serial and stateful.</summary>
     [Test]
-    public void WhenDefaultReplayLatestSubjectCreationOptions_ThenSerialAndStateful()
+    public async Task WhenDefaultReplayLatestSubjectCreationOptions_ThenSerialAndStateful()
     {
         var options = ReplayLatestSubjectCreationOptions.Default;
 
-        Assert.That(options.PublishingOption, Is.EqualTo(PublishingOption.Serial));
-        Assert.That(options.IsStateless, Is.False);
+        await Assert.That(options.PublishingOption).IsEqualTo(PublishingOption.Serial);
+        await Assert.That(options.IsStateless).IsFalse();
     }
 
     /// <summary>Tests behavior subject stateless emits start value.</summary>
@@ -458,8 +457,8 @@ public class SubjectTests
 
         await Task.Delay(100);
 
-        Assert.That(items, Has.Count.GreaterThanOrEqualTo(1));
-        Assert.That(items[0], Is.EqualTo("initial"));
+        await Assert.That(items).Count().IsGreaterThanOrEqualTo(1);
+        await Assert.That(items[0]).IsEqualTo("initial");
     }
 
     /// <summary>Tests replay latest stateless emits latest to new subscriber.</summary>
@@ -487,8 +486,8 @@ public class SubjectTests
 
         await Task.Delay(100);
 
-        Assert.That(items, Has.Count.GreaterThanOrEqualTo(1));
-        Assert.That(items[0], Is.EqualTo(7));
+        await Assert.That(items).Count().IsGreaterThanOrEqualTo(1);
+        await Assert.That(items[0]).IsEqualTo(7);
     }
 
     /// <summary>Tests concurrent stateless replay latest emits latest.</summary>
@@ -520,8 +519,8 @@ public class SubjectTests
 
         await Task.Delay(100);
 
-        Assert.That(items, Has.Count.GreaterThanOrEqualTo(1));
-        Assert.That(items[0], Is.EqualTo(77));
+        await Assert.That(items).Count().IsGreaterThanOrEqualTo(1);
+        await Assert.That(items[0]).IsEqualTo(77);
     }
 
     /// <summary>Tests concurrent stateless behavior emits start value.</summary>
@@ -551,7 +550,7 @@ public class SubjectTests
 
         await Task.Delay(100);
 
-        Assert.That(items, Has.Count.GreaterThanOrEqualTo(1));
-        Assert.That(items[0], Is.EqualTo(55));
+        await Assert.That(items).Count().IsGreaterThanOrEqualTo(1);
+        await Assert.That(items[0]).IsEqualTo(55);
     }
 }

@@ -182,13 +182,20 @@ public static class ObservableBridgeExtensions
                 try
                 {
                     var task = subscriptionTask;
-                    if (task.IsCompleted && task.Result is { } subscription)
+                    if (task.IsCompleted)
                     {
-                        subscription.DisposeAsync().AsTask().GetAwaiter().GetResult();
+                        if (task.Result is { } subscription)
+                        {
+                            subscription.DisposeAsync().AsTask().GetAwaiter().GetResult();
+                        }
                     }
                     else
                     {
-                        _ = CleanupAsync(task);
+                        var subscription = task.GetAwaiter().GetResult();
+                        if (subscription is not null)
+                        {
+                            subscription.DisposeAsync().AsTask().GetAwaiter().GetResult();
+                        }
                     }
                 }
                 catch (OperationCanceledException)
@@ -204,26 +211,6 @@ public static class ObservableBridgeExtensions
                     cts.Dispose();
                 }
             });
-        }
-
-        private static async Task CleanupAsync(Task<IAsyncDisposable?> subscriptionTask)
-        {
-            try
-            {
-                var subscription = await subscriptionTask.ConfigureAwait(false);
-                if (subscription is not null)
-                {
-                    await subscription.DisposeAsync().ConfigureAwait(false);
-                }
-            }
-            catch (OperationCanceledException)
-            {
-                // Expected
-            }
-            catch (Exception e)
-            {
-                UnhandledExceptionHandler.OnUnhandledException(e);
-            }
         }
 
         private async Task<IAsyncDisposable?> SubscribeAndCaptureAsync(BridgeAsyncObserver observer, CancellationToken cancellationToken)

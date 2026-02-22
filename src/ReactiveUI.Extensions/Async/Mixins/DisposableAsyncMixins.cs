@@ -21,7 +21,15 @@ public static class DisposableAsyncMixins
     /// <param name="this">The <see cref="IDisposable"/> instance to wrap as an <see cref="IAsyncDisposable"/>.</param>
     /// <returns>An <see cref="IAsyncDisposable"/> that disposes the underlying <see cref="IDisposable"/> when disposed
     /// asynchronously.</returns>
-    public static IAsyncDisposable ToDisposableAsync(this IDisposable @this) => new DisposableToDisposableAsync(@this);
+    public static IAsyncDisposable ToDisposableAsync(this IDisposable @this)
+    {
+        if (@this == null)
+        {
+            throw new ArgumentNullException(nameof(@this), "Cannot convert a null IDisposable to IAsyncDisposable.");
+        }
+
+        return new DisposableToDisposableAsync(@this);
+    }
 
     /// <summary>
     /// Provides an implementation of <see cref="IAsyncDisposable"/> that wraps a synchronous <see cref="IDisposable"/>

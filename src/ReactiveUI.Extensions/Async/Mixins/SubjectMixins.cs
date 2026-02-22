@@ -21,7 +21,15 @@ public static class SubjectMixins
     /// <typeparam name="T">The type of the elements processed by the subject and observer.</typeparam>
     /// <param name="subject">The subject to wrap as an asynchronous observer. Cannot be null.</param>
     /// <returns>An asynchronous observer that forwards notifications to the specified subject.</returns>
-    public static IObserverAsync<T> AsObserverAsync<T>(this ISubjectAsync<T> subject) => new SubjectAsyncObserver<T>(subject);
+    public static IObserverAsync<T> AsObserverAsync<T>(this ISubjectAsync<T> subject)
+    {
+        if (subject == null)
+        {
+            throw new ArgumentNullException(nameof(subject));
+        }
+
+        return new SubjectAsyncObserver<T>(subject);
+    }
 
     /// <summary>
     /// Creates a new subject that applies a transformation to the values of the source subject using the specified
@@ -35,17 +43,35 @@ public static class SubjectMixins
     /// <param name="mapper">A function that takes an asynchronous observable of type T and returns a transformed asynchronous observable of
     /// type T. This function defines how the values are mapped.</param>
     /// <returns>A subject that emits values transformed by the specified mapping function.</returns>
-    public static ISubjectAsync<T> MapValues<T>(this ISubjectAsync<T> @this, Func<IObservableAsync<T>, IObservableAsync<T>> mapper) => new MappedSubject<T>(@this, mapper);
+    public static ISubjectAsync<T> MapValues<T>(this ISubjectAsync<T> @this, Func<IObservableAsync<T>, IObservableAsync<T>> mapper)
+    {
+        if (@this == null)
+        {
+            throw new ArgumentNullException(nameof(@this));
+        }
+
+        if (mapper == null)
+        {
+            throw new ArgumentNullException(nameof(mapper));
+        }
+
+        return new MappedSubject<T>(@this, mapper);
+    }
 
     private sealed class MappedSubject<T>(ISubjectAsync<T> original, Func<IObservableAsync<T>, IObservableAsync<T>> mapper) : ISubjectAsync<T>
     {
         public IObservableAsync<T> Values { get; } = mapper(original.Values);
+
+        public ValueTask<IAsyncDisposable> SubscribeAsync(IObserverAsync<T> observer, CancellationToken cancellationToken) =>
+            Values.SubscribeAsync(observer, cancellationToken);
 
         public ValueTask OnNextAsync(T value, CancellationToken cancellationToken) => original.OnNextAsync(value, cancellationToken);
 
         public ValueTask OnErrorResumeAsync(Exception error, CancellationToken cancellationToken) => original.OnErrorResumeAsync(error, cancellationToken);
 
         public ValueTask OnCompletedAsync(Result result) => original.OnCompletedAsync(result);
+
+        public ValueTask DisposeAsync() => original.DisposeAsync();
     }
 
     private sealed class SubjectAsyncObserver<T>(ISubjectAsync<T> subject) : ObserverAsync<T>

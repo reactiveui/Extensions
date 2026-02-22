@@ -25,7 +25,15 @@ public static class DisposableAsync
     /// <param name="disposeAsync">A delegate that is called to perform asynchronous disposal logic when the returned object is disposed. Cannot be
     /// null.</param>
     /// <returns>An <see cref="IAsyncDisposable"/> instance that invokes the specified delegate when disposed asynchronously.</returns>
-    public static IAsyncDisposable Create(Func<ValueTask> disposeAsync) => new AnonymousAsyncDisposable(disposeAsync);
+    public static IAsyncDisposable Create(Func<ValueTask> disposeAsync)
+    {
+        if (disposeAsync == null)
+        {
+            throw new ArgumentNullException(nameof(disposeAsync), "Cannot create an IAsyncDisposable with a null dispose delegate.");
+        }
+
+        return new AnonymousAsyncDisposable(disposeAsync);
+    }
 
     private sealed class AnonymousAsyncDisposable(Func<ValueTask> disposeAsync) : IAsyncDisposable
     {

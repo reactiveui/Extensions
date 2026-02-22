@@ -30,6 +30,11 @@ public static partial class ObservableAsync
         /// processed or the operation is canceled.</returns>
         public async ValueTask ForEachAsync(Func<T, CancellationToken, ValueTask> onNextAsync, CancellationToken cancellationToken = default)
         {
+            if (onNextAsync is null)
+            {
+                throw new ArgumentNullException(nameof(onNextAsync), "Cannot invoke a null action for each element in the sequence.");
+            }
+
             var observer = new ForEachObserver<T>(onNextAsync, cancellationToken);
             await @this.SubscribeAsync(observer, cancellationToken);
             await observer.WaitValueAsync();

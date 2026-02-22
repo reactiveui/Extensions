@@ -22,7 +22,15 @@ public static partial class ObservableAsync
     /// <param name="this">The source observable sequence to yield from.</param>
     /// <returns>An observable sequence that emits the same elements as the source, but yields control to the scheduler before
     /// each emission.</returns>
-    public static IObservableAsync<T> Yield<T>(this IObservableAsync<T> @this) => new YieldObservable<T>(@this);
+    public static IObservableAsync<T> Yield<T>(this IObservableAsync<T> @this)
+    {
+        if (@this is null)
+        {
+            throw new ArgumentNullException(nameof(@this));
+        }
+
+        return new YieldObservable<T>(@this);
+    }
 
     private sealed class YieldObservable<T>(IObservableAsync<T> source) : ObservableAsync<T>
     {

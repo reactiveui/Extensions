@@ -25,7 +25,15 @@ public static partial class ObservableAsync
     /// <param name="this">The source asynchronous observable sequence to monitor for errors.</param>
     /// <returns>An observable sequence that emits the same elements as the source, but represents errors as failure results
     /// instead of throwing exceptions.</returns>
-    public static IObservableAsync<T> OnErrorResumeAsFailure<T>(this IObservableAsync<T> @this) => new OnErrorResumeAsFailureObservable<T>(@this);
+    public static IObservableAsync<T> OnErrorResumeAsFailure<T>(this IObservableAsync<T> @this)
+    {
+        if (@this is null)
+        {
+            throw new ArgumentNullException(nameof(@this), "Cannot create an OnErrorResumeAsFailure observable from a null source.");
+        }
+
+        return new OnErrorResumeAsFailureObservable<T>(@this);
+    }
 
     private sealed class OnErrorResumeAsFailureObservable<T>(IObservableAsync<T> source) : ObservableAsync<T>
     {

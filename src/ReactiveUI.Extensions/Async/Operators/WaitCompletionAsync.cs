@@ -22,6 +22,11 @@ public static partial class ObservableAsync
     /// <returns>A ValueTask that represents the asynchronous wait operation.</returns>
     public static async ValueTask WaitCompletionAsync<T>(this IObservableAsync<T> @this, CancellationToken cancellationToken = default)
     {
+        if (@this is null)
+        {
+            throw new ArgumentNullException(nameof(@this));
+        }
+
         var observer = new WaitCompletionAsyncObserver<T>(cancellationToken);
         _ = await @this.SubscribeAsync(observer, cancellationToken);
         await observer.WaitValueAsync();

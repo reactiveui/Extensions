@@ -1,0 +1,17 @@
+<Solution>
+  <Folder Name="/SolutionConfig/">
+    <File Path="../.editorconfig" />
+    <File Path="../.gitattributes" />
+    <File Path="../.github/workflows/ci-build.yml" />
+    <File Path="../.gitignore" />
+    <File Path="../LICENSE" />
+    <File Path="../README.md" />
+    <File Path="../version.json" />
+    <File Path="directory.build.props" />
+    <File Path="directory.build.targets" />
+    <File Path="directory.packages.props" />
+    <File Path="stylecop.json" />
+  </Folder>
+  <Project Path="ReactiveUI.Extensions.Tests/ReactiveUI.Extensions.Tests.csproj" />
+  <Project Path="ReactiveUI.Extensions/ReactiveUI.Extensions.csproj" />
+</Solution>

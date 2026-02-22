@@ -33,7 +33,7 @@ internal class AsyncGate : IDisposable
 
         if (shouldAcquire)
         {
-            return new ValueTask<Releaser>(_semaphore.WaitAsync().ContinueWith(_ => new Releaser(this)));
+            return new ValueTask<Releaser>(WaitForReleaseAsync());
         }
 
         return new ValueTask<Releaser>(new Releaser(this));
@@ -56,6 +56,12 @@ internal class AsyncGate : IDisposable
 
             _disposedValue = true;
         }
+    }
+
+    private async Task<Releaser> WaitForReleaseAsync()
+    {
+        await _semaphore.WaitAsync().ConfigureAwait(false);
+        return new Releaser(this);
     }
 
     private void Release()

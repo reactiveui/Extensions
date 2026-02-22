@@ -2,7 +2,6 @@
 // ReactiveUI Association Incorporated licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using NUnit.Framework;
 using ReactiveUI.Extensions.Async;
 using ReactiveUI.Extensions.Async.Internals;
 using ReactiveUI.Extensions.Async.Subjects;
@@ -41,8 +40,8 @@ public class TimeBasedOperatorTests
         await subject.OnCompletedAsync(Result.Success);
         await Task.Delay(100);
 
-        Assert.That(results, Has.Count.EqualTo(1));
-        Assert.That(results[0], Is.EqualTo(3));
+        await Assert.That(results).Count().IsEqualTo(1);
+        await Assert.That(results[0]).IsEqualTo(3);
     }
 
     /// <summary>Tests Throttle with spaced items all are emitted.</summary>
@@ -66,10 +65,13 @@ public class TimeBasedOperatorTests
         await subject.OnNextAsync(1, CancellationToken.None);
         await Task.Delay(150);
         await subject.OnNextAsync(2, CancellationToken.None);
-        await Task.Delay(150);
+        var deadline = DateTime.UtcNow.AddSeconds(2);
+        while (results.Count < 2 && DateTime.UtcNow < deadline)
+        {
+            await Task.Delay(10);
+        }
 
-        Assert.That(results, Has.Count.EqualTo(2));
-        Assert.That(results, Is.EqualTo(new[] { 1, 2 }));
+        await Assert.That(results).IsEquivalentTo(new[] { 1, 2 });
     }
 
     /// <summary>Tests Throttle negative due time throws.</summary>
@@ -90,8 +92,8 @@ public class TimeBasedOperatorTests
             .FirstAsync();
         stopwatch.Stop();
 
-        Assert.That(result, Is.EqualTo(42));
-        Assert.That(stopwatch.ElapsedMilliseconds, Is.GreaterThanOrEqualTo(80));
+        await Assert.That(result).IsEqualTo(42);
+        await Assert.That(stopwatch.ElapsedMilliseconds).IsGreaterThanOrEqualTo(80);
     }
 
     /// <summary>Tests Delay zero causes no delay.</summary>
@@ -102,7 +104,7 @@ public class TimeBasedOperatorTests
             .Delay(TimeSpan.Zero)
             .FirstAsync();
 
-        Assert.That(result, Is.EqualTo(42));
+        await Assert.That(result).IsEqualTo(42);
     }
 
     /// <summary>Tests Delay negative throws.</summary>
@@ -121,7 +123,7 @@ public class TimeBasedOperatorTests
             .Delay(TimeSpan.FromMilliseconds(30))
             .ToListAsync();
 
-        Assert.That(result, Is.EqualTo(new[] { 1, 2, 3 }));
+        await Assert.That(result).IsEquivalentTo(new[] { 1, 2, 3 });
     }
 
     /// <summary>Tests Timeout not exceeded completes normally.</summary>
@@ -132,7 +134,7 @@ public class TimeBasedOperatorTests
             .Timeout(TimeSpan.FromSeconds(5))
             .FirstAsync();
 
-        Assert.That(result, Is.EqualTo(42));
+        await Assert.That(result).IsEqualTo(42);
     }
 
     /// <summary>Tests Timeout exceeded throws TimeoutException.</summary>
@@ -155,7 +157,7 @@ public class TimeBasedOperatorTests
 
         var result = await source.FirstAsync();
 
-        Assert.That(result, Is.EqualTo(99));
+        await Assert.That(result).IsEqualTo(99);
     }
 
     /// <summary>Tests Timeout zero duration throws.</summary>

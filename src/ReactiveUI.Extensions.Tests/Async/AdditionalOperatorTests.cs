@@ -2,7 +2,6 @@
 // ReactiveUI Association Incorporated licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using NUnit.Framework;
 using ReactiveUI.Extensions.Async;
 using ReactiveUI.Extensions.Async.Disposables;
 using ReactiveUI.Extensions.Async.Internals;
@@ -46,8 +45,8 @@ public class AdditionalOperatorTests
 
         await Task.Delay(100);
 
-        Assert.That(items, Does.Contain(1));
-        Assert.That(items, Does.Contain(10));
+        await Assert.That(items).Contains(1);
+        await Assert.That(items).Contains(10);
     }
 
     /// <summary>
@@ -79,8 +78,8 @@ public class AdditionalOperatorTests
         await source.OnNextAsync(3, CancellationToken.None);
         await Task.Delay(50);
 
-        Assert.That(items, Does.Contain(1));
-        Assert.That(items, Does.Not.Contain(3));
+        await Assert.That(items).Contains(1);
+        await Assert.That(items).DoesNotContain(3);
     }
 
     /// <summary>
@@ -111,8 +110,8 @@ public class AdditionalOperatorTests
         await source.OnNextAsync(2, CancellationToken.None);
         await Task.Delay(50);
 
-        Assert.That(items, Does.Contain(1));
-        Assert.That(items, Does.Not.Contain(2));
+        await Assert.That(items).Contains(1);
+        await Assert.That(items).DoesNotContain(2);
     }
 
     /// <summary>
@@ -140,7 +139,7 @@ public class AdditionalOperatorTests
         cts.Cancel();
         await Task.Delay(100);
 
-        Assert.That(items, Does.Contain(1));
+        await Assert.That(items).Contains(1);
     }
 
     /// <summary>
@@ -153,7 +152,7 @@ public class AdditionalOperatorTests
             .TakeUntil(x => x > 3)
             .ToListAsync();
 
-        Assert.That(result, Is.EqualTo(new[] { 1, 2, 3 }));
+        await Assert.That(result).IsEquivalentTo(new[] { 1, 2, 3 });
     }
 
     /// <summary>
@@ -170,7 +169,7 @@ public class AdditionalOperatorTests
             })
             .ToListAsync();
 
-        Assert.That(result, Is.EqualTo(new[] { 1, 2 }));
+        await Assert.That(result).IsEquivalentTo(new[] { 1, 2 });
     }
 
     /// <summary>
@@ -226,15 +225,12 @@ public class AdditionalOperatorTests
 
         var grouped = allItems.GroupBy(x => x.Key).ToDictionary(g => g.Key, g => g.Select(x => x.Value).ToList());
 
-        Assert.Multiple(() =>
-        {
-            Assert.That(grouped.ContainsKey('a'), Is.True);
-            Assert.That(grouped['a'], Is.EqualTo(new[] { "apple", "avocado" }));
-            Assert.That(grouped.ContainsKey('b'), Is.True);
-            Assert.That(grouped['b'], Is.EqualTo(new[] { "banana", "blueberry" }));
-            Assert.That(grouped.ContainsKey('c'), Is.True);
-            Assert.That(grouped['c'], Is.EqualTo(new[] { "cherry" }));
-        });
+        await Assert.That(grouped.ContainsKey('a')).IsTrue();
+        await Assert.That(grouped['a']).IsEquivalentTo(new[] { "apple", "avocado" });
+        await Assert.That(grouped.ContainsKey('b')).IsTrue();
+        await Assert.That(grouped['b']).IsEquivalentTo(new[] { "banana", "blueberry" });
+        await Assert.That(grouped.ContainsKey('c')).IsTrue();
+        await Assert.That(grouped['c']).IsEquivalentTo(new[] { "cherry" });
     }
 
     /// <summary>
@@ -275,9 +271,9 @@ public class AdditionalOperatorTests
 
         var result = await source.FirstAsync();
 
-        Assert.That(result, Is.EqualTo(42));
+        await Assert.That(result).IsEqualTo(42);
         await Task.Delay(100);
-        Assert.That(resourceDisposed, Is.True);
+        await Assert.That(resourceDisposed).IsTrue();
     }
 
     /// <summary>
@@ -297,7 +293,7 @@ public class AdditionalOperatorTests
         await source.WaitCompletionAsync();
 
         await Task.Delay(100);
-        Assert.That(disposed, Is.True);
+        await Assert.That(disposed).IsTrue();
     }
 
     /// <summary>
@@ -313,7 +309,7 @@ public class AdditionalOperatorTests
         await source.WaitCompletionAsync();
 
         await Task.Delay(100);
-        Assert.That(disposed, Is.True);
+        await Assert.That(disposed).IsTrue();
     }
 
     /// <summary>
@@ -326,7 +322,7 @@ public class AdditionalOperatorTests
             .Yield()
             .ToListAsync();
 
-        Assert.That(result, Is.EqualTo(new[] { 1, 2, 3 }));
+        await Assert.That(result).IsEquivalentTo(new[] { 1, 2, 3 });
     }
 
     /// <summary>
@@ -364,11 +360,8 @@ public class AdditionalOperatorTests
         await subject.OnCompletedAsync(Result.Success);
         await Task.Delay(200);
 
-        Assert.Multiple(() =>
-        {
-            Assert.That(items1, Is.Not.Empty);
-            Assert.That(items2, Is.Not.Empty);
-        });
+        await Assert.That(items1).IsNotEmpty();
+        await Assert.That(items2).IsNotEmpty();
     }
 
     /// <summary>
@@ -395,7 +388,7 @@ public class AdditionalOperatorTests
         await using var connection = await connectable.ConnectAsync(CancellationToken.None);
         await Task.Delay(200);
 
-        Assert.That(items, Is.EqualTo(new[] { 1, 2, 3 }));
+        await Assert.That(items).IsEquivalentTo(new[] { 1, 2, 3 });
     }
 
     /// <summary>
@@ -408,7 +401,7 @@ public class AdditionalOperatorTests
             .ObserveOn(SynchronizationContext.Current ?? new SynchronizationContext())
             .FirstAsync();
 
-        Assert.That(result, Is.EqualTo(42));
+        await Assert.That(result).IsEqualTo(42);
     }
 
     /// <summary>
@@ -421,7 +414,7 @@ public class AdditionalOperatorTests
             .ObserveOn(TaskScheduler.Default)
             .FirstAsync();
 
-        Assert.That(result, Is.EqualTo(42));
+        await Assert.That(result).IsEqualTo(42);
     }
 
     /// <summary>
@@ -440,7 +433,7 @@ public class AdditionalOperatorTests
 
         await Task.Delay(100);
 
-        Assert.That(items, Is.EqualTo(new[] { 1, 2, 3 }));
+        await Assert.That(items).IsEquivalentTo(new[] { 1, 2, 3 });
     }
 
     /// <summary>
@@ -460,12 +453,9 @@ public class AdditionalOperatorTests
 
         await Task.Delay(100);
 
-        Assert.Multiple(() =>
-        {
-            Assert.That(items, Is.EqualTo(new[] { 1, 2 }));
-            Assert.That(completion, Is.Not.Null);
-        });
-        Assert.That(completion!.Value.IsSuccess, Is.True);
+        await Assert.That(items).IsEquivalentTo(new[] { 1, 2 });
+        await Assert.That(completion).IsNotNull();
+        await Assert.That(completion!.Value.IsSuccess).IsTrue();
     }
 
     /// <summary>
@@ -490,8 +480,8 @@ public class AdditionalOperatorTests
 
         await Task.Delay(100);
 
-        Assert.That(errors, Has.Count.EqualTo(1));
-        Assert.That(errors[0].Message, Is.EqualTo("err"));
+        await Assert.That(errors).Count().IsEqualTo(1);
+        await Assert.That(errors[0].Message).IsEqualTo("err");
     }
 
     /// <summary>
@@ -516,7 +506,7 @@ public class AdditionalOperatorTests
         await using var conn = await published.ConnectAsync(CancellationToken.None);
         await Task.Delay(200);
 
-        Assert.That(items, Is.EqualTo(new[] { 1, 2, 3 }));
+        await Assert.That(items).IsEquivalentTo(new[] { 1, 2, 3 });
     }
 
     /// <summary>
@@ -550,7 +540,7 @@ public class AdditionalOperatorTests
         await using var conn = await published.ConnectAsync(CancellationToken.None);
         await Task.Delay(200);
 
-        Assert.That(items, Has.Count.EqualTo(3));
+        await Assert.That(items).Count().IsEqualTo(3);
     }
 
     /// <summary>
@@ -575,13 +565,15 @@ public class AdditionalOperatorTests
         await using var conn = await published.ConnectAsync(CancellationToken.None);
         await Task.Delay(100);
 
-        Assert.That(items, Has.Count.GreaterThanOrEqualTo(1));
-        Assert.That(items[0], Is.EqualTo(42));
+        await Assert.That(items).Count().IsGreaterThanOrEqualTo(1);
+        await Assert.That(items[0]).IsEqualTo(42);
     }
 
     private sealed class TestResource(Action onDispose) : IAsyncDisposable
     {
+#pragma warning disable CA1822 // Mark members as static
         public int Value => 42;
+#pragma warning restore CA1822 // Mark members as static
 
         public ValueTask DisposeAsync()
         {

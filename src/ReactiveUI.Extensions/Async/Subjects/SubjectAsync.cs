@@ -34,7 +34,7 @@ public static class SubjectAsync
     /// for publishing and statelessness.</param>
     /// <returns>An asynchronous subject instance configured according to the specified options.</returns>
     /// <exception cref="ArgumentOutOfRangeException">Thrown if the specified combination of publishing and statelessness options is not supported.</exception>
-    public static ISubjectAsync<T> Create<T>(SubjectCreationOptions options) => (options.PublishingOption, options.IsStateless) switch
+    public static ISubjectAsync<T> Create<T>(SubjectCreationOptions options) => (options?.PublishingOption, options?.IsStateless) switch
     {
         (PublishingOption.Serial, false) => new SerialSubjectAsync<T>(),
         (PublishingOption.Concurrent, false) => new ConcurrentSubjectAsync<T>(),
@@ -61,7 +61,7 @@ public static class SubjectAsync
     /// <returns>An asynchronous subject that replays the latest value to new subscribers, configured according to the specified
     /// options.</returns>
     /// <exception cref="ArgumentOutOfRangeException">Thrown if the specified options contain an unsupported publishing configuration.</exception>
-    public static ISubjectAsync<T> CreateBehavior<T>(T startValue, BehaviorSubjectCreationOptions options) => (options.PublishingOption, options.IsStateless) switch
+    public static ISubjectAsync<T> CreateBehavior<T>(T startValue, BehaviorSubjectCreationOptions options) => (options?.PublishingOption, options?.IsStateless) switch
     {
         (PublishingOption.Serial, false) => new SerialReplayLatestSubjectAsync<T>(new(startValue)),
         (PublishingOption.Concurrent, false) => new ConcurrentReplayLatestSubjectAsync<T>(new(startValue)),
@@ -89,7 +89,7 @@ public static class SubjectAsync
     /// <returns>An asynchronous subject that replays the latest value to new subscribers, configured according to the specified
     /// options.</returns>
     /// <exception cref="ArgumentOutOfRangeException">Thrown if the combination of options specified in the <paramref name="options"/> parameter is not supported.</exception>
-    public static ISubjectAsync<T> CreateReplayLatest<T>(ReplayLatestSubjectCreationOptions options) => (options.PublishingOption, options.IsStateless) switch
+    public static ISubjectAsync<T> CreateReplayLatest<T>(ReplayLatestSubjectCreationOptions options) => (options?.PublishingOption, options?.IsStateless) switch
     {
         (PublishingOption.Serial, false) => new SerialReplayLatestSubjectAsync<T>(Optional<T>.Empty),
         (PublishingOption.Concurrent, false) => new ConcurrentReplayLatestSubjectAsync<T>(Optional<T>.Empty),

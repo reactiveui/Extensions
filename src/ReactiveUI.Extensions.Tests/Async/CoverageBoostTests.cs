@@ -2,7 +2,6 @@
 // ReactiveUI Association Incorporated licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using NUnit.Framework;
 using ReactiveUI.Extensions.Async;
 using ReactiveUI.Extensions.Async.Disposables;
 using ReactiveUI.Extensions.Async.Internals;
@@ -32,8 +31,8 @@ public class CoverageBoostTests
                 })
             .ToListAsync();
 
-        Assert.That(result, Is.EqualTo(new[] { 1, 2, 3 }));
-        Assert.That(sideEffects, Is.EqualTo(new[] { 1, 2, 3 }));
+        await Assert.That(result).IsEquivalentTo(new[] { 1, 2, 3 });
+        await Assert.That(sideEffects).IsEquivalentTo(new[] { 1, 2, 3 });
     }
 
     /// <summary>Tests Do async with all callbacks invoked.</summary>
@@ -57,8 +56,8 @@ public class CoverageBoostTests
                 })
             .WaitCompletionAsync();
 
-        Assert.That(nextItems, Is.EqualTo(new[] { 1, 2 }));
-        Assert.That(completedResult, Is.Not.Null);
+        await Assert.That(nextItems).IsEquivalentTo(new[] { 1, 2 });
+        await Assert.That(completedResult).IsNotNull();
     }
 
     /// <summary>Tests Do async onError callback is invoked on error.</summary>
@@ -89,7 +88,7 @@ public class CoverageBoostTests
 
         await Task.Delay(100);
 
-        Assert.That(errors, Has.Count.EqualTo(1));
+        await Assert.That(errors).Count().IsEqualTo(1);
     }
 
     /// <summary>Tests Do sync onNext callback is invoked.</summary>
@@ -102,8 +101,8 @@ public class CoverageBoostTests
             .Do(onNext: x => sideEffects.Add(x))
             .ToListAsync();
 
-        Assert.That(result, Is.EqualTo(new[] { 1, 2, 3 }));
-        Assert.That(sideEffects, Is.EqualTo(new[] { 1, 2, 3 }));
+        await Assert.That(result).IsEquivalentTo(new[] { 1, 2, 3 });
+        await Assert.That(sideEffects).IsEquivalentTo(new[] { 1, 2, 3 });
     }
 
     /// <summary>Tests Do sync with all callbacks invoked.</summary>
@@ -119,8 +118,8 @@ public class CoverageBoostTests
                 onCompleted: r => completedResult = r)
             .WaitCompletionAsync();
 
-        Assert.That(nextItems, Is.EqualTo(new[] { 1, 2 }));
-        Assert.That(completedResult, Is.Not.Null);
+        await Assert.That(nextItems).IsEquivalentTo(new[] { 1, 2 });
+        await Assert.That(completedResult).IsNotNull();
     }
 
     /// <summary>Tests Do sync onError callback is invoked on error.</summary>
@@ -145,7 +144,7 @@ public class CoverageBoostTests
 
         await Task.Delay(100);
 
-        Assert.That(errors, Has.Count.EqualTo(1));
+        await Assert.That(errors).Count().IsEqualTo(1);
     }
 
     /// <summary>Tests DisposableAsyncMixins ToDisposableAsync wraps IDisposable correctly.</summary>
@@ -157,9 +156,9 @@ public class CoverageBoostTests
 
         var asyncDisposable = syncDisposable.ToDisposableAsync();
 
-        Assert.That(disposed, Is.False);
+        await Assert.That(disposed).IsFalse();
         await asyncDisposable.DisposeAsync();
-        Assert.That(disposed, Is.True);
+        await Assert.That(disposed).IsTrue();
     }
 
     /// <summary>Tests SubjectAsync with concurrent option works.</summary>
@@ -192,7 +191,7 @@ public class CoverageBoostTests
         await subject.OnCompletedAsync(Result.Success);
         await Task.Delay(100);
 
-        Assert.That(items, Is.EqualTo(new[] { 1, 2 }));
+        await Assert.That(items).IsEquivalentTo(new[] { 1, 2 });
     }
 
     /// <summary>Tests SubjectAsync with serial stateless option works.</summary>
@@ -220,7 +219,7 @@ public class CoverageBoostTests
         await subject.OnCompletedAsync(Result.Success);
         await Task.Delay(50);
 
-        Assert.That(items, Is.EqualTo(new[] { 10 }));
+        await Assert.That(items).IsEquivalentTo(new[] { 10 });
     }
 
     /// <summary>Tests SubjectAsync with concurrent stateless option works.</summary>
@@ -252,7 +251,7 @@ public class CoverageBoostTests
         await subject.OnCompletedAsync(Result.Success);
         await Task.Delay(50);
 
-        Assert.That(items, Is.EqualTo(new[] { 5 }));
+        await Assert.That(items).IsEquivalentTo(new[] { 5 });
     }
 
     /// <summary>Tests Behavior subject replays initial value to late subscriber.</summary>
@@ -273,7 +272,7 @@ public class CoverageBoostTests
 
         await Task.Delay(100);
 
-        Assert.That(items, Does.Contain(42));
+        await Assert.That(items).Contains(42);
     }
 
     /// <summary>Tests Behavior subject with concurrent options works.</summary>
@@ -303,7 +302,7 @@ public class CoverageBoostTests
 
         await Task.Delay(100);
 
-        Assert.That(items, Does.Contain(99));
+        await Assert.That(items).Contains(99);
     }
 
     /// <summary>Tests Behavior subject with serial stateless options works.</summary>
@@ -329,7 +328,7 @@ public class CoverageBoostTests
 
         await Task.Delay(100);
 
-        Assert.That(items, Does.Contain(7));
+        await Assert.That(items).Contains(7);
     }
 
     /// <summary>Tests Behavior subject with concurrent stateless options works.</summary>
@@ -359,7 +358,7 @@ public class CoverageBoostTests
 
         await Task.Delay(100);
 
-        Assert.That(items, Does.Contain(3));
+        await Assert.That(items).Contains(3);
     }
 
     /// <summary>Tests ReplayLatest subject replays last emitted value.</summary>
@@ -383,7 +382,7 @@ public class CoverageBoostTests
 
         await Task.Delay(100);
 
-        Assert.That(items, Does.Contain(2));
+        await Assert.That(items).Contains(2);
     }
 
     /// <summary>Tests ReplayLatest with concurrent options works.</summary>
@@ -415,7 +414,7 @@ public class CoverageBoostTests
 
         await Task.Delay(100);
 
-        Assert.That(items, Does.Contain(10));
+        await Assert.That(items).Contains(10);
     }
 
     /// <summary>Tests ReplayLatest with serial stateless options works.</summary>
@@ -443,7 +442,7 @@ public class CoverageBoostTests
 
         await Task.Delay(100);
 
-        Assert.That(items, Does.Contain(20));
+        await Assert.That(items).Contains(20);
     }
 
     /// <summary>Tests ReplayLatest with concurrent stateless options works.</summary>
@@ -475,7 +474,7 @@ public class CoverageBoostTests
 
         await Task.Delay(100);
 
-        Assert.That(items, Does.Contain(30));
+        await Assert.That(items).Contains(30);
     }
 
     /// <summary>Tests CombineLatest with 3 sources combines all latest values.</summary>
@@ -503,8 +502,8 @@ public class CoverageBoostTests
         await s3.OnNextAsync(100, CancellationToken.None);
         await Task.Delay(100);
 
-        Assert.That(results, Has.Count.GreaterThanOrEqualTo(1));
-        Assert.That(results[0], Is.EqualTo(111));
+        await Assert.That(results).Count().IsGreaterThanOrEqualTo(1);
+        await Assert.That(results[0]).IsEqualTo(111);
     }
 
     /// <summary>Tests Multicast with ConnectAsync connects and emits.</summary>
@@ -528,7 +527,7 @@ public class CoverageBoostTests
         await using var conn = await connectable.ConnectAsync(CancellationToken.None);
         await Task.Delay(200);
 
-        Assert.That(items, Is.EqualTo(new[] { 1, 2, 3 }));
+        await Assert.That(items).IsEquivalentTo(new[] { 1, 2, 3 });
     }
 
     /// <summary>Tests CompositeDisposableAsync Clear disposes and removes all.</summary>
@@ -547,12 +546,12 @@ public class CoverageBoostTests
             }));
         }
 
-        Assert.That(composite.Count, Is.EqualTo(3));
+        await Assert.That(composite.Count).IsEqualTo(3);
 
         await composite.Clear();
 
-        Assert.That(composite.Count, Is.EqualTo(0));
-        Assert.That(count, Is.EqualTo(3));
+        await Assert.That(composite.Count).IsEqualTo(0);
+        await Assert.That(count).IsEqualTo(3);
     }
 
     /// <summary>Tests ObservableAsync.Defer defers subscription.</summary>
@@ -567,16 +566,16 @@ public class CoverageBoostTests
             return ObservableAsync.Return(42);
         });
 
-        Assert.That(factoryCallCount, Is.EqualTo(0));
+        await Assert.That(factoryCallCount).IsEqualTo(0);
 
         var result1 = await deferred.FirstAsync();
-        Assert.That(factoryCallCount, Is.EqualTo(1));
+        await Assert.That(factoryCallCount).IsEqualTo(1);
 
         var result2 = await deferred.FirstAsync();
-        Assert.That(factoryCallCount, Is.EqualTo(2));
+        await Assert.That(factoryCallCount).IsEqualTo(2);
 
-        Assert.That(result1, Is.EqualTo(42));
-        Assert.That(result2, Is.EqualTo(42));
+        await Assert.That(result1).IsEqualTo(42);
+        await Assert.That(result2).IsEqualTo(42);
     }
 
     /// <summary>Tests ObservableAsync.Defer async defers subscription.</summary>
@@ -593,8 +592,8 @@ public class CoverageBoostTests
         });
 
         var result = await deferred.FirstAsync();
-        Assert.That(factoryCallCount, Is.EqualTo(1));
-        Assert.That(result, Is.EqualTo(99));
+        await Assert.That(factoryCallCount).IsEqualTo(1);
+        await Assert.That(result).IsEqualTo(99);
     }
 
     /// <summary>Tests ObservableAsync.FromAsync wraps task factory.</summary>
@@ -608,7 +607,7 @@ public class CoverageBoostTests
         });
 
         var result = await source.FirstAsync();
-        Assert.That(result, Is.EqualTo(42));
+        await Assert.That(result).IsEqualTo(42);
     }
 
     /// <summary>Tests ObservableAsync.FromAsync void wraps void task factory.</summary>
@@ -623,7 +622,7 @@ public class CoverageBoostTests
         });
 
         await source.WaitCompletionAsync();
-        Assert.That(executed, Is.True);
+        await Assert.That(executed).IsTrue();
     }
 
     /// <summary>Tests OfType filters by type correctly.</summary>
@@ -633,7 +632,7 @@ public class CoverageBoostTests
         var source = new object[] { "hello", 1, "world", 2, "!" }.ToObservableAsync();
         var result = await source.OfType<object, string>().ToListAsync();
 
-        Assert.That(result, Is.EqualTo(new[] { "hello", "world", "!" }));
+        await Assert.That(result).IsEquivalentTo(new[] { "hello", "world", "!" });
     }
 
     /// <summary>Tests OfType with exception type.</summary>
@@ -643,7 +642,7 @@ public class CoverageBoostTests
         var source = new object[] { new InvalidOperationException("a"), "skip", new ArgumentException("b") }.ToObservableAsync();
         var result = await source.OfType<object, Exception>().ToListAsync();
 
-        Assert.That(result, Has.Count.EqualTo(2));
+        await Assert.That(result).Count().IsEqualTo(2);
     }
 
     /// <summary>Tests Prepend with enumerable prepends values.</summary>
@@ -654,7 +653,7 @@ public class CoverageBoostTests
             .Prepend(new List<int> { 1, 2, 3 })
             .ToListAsync();
 
-        Assert.That(result, Is.EqualTo(new[] { 1, 2, 3, 4 }));
+        await Assert.That(result).IsEquivalentTo(new[] { 1, 2, 3, 4 });
     }
 
     /// <summary>Tests ObserverAsync completes when observing error source.</summary>
@@ -675,9 +674,9 @@ public class CoverageBoostTests
             .SelectMany(x => new[] { x, x * 10 }.ToObservableAsync())
             .ToListAsync();
 
-        Assert.That(result, Has.Count.EqualTo(6));
-        Assert.That(result, Does.Contain(1));
-        Assert.That(result, Does.Contain(10));
+        await Assert.That(result).Count().IsEqualTo(6);
+        await Assert.That(result).Contains(1);
+        await Assert.That(result).Contains(10);
     }
 
     /// <summary>Tests subject completed prevents further emissions.</summary>
@@ -701,7 +700,7 @@ public class CoverageBoostTests
 
         await Task.Delay(50);
 
-        Assert.That(items, Is.EqualTo(new[] { 1 }));
+        await Assert.That(items).IsEquivalentTo(new[] { 1 });
     }
 
     /// <summary>Tests LongCountAsync counts elements as long.</summary>
@@ -709,7 +708,7 @@ public class CoverageBoostTests
     public async Task WhenLongCountAsyncOnEmpty_ThenReturnsZero()
     {
         var result = await ObservableAsync.Empty<string>().LongCountAsync();
-        Assert.That(result, Is.EqualTo(0L));
+        await Assert.That(result).IsEqualTo(0L);
     }
 
     /// <summary>Tests ForEachAsync with async action processes all.</summary>
@@ -719,7 +718,7 @@ public class CoverageBoostTests
         var items = new List<int>();
         await ObservableAsync.Range(1, 4).ForEachAsync(x => items.Add(x));
 
-        Assert.That(items, Is.EqualTo(new[] { 1, 2, 3, 4 }));
+        await Assert.That(items).IsEquivalentTo(new[] { 1, 2, 3, 4 });
     }
 
     /// <summary>Tests ToDictionaryAsync with element selector.</summary>
@@ -729,9 +728,9 @@ public class CoverageBoostTests
         var source = new[] { "a", "bb", "ccc" }.ToObservableAsync();
         var result = await source.ToDictionaryAsync(s => s.Length, s => s.ToUpperInvariant());
 
-        Assert.That(result[1], Is.EqualTo("A"));
-        Assert.That(result[2], Is.EqualTo("BB"));
-        Assert.That(result[3], Is.EqualTo("CCC"));
+        await Assert.That(result[1]).IsEqualTo("A");
+        await Assert.That(result[2]).IsEqualTo("BB");
+        await Assert.That(result[3]).IsEqualTo("CCC");
     }
 
     /// <summary>Tests LastOrDefaultAsync with default value returns default on empty.</summary>
@@ -739,7 +738,7 @@ public class CoverageBoostTests
     public async Task WhenLastOrDefaultOnEmpty_ThenReturnsSpecifiedDefault()
     {
         var result = await ObservableAsync.Empty<int>().LastOrDefaultAsync(-1);
-        Assert.That(result, Is.EqualTo(-1));
+        await Assert.That(result).IsEqualTo(-1);
     }
 
     /// <summary>Tests SingleOrDefaultAsync on empty returns default.</summary>
@@ -747,7 +746,7 @@ public class CoverageBoostTests
     public async Task WhenSingleOrDefaultWithDefault_ThenReturnsSpecifiedDefault()
     {
         var result = await ObservableAsync.Empty<string>().SingleOrDefaultAsync("none");
-        Assert.That(result, Is.EqualTo("none"));
+        await Assert.That(result).IsEqualTo("none");
     }
 
     /// <summary>Tests FirstOrDefaultAsync with explicit default returns default on empty.</summary>
@@ -755,7 +754,7 @@ public class CoverageBoostTests
     public async Task WhenFirstOrDefaultWithDefault_ThenReturnsSpecifiedDefault()
     {
         var result = await ObservableAsync.Empty<int>().FirstOrDefaultAsync(-1);
-        Assert.That(result, Is.EqualTo(-1));
+        await Assert.That(result).IsEqualTo(-1);
     }
 
     /// <summary>

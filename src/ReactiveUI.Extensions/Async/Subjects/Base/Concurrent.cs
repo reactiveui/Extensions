@@ -31,6 +31,11 @@ public static class Concurrent
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static ValueTask ForwardOnNextConcurrently<T>(IReadOnlyList<IObserverAsync<T>> observers, T value, CancellationToken cancellationToken)
     {
+        if (observers is null)
+        {
+            throw new ArgumentNullException(nameof(observers));
+        }
+
         if (observers.Count == 0)
         {
             return default;
@@ -55,6 +60,11 @@ public static class Concurrent
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static ValueTask ForwardOnErrorResumeConcurrently<T>(IReadOnlyList<IObserverAsync<T>> observers, Exception error, CancellationToken cancellationToken)
     {
+        if (observers is null)
+        {
+            throw new ArgumentNullException(nameof(observers));
+        }
+
         if (observers.Count == 0)
         {
             return default;
@@ -79,6 +89,11 @@ public static class Concurrent
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static ValueTask ForwardOnCompletedConcurrently<T>(IReadOnlyList<IObserverAsync<T>> observers, Result result)
     {
+        if (observers is null)
+        {
+            throw new ArgumentNullException(nameof(observers));
+        }
+
         if (observers.Count == 0)
         {
             return default;

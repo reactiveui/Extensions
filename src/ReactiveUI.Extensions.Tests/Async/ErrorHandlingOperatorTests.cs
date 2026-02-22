@@ -2,7 +2,6 @@
 // ReactiveUI Association Incorporated licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using NUnit.Framework;
 using ReactiveUI.Extensions.Async;
 using ReactiveUI.Extensions.Async.Disposables;
 using ReactiveUI.Extensions.Async.Internals;
@@ -23,7 +22,7 @@ public class ErrorHandlingOperatorTests
 
         var result = await source.Catch(_ => fallback).ToListAsync();
 
-        Assert.That(result, Is.EqualTo(new[] { 42 }));
+        await Assert.That(result).IsEquivalentTo(new[] { 42 });
     }
 
     /// <summary>Tests Catch on success completes original sequence.</summary>
@@ -34,7 +33,7 @@ public class ErrorHandlingOperatorTests
             .Catch(_ => ObservableAsync.Return(99))
             .ToListAsync();
 
-        Assert.That(result, Is.EqualTo(new[] { 1, 2, 3 }));
+        await Assert.That(result).IsEquivalentTo(new[] { 1, 2, 3 });
     }
 
     /// <summary>Tests CatchAndIgnoreErrorResume ignores and continues.</summary>
@@ -46,7 +45,7 @@ public class ErrorHandlingOperatorTests
 
         var result = await source.CatchAndIgnoreErrorResume(_ => fallback).ToListAsync();
 
-        Assert.That(result, Is.EqualTo(new[] { 100 }));
+        await Assert.That(result).IsEquivalentTo(new[] { 100 });
     }
 
     /// <summary>Tests OnErrorResumeAsFailure converts error resume to failure.</summary>
@@ -76,9 +75,9 @@ public class ErrorHandlingOperatorTests
 
         await Task.Delay(200);
 
-        Assert.That(errorSent, Is.True);
-        Assert.That(completionResult, Is.Not.Null);
-        Assert.That(completionResult!.Value.IsFailure, Is.True);
+        await Assert.That(errorSent).IsTrue();
+        await Assert.That(completionResult).IsNotNull();
+        await Assert.That(completionResult!.Value.IsFailure).IsTrue();
     }
 
     /// <summary>Tests Retry on transient error succeeds after retry.</summary>
@@ -101,8 +100,8 @@ public class ErrorHandlingOperatorTests
 
         var result = await source.Retry(5).ToListAsync();
 
-        Assert.That(result, Is.EqualTo(new[] { 42 }));
-        Assert.That(attempt, Is.EqualTo(3));
+        await Assert.That(result).IsEquivalentTo(new[] { 42 });
+        await Assert.That(attempt).IsEqualTo(3);
     }
 
     /// <summary>Tests Retry exhausted propagates last error.</summary>
@@ -129,7 +128,7 @@ public class ErrorHandlingOperatorTests
     {
         var result = await ObservableAsync.Return(7).Retry().ToListAsync();
 
-        Assert.That(result, Is.EqualTo(new[] { 7 }));
+        await Assert.That(result).IsEquivalentTo(new[] { 7 });
     }
 
     /// <summary>Tests Catch with error resume callback is invoked.</summary>
@@ -149,6 +148,6 @@ public class ErrorHandlingOperatorTests
             async (ex, ct) => errorResumes.Add(ex))
             .ToListAsync();
 
-        Assert.That(result, Does.Contain(99));
+        await Assert.That(result).Contains(99);
     }
 }

@@ -2,9 +2,6 @@
 // ReactiveUI Association Incorporated licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using System.Reactive.Linq;
-using System.Reactive.Subjects;
-using NUnit.Framework;
 using ReactiveUI.Extensions.Async;
 using ReactiveUI.Extensions.Async.Internals;
 using ReactiveUI.Extensions.Async.Subjects;
@@ -29,7 +26,7 @@ public class BridgeTests
 
         var result = await asyncObs.ToListAsync();
 
-        Assert.That(result, Is.EqualTo(new[] { 1, 2, 3, 4, 5 }));
+        await Assert.That(result).IsEquivalentTo(new[] { 1, 2, 3, 4, 5 });
     }
 
     /// <summary>
@@ -43,7 +40,7 @@ public class BridgeTests
 
         var result = await asyncObs.ToListAsync();
 
-        Assert.That(result, Is.Empty);
+        await Assert.That(result).IsEmpty();
     }
 
     /// <summary>
@@ -71,7 +68,7 @@ public class BridgeTests
 
         var result = await rxObs.ToList();
 
-        Assert.That(result, Is.EqualTo(new[] { 1, 2, 3, 4, 5 }));
+        await Assert.That(result).IsEquivalentTo(new[] { 1, 2, 3, 4, 5 });
     }
 
     /// <summary>
@@ -85,7 +82,7 @@ public class BridgeTests
 
         var result = await rxObs.ToList();
 
-        Assert.That(result, Is.Empty);
+        await Assert.That(result).IsEmpty();
     }
 
     /// <summary>
@@ -135,7 +132,7 @@ public class BridgeTests
 
         var result = await roundTripped.ToList();
 
-        Assert.That(result, Is.EqualTo(new[] { 1, 2, 3, 4, 5 }));
+        await Assert.That(result).IsEquivalentTo(new[] { 1, 2, 3, 4, 5 });
     }
 
     /// <summary>
@@ -152,7 +149,7 @@ public class BridgeTests
 
         var result = await roundTripped.ToListAsync();
 
-        Assert.That(result, Is.EqualTo(new[] { 1, 2, 3, 4, 5 }));
+        await Assert.That(result).IsEquivalentTo(new[] { 1, 2, 3, 4, 5 });
     }
 
     /// <summary>
@@ -169,7 +166,7 @@ public class BridgeTests
             .Take(3)
             .ToListAsync();
 
-        Assert.That(result, Is.EqualTo(new[] { 20, 40, 60 }));
+        await Assert.That(result).IsEquivalentTo(new[] { 20, 40, 60 });
     }
 
     /// <summary>
@@ -186,7 +183,7 @@ public class BridgeTests
             .Select(x => x * 2)
             .ToList();
 
-        Assert.That(result, Is.EqualTo(new[] { 12, 14, 16 }));
+        await Assert.That(result).IsEquivalentTo(new[] { 12, 14, 16 });
     }
 
     /// <summary>
@@ -218,7 +215,7 @@ public class BridgeTests
 
         await Task.Delay(200);
 
-        Assert.That(items, Is.EqualTo(new[] { 6, 10 }));
+        await Assert.That(items).IsEquivalentTo(new[] { 6, 10 });
     }
 
     /// <summary>
@@ -242,7 +239,7 @@ public class BridgeTests
 
         await Task.Delay(200);
 
-        Assert.That(items, Is.EqualTo(new[] { 101, 102, 103 }));
+        await Assert.That(items).IsEquivalentTo(new[] { 101, 102, 103 });
     }
 
     /// <summary>
@@ -256,9 +253,9 @@ public class BridgeTests
 
         var result = await rxSource.ToObservableAsync().Concat(asyncSource).ToListAsync();
 
-        Assert.That(result, Has.Count.EqualTo(6));
-        Assert.That(result, Does.Contain(1));
-        Assert.That(result, Does.Contain(10));
+        await Assert.That(result).Count().IsEqualTo(6);
+        await Assert.That(result).Contains(1);
+        await Assert.That(result).Contains(10);
     }
 
     /// <summary>
@@ -274,7 +271,7 @@ public class BridgeTests
             .Concat(asyncSource)
             .ToListAsync();
 
-        Assert.That(result, Is.EqualTo(new[] { 1, 2, 3, 4 }));
+        await Assert.That(result).IsEquivalentTo(new[] { 1, 2, 3, 4 });
     }
 
     /// <summary>
@@ -289,10 +286,10 @@ public class BridgeTests
             .SelectMany(x => AsyncObs.Return(x * 100))
             .ToListAsync();
 
-        Assert.That(result, Has.Count.EqualTo(3));
-        Assert.That(result, Does.Contain(100));
-        Assert.That(result, Does.Contain(200));
-        Assert.That(result, Does.Contain(300));
+        await Assert.That(result).Count().IsEqualTo(3);
+        await Assert.That(result).Contains(100);
+        await Assert.That(result).Contains(200);
+        await Assert.That(result).Contains(300);
     }
 
     /// <summary>
@@ -308,6 +305,6 @@ public class BridgeTests
             .Zip(asyncSource, (n, s) => $"{n}{s}")
             .ToListAsync();
 
-        Assert.That(result, Is.EqualTo(new[] { "1a", "2b", "3c" }));
+        await Assert.That(result).IsEquivalentTo(new[] { "1a", "2b", "3c" });
     }
 }

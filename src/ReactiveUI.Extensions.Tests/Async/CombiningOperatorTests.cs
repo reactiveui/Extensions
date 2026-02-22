@@ -2,7 +2,6 @@
 // ReactiveUI Association Incorporated licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using NUnit.Framework;
 using ReactiveUI.Extensions.Async;
 using ReactiveUI.Extensions.Async.Internals;
 using ReactiveUI.Extensions.Async.Subjects;
@@ -23,8 +22,8 @@ public class CombiningOperatorTests
 
         var result = await first.Merge(second).ToListAsync();
 
-        Assert.That(result, Has.Count.EqualTo(2));
-        Assert.That(result, Does.Contain(1));
+        await Assert.That(result).Count().IsEqualTo(2);
+        await Assert.That(result).Contains(1);
     }
 
     /// <summary>Tests Merge enumerable emits from all.</summary>
@@ -40,7 +39,7 @@ public class CombiningOperatorTests
 
         var result = await sources.Merge().ToListAsync();
 
-        Assert.That(result, Has.Count.EqualTo(3));
+        await Assert.That(result).Count().IsEqualTo(3);
     }
 
     /// <summary>Tests Merge observable of observables flattens.</summary>
@@ -55,7 +54,7 @@ public class CombiningOperatorTests
 
         var result = await source.Merge().ToListAsync();
 
-        Assert.That(result, Has.Count.EqualTo(2));
+        await Assert.That(result).Count().IsEqualTo(2);
     }
 
     /// <summary>Tests Merge with max concurrency respects limit.</summary>
@@ -88,8 +87,8 @@ public class CombiningOperatorTests
 
         var result = await source.Merge(2).ToListAsync();
 
-        Assert.That(result, Has.Count.EqualTo(5));
-        Assert.That(maxConcurrency, Is.LessThanOrEqualTo(2));
+        await Assert.That(result).Count().IsEqualTo(5);
+        await Assert.That(maxConcurrency).IsLessThanOrEqualTo(2);
     }
 
     /// <summary>Tests Concat two sequences emits in order.</summary>
@@ -101,7 +100,7 @@ public class CombiningOperatorTests
 
         var result = await first.Concat(second).ToListAsync();
 
-        Assert.That(result, Is.EqualTo(new[] { 1, 2, 3, 4 }));
+        await Assert.That(result).IsEquivalentTo(new[] { 1, 2, 3, 4 });
     }
 
     /// <summary>Tests Concat enumerable emits in sequential order.</summary>
@@ -117,7 +116,7 @@ public class CombiningOperatorTests
 
         var result = await sources.Concat().ToListAsync();
 
-        Assert.That(result, Is.EqualTo(new[] { 1, 2, 3 }));
+        await Assert.That(result).IsEquivalentTo(new[] { 1, 2, 3 });
     }
 
     /// <summary>Tests Concat observable of observables concatenates sequentially.</summary>
@@ -132,7 +131,7 @@ public class CombiningOperatorTests
 
         var result = await sources.Concat().ToListAsync();
 
-        Assert.That(result, Is.EqualTo(new[] { 1, 2, 3, 4 }));
+        await Assert.That(result).IsEquivalentTo(new[] { 1, 2, 3, 4 });
     }
 
     /// <summary>Tests CombineLatest two sources combines latest values.</summary>
@@ -160,8 +159,8 @@ public class CombiningOperatorTests
 
         await Task.Delay(100);
 
-        Assert.That(results, Has.Count.GreaterThanOrEqualTo(1));
-        Assert.That(results[0], Is.EqualTo((1, "a")));
+        await Assert.That(results).Count().IsGreaterThanOrEqualTo(1);
+        await Assert.That(results[0]).IsEqualTo((1, "a"));
     }
 
     /// <summary>Tests Zip two sequences pairs by index.</summary>
@@ -173,7 +172,7 @@ public class CombiningOperatorTests
 
         var result = await first.Zip(second, (n, s) => $"{n}{s}").ToListAsync();
 
-        Assert.That(result, Is.EqualTo(new[] { "1a", "2b", "3c" }));
+        await Assert.That(result).IsEquivalentTo(new[] { "1a", "2b", "3c" });
     }
 
     /// <summary>Tests Zip tuple overload creates tuples.</summary>
@@ -185,8 +184,8 @@ public class CombiningOperatorTests
 
         var result = await first.Zip(second).ToListAsync();
 
-        Assert.That(result, Has.Count.EqualTo(2));
-        Assert.That(result[0], Is.EqualTo((1, "x")));
+        await Assert.That(result).Count().IsEqualTo(2);
+        await Assert.That(result[0]).IsEqualTo((1, "x"));
     }
 
     /// <summary>Tests Zip different lengths stops at shortest.</summary>
@@ -198,7 +197,7 @@ public class CombiningOperatorTests
 
         var result = await first.Zip(second, (a, b) => a + b).ToListAsync();
 
-        Assert.That(result, Is.EqualTo(new[] { 11, 13 }));
+        await Assert.That(result).IsEquivalentTo(new[] { 11, 13 });
     }
 
     /// <summary>Tests Zip null arguments throws.</summary>
@@ -217,7 +216,7 @@ public class CombiningOperatorTests
             .Prepend(1)
             .ToListAsync();
 
-        Assert.That(result, Is.EqualTo(new[] { 1, 2, 3, 4 }));
+        await Assert.That(result).IsEquivalentTo(new[] { 1, 2, 3, 4 });
     }
 
     /// <summary>Tests Prepend enumerable values come first.</summary>
@@ -228,7 +227,7 @@ public class CombiningOperatorTests
             .Prepend(new[] { 1, 2 })
             .ToListAsync();
 
-        Assert.That(result, Is.EqualTo(new[] { 1, 2, 3, 4 }));
+        await Assert.That(result).IsEquivalentTo(new[] { 1, 2, 3, 4 });
     }
 
     /// <summary>Tests StartWith value comes first.</summary>
@@ -239,7 +238,7 @@ public class CombiningOperatorTests
             .StartWith(1)
             .ToListAsync();
 
-        Assert.That(result, Is.EqualTo(new[] { 1, 2, 3 }));
+        await Assert.That(result).IsEquivalentTo(new[] { 1, 2, 3 });
     }
 
     /// <summary>Tests StartWith enumerable values come first.</summary>
@@ -250,7 +249,7 @@ public class CombiningOperatorTests
             .StartWith(new[] { 1, 2 })
             .ToListAsync();
 
-        Assert.That(result, Is.EqualTo(new[] { 1, 2, 3 }));
+        await Assert.That(result).IsEquivalentTo(new[] { 1, 2, 3 });
     }
 
     /// <summary>Tests StartWith params values come first.</summary>
@@ -262,6 +261,6 @@ public class CombiningOperatorTests
             .StartWith(values)
             .ToListAsync();
 
-        Assert.That(result, Is.EqualTo(new[] { 1, 2, 3, 4 }));
+        await Assert.That(result).IsEquivalentTo(new[] { 1, 2, 3, 4 });
     }
 }

@@ -58,6 +58,19 @@ public abstract class BaseStatelessSubjectAsync<T> : ObservableAsync<T>, ISubjec
     public ValueTask OnCompletedAsync(Result result) => OnCompletedAsyncCore(Volatile.Read(ref _observers), result);
 
     /// <summary>
+    /// Asynchronously releases resources used by the current instance.
+    /// </summary>
+    /// <remarks>After calling this method, the instance should not be used. This method is intended to be
+    /// called when the object is no longer needed, to ensure that all resources are properly released.</remarks>
+    /// <returns>A ValueTask that represents the asynchronous dispose operation.</returns>
+    public ValueTask DisposeAsync()
+    {
+        Volatile.Write(ref _observers, ImmutableList<IObserverAsync<T>>.Empty);
+        GC.SuppressFinalize(this);
+        return default;
+    }
+
+    /// <summary>
     /// Subscribes the specified asynchronous observer to receive notifications from the observable sequence.
     /// </summary>
     /// <remarks>Disposing the returned <see cref="IAsyncDisposable"/> will remove the observer from the

@@ -2,7 +2,6 @@
 // ReactiveUI Association Incorporated licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using NUnit.Framework;
 using ReactiveUI.Extensions.Async.Disposables;
 
 namespace ReactiveUI.Extensions.Tests.Async;
@@ -18,7 +17,6 @@ public class DisposableTests
     {
         var empty = DisposableAsync.Empty;
         await empty.DisposeAsync();
-        Assert.Pass();
     }
 
     /// <summary>Tests DisposableAsync.Create callback invoked on dispose.</summary>
@@ -32,9 +30,9 @@ public class DisposableTests
             return default;
         });
 
-        Assert.That(disposed, Is.False);
+        await Assert.That(disposed).IsFalse();
         await disposable.DisposeAsync();
-        Assert.That(disposed, Is.True);
+        await Assert.That(disposed).IsTrue();
     }
 
     /// <summary>Tests DisposableAsync.Create double dispose only calls once.</summary>
@@ -51,7 +49,7 @@ public class DisposableTests
         await disposable.DisposeAsync();
         await disposable.DisposeAsync();
 
-        Assert.That(callCount, Is.EqualTo(1));
+        await Assert.That(callCount).IsEqualTo(1);
     }
 
     /// <summary>Tests CompositeDisposableAsync disposes all.</summary>
@@ -73,14 +71,14 @@ public class DisposableTests
 
         var composite = new CompositeDisposableAsync(d1, d2);
 
-        Assert.That(composite.Count, Is.EqualTo(2));
-        Assert.That(composite.IsDisposed, Is.False);
+        await Assert.That(composite.Count).IsEqualTo(2);
+        await Assert.That(composite.IsDisposed).IsFalse();
 
         await composite.DisposeAsync();
 
-        Assert.That(disposed1, Is.True);
-        Assert.That(disposed2, Is.True);
-        Assert.That(composite.IsDisposed, Is.True);
+        await Assert.That(disposed1).IsTrue();
+        await Assert.That(disposed2).IsTrue();
+        await Assert.That(composite.IsDisposed).IsTrue();
     }
 
     /// <summary>Tests CompositeDisposableAsync negative capacity throws.</summary>
@@ -95,7 +93,7 @@ public class DisposableTests
     public async Task WhenCompositeDisposableAsyncWithCapacity_ThenWorks()
     {
         var composite = new CompositeDisposableAsync(10);
-        Assert.That(composite.Count, Is.EqualTo(0));
+        await Assert.That(composite.Count).IsEqualTo(0);
 
         var disposed = false;
         await composite.AddAsync(DisposableAsync.Create(() =>
@@ -103,10 +101,10 @@ public class DisposableTests
             disposed = true;
             return default;
         }));
-        Assert.That(composite.Count, Is.EqualTo(1));
+        await Assert.That(composite.Count).IsEqualTo(1);
 
         await composite.DisposeAsync();
-        Assert.That(disposed, Is.True);
+        await Assert.That(disposed).IsTrue();
     }
 
     /// <summary>Tests CompositeDisposableAsync from enumerable disposes all.</summary>
@@ -121,10 +119,10 @@ public class DisposableTests
         }));
 
         var composite = new CompositeDisposableAsync(disposables);
-        Assert.That(composite.Count, Is.EqualTo(3));
+        await Assert.That(composite.Count).IsEqualTo(3);
 
         await composite.DisposeAsync();
-        Assert.That(count, Is.EqualTo(3));
+        await Assert.That(count).IsEqualTo(3);
     }
 
     /// <summary>Tests CompositeDisposableAsync add after dispose disposes immediately.</summary>
@@ -142,7 +140,7 @@ public class DisposableTests
         }));
 
         await Task.Delay(50);
-        Assert.That(disposed, Is.True);
+        await Assert.That(disposed).IsTrue();
     }
 
     /// <summary>Tests CompositeDisposableAsync remove disposes and removes the item.</summary>
@@ -159,17 +157,17 @@ public class DisposableTests
         var composite = new CompositeDisposableAsync(d);
         var removed = await composite.Remove(d);
 
-        Assert.That(removed, Is.True);
-        Assert.That(composite.Count, Is.EqualTo(0));
-        Assert.That(disposed, Is.True);
+        await Assert.That(removed).IsTrue();
+        await Assert.That(composite.Count).IsEqualTo(0);
+        await Assert.That(disposed).IsTrue();
     }
 
-    /// <summary>Tests CompositeDisposableAsync IsReadOnly returns false.</summary>
+    /// <summary>Tests CompositeDisposableAsync IsDisposed returns false when active.</summary>
     [Test]
-    public void WhenCompositeDisposableAsyncIsReadOnly_ThenReturnsFalse()
+    public async Task WhenCompositeDisposableAsyncIsDisposed_ThenReturnsFalse()
     {
         var composite = new CompositeDisposableAsync();
-        Assert.That(composite.IsReadOnly, Is.False);
+        await Assert.That(composite.IsDisposed).IsFalse();
     }
 
     /// <summary>Tests SingleAssignmentDisposableAsync disposes assigned.</summary>
@@ -184,11 +182,11 @@ public class DisposableTests
             disposed = true;
             return default;
         }));
-        Assert.That(sad.IsDisposed, Is.False);
+        await Assert.That(sad.IsDisposed).IsFalse();
 
         await sad.DisposeAsync();
-        Assert.That(sad.IsDisposed, Is.True);
-        Assert.That(disposed, Is.True);
+        await Assert.That(sad.IsDisposed).IsTrue();
+        await Assert.That(disposed).IsTrue();
     }
 
     /// <summary>Tests SingleAssignment dispose before set disposes immediately.</summary>
@@ -204,7 +202,7 @@ public class DisposableTests
             disposed = true;
             return default;
         }));
-        Assert.That(disposed, Is.True);
+        await Assert.That(disposed).IsTrue();
     }
 
     /// <summary>Tests SingleAssignment double set throws.</summary>
@@ -220,10 +218,10 @@ public class DisposableTests
 
     /// <summary>Tests SingleAssignment get before set returns null.</summary>
     [Test]
-    public void WhenSingleAssignmentDisposableAsyncGetBeforeSet_ThenReturnsNull()
+    public async Task WhenSingleAssignmentDisposableAsyncGetBeforeSet_ThenReturnsNull()
     {
         var sad = new SingleAssignmentDisposableAsync();
-        Assert.That(sad.GetDisposable(), Is.Null);
+        await Assert.That(sad.GetDisposable()).IsNull();
     }
 
     /// <summary>Tests SingleAssignment get after dispose returns non-null.</summary>
@@ -232,7 +230,7 @@ public class DisposableTests
     {
         var sad = new SingleAssignmentDisposableAsync();
         await sad.DisposeAsync();
-        Assert.That(sad.GetDisposable(), Is.Not.Null);
+        await Assert.That(sad.GetDisposable()).IsNotNull();
     }
 
     /// <summary>Tests SingleAssignment get after set returns assigned.</summary>
@@ -242,7 +240,7 @@ public class DisposableTests
         var sad = new SingleAssignmentDisposableAsync();
         var original = DisposableAsync.Empty;
         await sad.SetDisposableAsync(original);
-        Assert.That(sad.GetDisposable(), Is.SameAs(original));
+        await Assert.That(sad.GetDisposable()).IsEquivalentTo(original);
     }
 
     /// <summary>Tests SerialDisposableAsync replaces and disposes previous.</summary>
@@ -265,14 +263,14 @@ public class DisposableTests
         });
 
         await serial.SetDisposableAsync(d1);
-        Assert.That(disposed1, Is.False);
+        await Assert.That(disposed1).IsFalse();
 
         await serial.SetDisposableAsync(d2);
-        Assert.That(disposed1, Is.True);
-        Assert.That(disposed2, Is.False);
+        await Assert.That(disposed1).IsTrue();
+        await Assert.That(disposed2).IsFalse();
 
         await serial.DisposeAsync();
-        Assert.That(disposed2, Is.True);
+        await Assert.That(disposed2).IsTrue();
     }
 
     /// <summary>Tests SerialDisposableAsync set after dispose disposes immediately.</summary>
@@ -288,7 +286,7 @@ public class DisposableTests
             disposed = true;
             return default;
         }));
-        Assert.That(disposed, Is.True);
+        await Assert.That(disposed).IsTrue();
     }
 
     /// <summary>Tests SerialDisposableAsync double dispose is safe.</summary>
@@ -306,7 +304,7 @@ public class DisposableTests
         await serial.DisposeAsync();
         await serial.DisposeAsync();
 
-        Assert.That(disposed, Is.True);
+        await Assert.That(disposed).IsTrue();
     }
 
     /// <summary>Tests SerialDisposableAsync set null succeeds.</summary>
@@ -316,6 +314,5 @@ public class DisposableTests
         var serial = new SerialDisposableAsync();
         await serial.SetDisposableAsync(null);
         await serial.DisposeAsync();
-        Assert.Pass();
     }
 }

@@ -2,7 +2,6 @@
 // ReactiveUI Association Incorporated licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using NUnit.Framework;
 using ReactiveUI.Extensions.Async;
 using ReactiveUI.Extensions.Async.Disposables;
 using ReactiveUI.Extensions.Async.Internals;
@@ -41,8 +40,8 @@ public class OperatorEdgeCaseTests
 
         await Task.Delay(200);
 
-        Assert.That(completionResult, Is.Not.Null);
-        Assert.That(completionResult!.Value.IsSuccess, Is.True);
+        await Assert.That(completionResult).IsNotNull();
+        await Assert.That(completionResult!.Value.IsSuccess).IsTrue();
     }
 
     /// <summary>Tests that Switch forwards error from inner sequence.</summary>
@@ -69,8 +68,8 @@ public class OperatorEdgeCaseTests
 
         await Task.Delay(200);
 
-        Assert.That(completionResult, Is.Not.Null);
-        Assert.That(completionResult!.Value.IsFailure, Is.True);
+        await Assert.That(completionResult).IsNotNull();
+        await Assert.That(completionResult!.Value.IsFailure).IsTrue();
     }
 
     /// <summary>Tests that Switch forwards error resume from inner sequence.</summary>
@@ -101,7 +100,7 @@ public class OperatorEdgeCaseTests
         await outer.OnNextAsync(inner, CancellationToken.None);
         await Task.Delay(200);
 
-        Assert.That(errors, Has.Count.EqualTo(1));
+        await Assert.That(errors).Count().IsEqualTo(1);
     }
 
     // ==========================================
@@ -127,7 +126,7 @@ public class OperatorEdgeCaseTests
             .Concat(ObservableAsync.Empty<int>())
             .ToListAsync();
 
-        Assert.That(result, Is.Empty);
+        await Assert.That(result).IsEmpty();
     }
 
     /// <summary>Tests that Concat enumerable of empty returns empty.</summary>
@@ -137,7 +136,7 @@ public class OperatorEdgeCaseTests
         var sources = Array.Empty<IObservableAsync<int>>();
         var result = await sources.Concat().ToListAsync();
 
-        Assert.That(result, Is.Empty);
+        await Assert.That(result).IsEmpty();
     }
 
     // ==========================================
@@ -152,7 +151,7 @@ public class OperatorEdgeCaseTests
             .Zip(ObservableAsync.Return("a"), (n, s) => $"{n}{s}")
             .ToListAsync();
 
-        Assert.That(result, Is.Empty);
+        await Assert.That(result).IsEmpty();
     }
 
     /// <summary>Tests that Zip with empty second source returns empty.</summary>
@@ -163,7 +162,7 @@ public class OperatorEdgeCaseTests
             .Zip(ObservableAsync.Empty<string>(), (n, s) => $"{n}{s}")
             .ToListAsync();
 
-        Assert.That(result, Is.Empty);
+        await Assert.That(result).IsEmpty();
     }
 
     /// <summary>Tests that Zip throws on null second argument.</summary>
@@ -204,8 +203,8 @@ public class OperatorEdgeCaseTests
         await first.OnCompletedAsync(Result.Failure(new InvalidOperationException("first fail")));
         await Task.Delay(100);
 
-        Assert.That(completionResult, Is.Not.Null);
-        Assert.That(completionResult!.Value.IsFailure, Is.True);
+        await Assert.That(completionResult).IsNotNull();
+        await Assert.That(completionResult!.Value.IsFailure).IsTrue();
     }
 
     // ==========================================
@@ -219,7 +218,7 @@ public class OperatorEdgeCaseTests
         var sources = Array.Empty<IObservableAsync<int>>();
         var result = await sources.Merge().ToListAsync();
 
-        Assert.That(result, Is.Empty);
+        await Assert.That(result).IsEmpty();
     }
 
     /// <summary>Tests that Merge error from one source propagates.</summary>
@@ -251,8 +250,8 @@ public class OperatorEdgeCaseTests
 
         await Task.Delay(200);
 
-        Assert.That(completionResult, Is.Not.Null);
-        Assert.That(completionResult!.Value.IsFailure, Is.True);
+        await Assert.That(completionResult).IsNotNull();
+        await Assert.That(completionResult!.Value.IsFailure).IsTrue();
     }
 
     // ==========================================
@@ -308,8 +307,8 @@ public class OperatorEdgeCaseTests
 
         await Task.Delay(500);
 
-        Assert.That(result, Does.Contain(42));
-        Assert.That(errors, Has.Count.GreaterThanOrEqualTo(1));
+        await Assert.That(result).Contains(42);
+        await Assert.That(errors).Count().IsGreaterThanOrEqualTo(1);
     }
 
     // ==========================================
@@ -342,7 +341,7 @@ public class OperatorEdgeCaseTests
 
         await Task.Delay(200);
 
-        Assert.That(errors, Has.Count.EqualTo(1));
+        await Assert.That(errors).Count().IsEqualTo(1);
     }
 
     /// <summary>Tests that Delay forwards failure completion from source.</summary>
@@ -370,8 +369,8 @@ public class OperatorEdgeCaseTests
 
         await Task.Delay(200);
 
-        Assert.That(completionResult, Is.Not.Null);
-        Assert.That(completionResult!.Value.IsFailure, Is.True);
+        await Assert.That(completionResult).IsNotNull();
+        await Assert.That(completionResult!.Value.IsFailure).IsTrue();
     }
 
     // ==========================================
@@ -399,7 +398,7 @@ public class OperatorEdgeCaseTests
         await source.OnErrorResumeAsync(new InvalidOperationException("warning"), CancellationToken.None);
         await Task.Delay(100);
 
-        Assert.That(errors, Has.Count.EqualTo(1));
+        await Assert.That(errors).Count().IsEqualTo(1);
     }
 
     /// <summary>Tests that Throttle forwards completion from source.</summary>
@@ -423,8 +422,8 @@ public class OperatorEdgeCaseTests
         await source.OnCompletedAsync(Result.Success);
         await Task.Delay(100);
 
-        Assert.That(completionResult, Is.Not.Null);
-        Assert.That(completionResult!.Value.IsSuccess, Is.True);
+        await Assert.That(completionResult).IsNotNull();
+        await Assert.That(completionResult!.Value.IsSuccess).IsTrue();
     }
 
     /// <summary>Tests that Throttle forwards failure from source.</summary>
@@ -448,8 +447,8 @@ public class OperatorEdgeCaseTests
         await source.OnCompletedAsync(Result.Failure(new InvalidOperationException("fail")));
         await Task.Delay(100);
 
-        Assert.That(completionResult, Is.Not.Null);
-        Assert.That(completionResult!.Value.IsFailure, Is.True);
+        await Assert.That(completionResult).IsNotNull();
+        await Assert.That(completionResult!.Value.IsFailure).IsTrue();
     }
 
     // ==========================================
@@ -483,7 +482,7 @@ public class OperatorEdgeCaseTests
 
         await Task.Delay(200);
 
-        Assert.That(errors, Has.Count.EqualTo(1));
+        await Assert.That(errors).Count().IsEqualTo(1);
     }
 
     /// <summary>Tests that Timeout with fallback negative duration throws.</summary>
@@ -531,8 +530,8 @@ public class OperatorEdgeCaseTests
 
         await Task.Delay(200);
 
-        Assert.That(items, Is.EqualTo(new[] { 10, 20 }));
-        Assert.That(errors, Has.Count.EqualTo(1));
+        await Assert.That(items).IsEquivalentTo(new[] { 10, 20 });
+        await Assert.That(errors).Count().IsEqualTo(1);
     }
 
     /// <summary>Tests that async Select forwards error resume from source.</summary>
@@ -565,7 +564,7 @@ public class OperatorEdgeCaseTests
 
         await Task.Delay(200);
 
-        Assert.That(errors, Has.Count.EqualTo(1));
+        await Assert.That(errors).Count().IsEqualTo(1);
     }
 
     // ==========================================
@@ -605,8 +604,8 @@ public class OperatorEdgeCaseTests
 
         await Task.Delay(200);
 
-        Assert.That(items, Is.EqualTo(new[] { 1, 2 }));
-        Assert.That(errors, Has.Count.EqualTo(1));
+        await Assert.That(items).IsEquivalentTo(new[] { 1, 2 });
+        await Assert.That(errors).Count().IsEqualTo(1);
     }
 
     /// <summary>Tests that async Where forwards failure completion.</summary>
@@ -639,8 +638,8 @@ public class OperatorEdgeCaseTests
 
         await Task.Delay(200);
 
-        Assert.That(completionResult, Is.Not.Null);
-        Assert.That(completionResult!.Value.IsFailure, Is.True);
+        await Assert.That(completionResult).IsNotNull();
+        await Assert.That(completionResult!.Value.IsFailure).IsTrue();
     }
 
     // ==========================================
@@ -680,8 +679,8 @@ public class OperatorEdgeCaseTests
 
         await Task.Delay(200);
 
-        Assert.That(items, Is.EqualTo(new[] { 1, 3 }));
-        Assert.That(errors, Has.Count.EqualTo(1));
+        await Assert.That(items).IsEquivalentTo(new[] { 1, 3 });
+        await Assert.That(errors).Count().IsEqualTo(1);
     }
 
     /// <summary>Tests that async Scan forwards failure completion.</summary>
@@ -714,8 +713,8 @@ public class OperatorEdgeCaseTests
 
         await Task.Delay(200);
 
-        Assert.That(completionResult, Is.Not.Null);
-        Assert.That(completionResult!.Value.IsFailure, Is.True);
+        await Assert.That(completionResult).IsNotNull();
+        await Assert.That(completionResult!.Value.IsFailure).IsTrue();
     }
 
     /// <summary>Tests that async Scan null accumulator throws.</summary>
@@ -738,7 +737,7 @@ public class OperatorEdgeCaseTests
             .Distinct()
             .ToListAsync();
 
-        Assert.That(result, Is.Empty);
+        await Assert.That(result).IsEmpty();
     }
 
     /// <summary>Tests that DistinctUntilChanged on empty returns empty.</summary>
@@ -749,7 +748,7 @@ public class OperatorEdgeCaseTests
             .DistinctUntilChanged()
             .ToListAsync();
 
-        Assert.That(result, Is.Empty);
+        await Assert.That(result).IsEmpty();
     }
 
     /// <summary>Tests that DistinctUntilChanged with single element returns it.</summary>
@@ -760,7 +759,7 @@ public class OperatorEdgeCaseTests
             .DistinctUntilChanged()
             .ToListAsync();
 
-        Assert.That(result, Is.EqualTo(new[] { 42 }));
+        await Assert.That(result).IsEquivalentTo(new[] { 42 });
     }
 
     // ==========================================
@@ -775,7 +774,7 @@ public class OperatorEdgeCaseTests
             .OnErrorResumeAsFailure()
             .ToListAsync();
 
-        Assert.That(result, Is.EqualTo(new[] { 1, 2, 3 }));
+        await Assert.That(result).IsEquivalentTo(new[] { 1, 2, 3 });
     }
 
     /// <summary>Tests that OnErrorResumeAsFailure converts error resume to failure completion.</summary>
@@ -804,8 +803,8 @@ public class OperatorEdgeCaseTests
 
         await Task.Delay(200);
 
-        Assert.That(completionResult, Is.Not.Null);
-        Assert.That(completionResult!.Value.IsFailure, Is.True);
+        await Assert.That(completionResult).IsNotNull();
+        await Assert.That(completionResult!.Value.IsFailure).IsTrue();
     }
 
     // ==========================================
@@ -850,8 +849,8 @@ public class OperatorEdgeCaseTests
 
         await Task.Delay(200);
 
-        Assert.That(completionResult, Is.Not.Null);
-        Assert.That(completionResult!.Value.IsFailure, Is.True);
+        await Assert.That(completionResult).IsNotNull();
+        await Assert.That(completionResult!.Value.IsFailure).IsTrue();
     }
 
     /// <summary>Tests that GroupBy on empty source returns empty.</summary>
@@ -873,7 +872,7 @@ public class OperatorEdgeCaseTests
 
         await Task.Delay(100);
 
-        Assert.That(groups, Is.Empty);
+        await Assert.That(groups).IsEmpty();
     }
 
     // ==========================================
@@ -908,9 +907,9 @@ public class OperatorEdgeCaseTests
 
         await Task.Delay(200);
 
-        Assert.That(completionResult, Is.Not.Null);
-        Assert.That(completionResult!.Value.IsFailure, Is.True);
-        Assert.That(resourceDisposed, Is.True);
+        await Assert.That(completionResult).IsNotNull();
+        await Assert.That(completionResult!.Value.IsFailure).IsTrue();
+        await Assert.That(resourceDisposed).IsTrue();
     }
 
     // ==========================================
@@ -944,8 +943,8 @@ public class OperatorEdgeCaseTests
 
         await Task.Delay(200);
 
-        Assert.That(completionResult, Is.Not.Null);
-        Assert.That(completionResult!.Value.IsFailure, Is.True);
+        await Assert.That(completionResult).IsNotNull();
+        await Assert.That(completionResult!.Value.IsFailure).IsTrue();
     }
 
     /// <summary>Tests that sync OnDispose is called when source errors.</summary>
@@ -965,7 +964,7 @@ public class OperatorEdgeCaseTests
 
         await Task.Delay(200);
 
-        Assert.That(disposed, Is.True);
+        await Assert.That(disposed).IsTrue();
     }
 
     // ==========================================
@@ -999,9 +998,9 @@ public class OperatorEdgeCaseTests
 
         await Task.Delay(200);
 
-        Assert.That(doInvoked, Is.False);
-        Assert.That(completionResult, Is.Not.Null);
-        Assert.That(completionResult!.Value.IsFailure, Is.True);
+        await Assert.That(doInvoked).IsFalse();
+        await Assert.That(completionResult).IsNotNull();
+        await Assert.That(completionResult!.Value.IsFailure).IsTrue();
     }
 
     /// <summary>Tests that async Do with error callback forwards error resume and completion.</summary>
@@ -1039,8 +1038,8 @@ public class OperatorEdgeCaseTests
 
         await Task.Delay(200);
 
-        Assert.That(errors, Has.Count.EqualTo(1));
-        Assert.That(completedResult, Is.Not.Null);
+        await Assert.That(errors).Count().IsEqualTo(1);
+        await Assert.That(completedResult).IsNotNull();
     }
 
     // ==========================================
@@ -1080,8 +1079,8 @@ public class OperatorEdgeCaseTests
 
         await Task.Delay(200);
 
-        Assert.That(items, Is.EqualTo(new[] { 1, 2 }));
-        Assert.That(errors, Has.Count.EqualTo(1));
+        await Assert.That(items).IsEquivalentTo(new[] { 1, 2 });
+        await Assert.That(errors).Count().IsEqualTo(1);
     }
 
     /// <summary>Tests that async TakeWhile null predicate throws.</summary>
@@ -1129,8 +1128,8 @@ public class OperatorEdgeCaseTests
 
         await Task.Delay(200);
 
-        Assert.That(items, Is.EqualTo(new[] { 1, 2 }));
-        Assert.That(errors, Has.Count.EqualTo(1));
+        await Assert.That(items).IsEquivalentTo(new[] { 1, 2 });
+        await Assert.That(errors).Count().IsEqualTo(1);
     }
 
     /// <summary>Tests that async SkipWhile null predicate throws.</summary>
@@ -1177,8 +1176,8 @@ public class OperatorEdgeCaseTests
 
         await Task.Delay(200);
 
-        Assert.That(items, Is.EqualTo(new[] { 1 }));
-        Assert.That(errors, Has.Count.EqualTo(1));
+        await Assert.That(items).IsEquivalentTo(new[] { 1 });
+        await Assert.That(errors).Count().IsEqualTo(1);
     }
 
     /// <summary>Tests that Skip forwards error resume from source.</summary>
@@ -1208,7 +1207,7 @@ public class OperatorEdgeCaseTests
 
         await Task.Delay(200);
 
-        Assert.That(errors, Has.Count.EqualTo(1));
+        await Assert.That(errors).Count().IsEqualTo(1);
     }
 
     // ==========================================
@@ -1223,7 +1222,7 @@ public class OperatorEdgeCaseTests
             .Cast<object, string>()
             .ToListAsync();
 
-        Assert.That(result, Is.Empty);
+        await Assert.That(result).IsEmpty();
     }
 
     /// <summary>Tests that OfType on empty returns empty.</summary>
@@ -1234,7 +1233,7 @@ public class OperatorEdgeCaseTests
             .OfType<object, string>()
             .ToListAsync();
 
-        Assert.That(result, Is.Empty);
+        await Assert.That(result).IsEmpty();
     }
 
     /// <summary>Tests that Cast with incompatible type throws.</summary>
@@ -1288,8 +1287,8 @@ public class OperatorEdgeCaseTests
 
         await Task.Delay(200);
 
-        Assert.That(completionResult, Is.Not.Null);
-        Assert.That(completionResult!.Value.IsFailure, Is.True);
+        await Assert.That(completionResult).IsNotNull();
+        await Assert.That(completionResult!.Value.IsFailure).IsTrue();
     }
 
     // ==========================================
@@ -1325,8 +1324,8 @@ public class OperatorEdgeCaseTests
 
         await Task.Delay(200);
 
-        Assert.That(completionResult, Is.Not.Null);
-        Assert.That(completionResult!.Value.IsFailure, Is.True);
+        await Assert.That(completionResult).IsNotNull();
+        await Assert.That(completionResult!.Value.IsFailure).IsTrue();
     }
 
     // ==========================================
@@ -1362,8 +1361,8 @@ public class OperatorEdgeCaseTests
 
         await Task.Delay(300);
 
-        Assert.That(completionResult, Is.Not.Null);
-        Assert.That(completionResult!.Value.IsSuccess, Is.True);
+        await Assert.That(completionResult).IsNotNull();
+        await Assert.That(completionResult!.Value.IsSuccess).IsTrue();
     }
 
     /// <summary>Tests that Empty completes immediately with no elements.</summary>
@@ -1371,7 +1370,7 @@ public class OperatorEdgeCaseTests
     public async Task WhenEmpty_ThenCompletesWithNoElements()
     {
         var result = await ObservableAsync.Empty<int>().ToListAsync();
-        Assert.That(result, Is.Empty);
+        await Assert.That(result).IsEmpty();
     }
 
     /// <summary>Tests that Return emits single value and completes.</summary>
@@ -1379,7 +1378,7 @@ public class OperatorEdgeCaseTests
     public async Task WhenReturn_ThenEmitsSingleValueAndCompletes()
     {
         var result = await ObservableAsync.Return(42).ToListAsync();
-        Assert.That(result, Is.EqualTo(new[] { 42 }));
+        await Assert.That(result).IsEquivalentTo(new[] { 42 });
     }
 
     /// <summary>Tests that Defer creates a new observable for each subscriber.</summary>
@@ -1396,8 +1395,8 @@ public class OperatorEdgeCaseTests
         var first = await source.FirstAsync();
         var second = await source.FirstAsync();
 
-        Assert.That(first, Is.EqualTo(1));
-        Assert.That(second, Is.EqualTo(2));
+        await Assert.That(first).IsEqualTo(1);
+        await Assert.That(second).IsEqualTo(2);
     }
 
     /// <summary>Tests that Range with zero count returns empty.</summary>
@@ -1405,7 +1404,7 @@ public class OperatorEdgeCaseTests
     public async Task WhenRangeZeroCount_ThenReturnsEmpty()
     {
         var result = await ObservableAsync.Range(1, 0).ToListAsync();
-        Assert.That(result, Is.Empty);
+        await Assert.That(result).IsEmpty();
     }
 
     /// <summary>Tests that ToObservableAsync converts enumerable to observable.</summary>
@@ -1415,7 +1414,7 @@ public class OperatorEdgeCaseTests
         var items = new[] { 10, 20, 30 };
         var result = await items.ToObservableAsync().ToListAsync();
 
-        Assert.That(result, Is.EqualTo(new[] { 10, 20, 30 }));
+        await Assert.That(result).IsEquivalentTo(new[] { 10, 20, 30 });
     }
 
     /// <summary>Tests that ToObservableAsync empty array returns empty.</summary>
@@ -1423,12 +1422,14 @@ public class OperatorEdgeCaseTests
     public async Task WhenToObservableAsyncEmpty_ThenReturnsEmpty()
     {
         var result = await Array.Empty<int>().ToObservableAsync().ToListAsync();
-        Assert.That(result, Is.Empty);
+        await Assert.That(result).IsEmpty();
     }
 
     private sealed class TestResource(Action onDispose) : IAsyncDisposable
     {
+#pragma warning disable CA1822 // Mark members as static
         public int Value => 42;
+#pragma warning restore CA1822 // Mark members as static
 
         public ValueTask DisposeAsync()
         {

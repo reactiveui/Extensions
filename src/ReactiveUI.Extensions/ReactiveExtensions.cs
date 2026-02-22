@@ -5,6 +5,7 @@
 using System.ComponentModel;
 using System.Linq.Expressions;
 using System.Reactive.Threading.Tasks;
+using System.Security.Cryptography;
 
 namespace ReactiveUI.Extensions;
 
@@ -441,8 +442,15 @@ public static class ReactiveExtensions
     /// <param name="taskFunctions">Tasks to execute.</param>
     /// <param name="maxConcurrency">Maximum concurrency.</param>
     /// <returns>A sequence of task results.</returns>
-    public static IObservable<T> WithLimitedConcurrency<T>(this IEnumerable<Task<T>> taskFunctions, int maxConcurrency) =>
-        new ConcurrencyLimiter<T>(taskFunctions, maxConcurrency).IObservable;
+    public static IObservable<T> WithLimitedConcurrency<T>(this IEnumerable<Task<T>> taskFunctions, int maxConcurrency)
+    {
+        if (taskFunctions == null)
+        {
+            throw new ArgumentNullException(nameof(taskFunctions));
+        }
+
+        return new ConcurrencyLimiter<T>(taskFunctions, maxConcurrency).IObservable;
+    }
 
     /// <summary>
     /// Pushes multiple values to an observer.
@@ -450,8 +458,20 @@ public static class ReactiveExtensions
     /// <typeparam name="T">Type of value.</typeparam>
     /// <param name="observer">Observer to push to.</param>
     /// <param name="events">Values to push.</param>
-    public static void OnNext<T>(this IObserver<T> observer, params T[] events) =>
+    public static void OnNext<T>(this IObserver<T> observer, params T[] events)
+    {
+        if (observer == null)
+        {
+            throw new ArgumentNullException(nameof(observer));
+        }
+
+        if (events == null)
+        {
+            throw new ArgumentNullException(nameof(events));
+        }
+
         FastForEach(observer, events);
+    }
 
     /// <summary>
     /// If the scheduler is not null observes on that scheduler.
@@ -573,6 +593,11 @@ public static class ReactiveExtensions
     /// <returns>Disposable for the scheduled action.</returns>
     public static IDisposable ScheduleSafe(this IScheduler? scheduler, Action action)
     {
+        if (action == null)
+        {
+            throw new ArgumentNullException(nameof(action));
+        }
+
         if (scheduler == null)
         {
             action();
@@ -591,6 +616,11 @@ public static class ReactiveExtensions
     /// <returns>Disposable for the scheduled action.</returns>
     public static IDisposable ScheduleSafe(this IScheduler? scheduler, TimeSpan dueTime, Action action)
     {
+        if (action == null)
+        {
+            throw new ArgumentNullException(nameof(action));
+        }
+
         if (scheduler == null)
         {
             Thread.Sleep(dueTime);
@@ -845,12 +875,23 @@ public static class ReactiveExtensions
     public static IObservable<T[]> Shuffle<T>(this IObservable<T[]> source) =>
         Observable.Create<T[]>(observer => source.Subscribe(array =>
         {
-            Random random = new(unchecked(Environment.TickCount * 31));
+            using var random = RandomNumberGenerator.Create();
+            var buffer = new byte[sizeof(uint)];
             var n = array.Length;
             while (n > 1)
             {
                 n--;
-                var k = random.Next(n + 1);
+                var maxExclusive = (uint)(n + 1);
+                uint value;
+                var limit = uint.MaxValue - (uint.MaxValue % maxExclusive);
+                do
+                {
+                    random.GetBytes(buffer);
+                    value = BitConverter.ToUInt32(buffer, 0);
+                }
+                while (value >= limit);
+
+                var k = (int)(value % maxExclusive);
                 (array[n], array[k]) = (array[k], array[n]);
             }
 
@@ -1255,6 +1296,11 @@ public static class ReactiveExtensions
         this IObservable<T> source,
         T initialValue)
     {
+        if (source is null)
+        {
+            throw new ArgumentNullException(nameof(source));
+        }
+
         var subject = new BehaviorSubject<T>(initialValue);
         source.Subscribe(subject);
         return subject.AsObservable();
@@ -1363,6 +1409,11 @@ public static class ReactiveExtensions
         Expression<Func<T, TProperty>> propertyExpression)
         where T : INotifyPropertyChanged
     {
+        if (propertyExpression is null)
+        {
+            throw new ArgumentNullException(nameof(propertyExpression));
+        }
+
         var member = (propertyExpression.Body as MemberExpression)
             ?? throw new ArgumentException("Expression must be a property");
 

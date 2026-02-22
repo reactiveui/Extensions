@@ -48,6 +48,11 @@ public static partial class ObservableAsync
                 throw new ArgumentNullException(nameof(source));
             }
 
+            if (onNextAsync is null)
+            {
+                throw new ArgumentNullException(nameof(onNextAsync));
+            }
+
             var observer = new AnonymousObserverAsync<T>(onNextAsync, onErrorResumeAsync, onCompletedAsync);
             return source.SubscribeAsync(observer, cancellationToken);
         }
@@ -175,6 +180,11 @@ public static partial class ObservableAsync
             if (source is null)
             {
                 throw new ArgumentNullException(nameof(source));
+            }
+
+            if (onNextAsync is null)
+            {
+                throw new ArgumentNullException(nameof(onNextAsync), "Cannot subscribe with a null action for each element in the sequence.");
             }
 
             var observer = new AnonymousObserverAsync<T>(onNextAsync);

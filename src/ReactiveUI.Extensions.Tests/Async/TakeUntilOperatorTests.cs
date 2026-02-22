@@ -2,7 +2,6 @@
 // ReactiveUI Association Incorporated licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using NUnit.Framework;
 using ReactiveUI.Extensions.Async;
 using ReactiveUI.Extensions.Async.Disposables;
 using ReactiveUI.Extensions.Async.Internals;
@@ -46,7 +45,7 @@ public class TakeUntilOperatorTests
             .TakeUntil(ObservableAsync.Never<string>())
             .ToListAsync();
 
-        Assert.That(result, Is.EqualTo(new[] { 1, 2, 3 }));
+        await Assert.That(result).IsEquivalentTo(new[] { 1, 2, 3 });
     }
 
     /// <summary>Tests that other error with SourceFailsWhenOtherFails=true completes with failure.</summary>
@@ -72,8 +71,8 @@ public class TakeUntilOperatorTests
         await other.OnCompletedAsync(Result.Failure(new InvalidOperationException("other failed")));
         await Task.Delay(100);
 
-        Assert.That(completionResult, Is.Not.Null);
-        Assert.That(completionResult!.Value.IsFailure, Is.True);
+        await Assert.That(completionResult).IsNotNull();
+        await Assert.That(completionResult!.Value.IsFailure).IsTrue();
     }
 
     /// <summary>Tests that other error with SourceFailsWhenOtherFails=false (default) completes with success.</summary>
@@ -99,8 +98,8 @@ public class TakeUntilOperatorTests
         await other.OnCompletedAsync(Result.Failure(new InvalidOperationException("other failed")));
         await Task.Delay(100);
 
-        Assert.That(completionResult, Is.Not.Null);
-        Assert.That(completionResult!.Value.IsSuccess, Is.True);
+        await Assert.That(completionResult).IsNotNull();
+        await Assert.That(completionResult!.Value.IsSuccess).IsTrue();
     }
 
     /// <summary>Tests that other success completion does not trigger source completion.</summary>
@@ -136,8 +135,8 @@ public class TakeUntilOperatorTests
         await source.OnNextAsync(2, CancellationToken.None);
         await Task.Delay(50);
 
-        Assert.That(items, Does.Contain(1));
-        Assert.That(items, Does.Contain(2));
+        await Assert.That(items).Contains(1);
+        await Assert.That(items).Contains(2);
     }
 
     /// <summary>Tests that error resume from other is forwarded.</summary>
@@ -162,8 +161,8 @@ public class TakeUntilOperatorTests
         await other.OnErrorResumeAsync(new InvalidOperationException("warning"), CancellationToken.None);
         await Task.Delay(100);
 
-        Assert.That(errors, Has.Count.EqualTo(1));
-        Assert.That(errors[0].Message, Is.EqualTo("warning"));
+        await Assert.That(errors).Count().IsEqualTo(1);
+        await Assert.That(errors[0].Message).IsEqualTo("warning");
     }
 
     /// <summary>Tests that error resume from source is forwarded.</summary>
@@ -188,8 +187,8 @@ public class TakeUntilOperatorTests
         await source.OnErrorResumeAsync(new InvalidOperationException("src warning"), CancellationToken.None);
         await Task.Delay(100);
 
-        Assert.That(errors, Has.Count.EqualTo(1));
-        Assert.That(errors[0].Message, Is.EqualTo("src warning"));
+        await Assert.That(errors).Count().IsEqualTo(1);
+        await Assert.That(errors[0].Message).IsEqualTo("src warning");
     }
 
     /// <summary>Tests that disposal stops emissions from source.</summary>
@@ -218,8 +217,8 @@ public class TakeUntilOperatorTests
         await source.OnNextAsync(2, CancellationToken.None);
         await Task.Delay(50);
 
-        Assert.That(items, Does.Contain(1));
-        Assert.That(items, Does.Not.Contain(2));
+        await Assert.That(items).Contains(1);
+        await Assert.That(items).DoesNotContain(2);
     }
 
     // ==========================================
@@ -258,8 +257,8 @@ public class TakeUntilOperatorTests
         tcs.SetException(new InvalidOperationException("task failed"));
         await Task.Delay(200);
 
-        Assert.That(completionResult, Is.Not.Null);
-        Assert.That(completionResult!.Value.IsFailure, Is.True);
+        await Assert.That(completionResult).IsNotNull();
+        await Assert.That(completionResult!.Value.IsFailure).IsTrue();
     }
 
     /// <summary>Tests that task failure with default options sends error resume instead of failure.</summary>
@@ -285,7 +284,7 @@ public class TakeUntilOperatorTests
         tcs.SetException(new InvalidOperationException("task failed"));
         await Task.Delay(200);
 
-        Assert.That(errors, Has.Count.EqualTo(1));
+        await Assert.That(errors).Count().IsEqualTo(1);
     }
 
     /// <summary>Tests that an already-completed task completes the sequence immediately.</summary>
@@ -308,8 +307,8 @@ public class TakeUntilOperatorTests
 
         await Task.Delay(200);
 
-        Assert.That(completionResult, Is.Not.Null);
-        Assert.That(completionResult!.Value.IsSuccess, Is.True);
+        await Assert.That(completionResult).IsNotNull();
+        await Assert.That(completionResult!.Value.IsSuccess).IsTrue();
     }
 
     /// <summary>Tests disposal of TakeUntil(Task) stops emissions.</summary>
@@ -338,8 +337,8 @@ public class TakeUntilOperatorTests
         await source.OnNextAsync(2, CancellationToken.None);
         await Task.Delay(50);
 
-        Assert.That(items, Does.Contain(1));
-        Assert.That(items, Does.Not.Contain(2));
+        await Assert.That(items).Contains(1);
+        await Assert.That(items).DoesNotContain(2);
     }
 
     /// <summary>Tests that source error resume is forwarded through TakeUntil(Task).</summary>
@@ -364,7 +363,7 @@ public class TakeUntilOperatorTests
         await source.OnErrorResumeAsync(new InvalidOperationException("warning"), CancellationToken.None);
         await Task.Delay(100);
 
-        Assert.That(errors, Has.Count.EqualTo(1));
+        await Assert.That(errors).Count().IsEqualTo(1);
     }
 
     // ==========================================
@@ -394,8 +393,8 @@ public class TakeUntilOperatorTests
 
         await Task.Delay(200);
 
-        Assert.That(completionResult, Is.Not.Null);
-        Assert.That(completionResult!.Value.IsSuccess, Is.True);
+        await Assert.That(completionResult).IsNotNull();
+        await Assert.That(completionResult!.Value.IsSuccess).IsTrue();
     }
 
     /// <summary>Tests that source error resume is forwarded through TakeUntil(CancellationToken).</summary>
@@ -420,7 +419,7 @@ public class TakeUntilOperatorTests
         await source.OnErrorResumeAsync(new InvalidOperationException("warning"), CancellationToken.None);
         await Task.Delay(100);
 
-        Assert.That(errors, Has.Count.EqualTo(1));
+        await Assert.That(errors).Count().IsEqualTo(1);
     }
 
     /// <summary>Tests that source completion is forwarded through TakeUntil(CancellationToken).</summary>
@@ -445,8 +444,8 @@ public class TakeUntilOperatorTests
         await source.OnCompletedAsync(Result.Success);
         await Task.Delay(100);
 
-        Assert.That(completionResult, Is.Not.Null);
-        Assert.That(completionResult!.Value.IsSuccess, Is.True);
+        await Assert.That(completionResult).IsNotNull();
+        await Assert.That(completionResult!.Value.IsSuccess).IsTrue();
     }
 
     /// <summary>Tests that disposal of TakeUntil(CancellationToken) stops emissions.</summary>
@@ -475,8 +474,8 @@ public class TakeUntilOperatorTests
         await source.OnNextAsync(2, CancellationToken.None);
         await Task.Delay(50);
 
-        Assert.That(items, Does.Contain(1));
-        Assert.That(items, Does.Not.Contain(2));
+        await Assert.That(items).Contains(1);
+        await Assert.That(items).DoesNotContain(2);
     }
 
     // ==========================================
@@ -491,7 +490,7 @@ public class TakeUntilOperatorTests
             .TakeUntil(x => false)
             .ToListAsync();
 
-        Assert.That(result, Is.EqualTo(new[] { 1, 2, 3, 4, 5 }));
+        await Assert.That(result).IsEquivalentTo(new[] { 1, 2, 3, 4, 5 });
     }
 
     /// <summary>Tests that predicate returning true on first element emits nothing.</summary>
@@ -502,7 +501,7 @@ public class TakeUntilOperatorTests
             .TakeUntil(x => true)
             .ToListAsync();
 
-        Assert.That(result, Is.Empty);
+        await Assert.That(result).IsEmpty();
     }
 
     /// <summary>Tests that source error resume is forwarded through TakeUntil(predicate).</summary>
@@ -538,8 +537,8 @@ public class TakeUntilOperatorTests
 
         await Task.Delay(200);
 
-        Assert.That(items, Is.EqualTo(new[] { 1, 2 }));
-        Assert.That(errors, Has.Count.EqualTo(1));
+        await Assert.That(items).IsEquivalentTo(new[] { 1, 2 });
+        await Assert.That(errors).Count().IsEqualTo(1);
     }
 
     /// <summary>Tests that source completion with failure is forwarded through TakeUntil(predicate).</summary>
@@ -568,8 +567,8 @@ public class TakeUntilOperatorTests
 
         await Task.Delay(200);
 
-        Assert.That(completionResult, Is.Not.Null);
-        Assert.That(completionResult!.Value.IsFailure, Is.True);
+        await Assert.That(completionResult).IsNotNull();
+        await Assert.That(completionResult!.Value.IsFailure).IsTrue();
     }
 
     // ==========================================
@@ -588,7 +587,7 @@ public class TakeUntilOperatorTests
             })
             .ToListAsync();
 
-        Assert.That(result, Is.EqualTo(new[] { 1, 2, 3, 4, 5 }));
+        await Assert.That(result).IsEquivalentTo(new[] { 1, 2, 3, 4, 5 });
     }
 
     /// <summary>Tests that async predicate returning true on first element emits nothing.</summary>
@@ -603,7 +602,7 @@ public class TakeUntilOperatorTests
             })
             .ToListAsync();
 
-        Assert.That(result, Is.Empty);
+        await Assert.That(result).IsEmpty();
     }
 
     /// <summary>Tests that source error resume is forwarded through TakeUntil(asyncPredicate).</summary>
@@ -637,7 +636,7 @@ public class TakeUntilOperatorTests
 
         await Task.Delay(200);
 
-        Assert.That(errors, Has.Count.EqualTo(1));
+        await Assert.That(errors).Count().IsEqualTo(1);
     }
 
     /// <summary>Tests that source failure is forwarded through TakeUntil(asyncPredicate).</summary>
@@ -670,8 +669,8 @@ public class TakeUntilOperatorTests
 
         await Task.Delay(200);
 
-        Assert.That(completionResult, Is.Not.Null);
-        Assert.That(completionResult!.Value.IsFailure, Is.True);
+        await Assert.That(completionResult).IsNotNull();
+        await Assert.That(completionResult!.Value.IsFailure).IsTrue();
     }
 
     // ==========================================
@@ -722,9 +721,9 @@ public class TakeUntilOperatorTests
         notifyStop!(Result.Success);
         await Task.Delay(200);
 
-        Assert.That(items, Does.Contain(1));
-        Assert.That(completionResult, Is.Not.Null);
-        Assert.That(completionResult!.Value.IsSuccess, Is.True);
+        await Assert.That(items).Contains(1);
+        await Assert.That(completionResult).IsNotNull();
+        await Assert.That(completionResult!.Value.IsSuccess).IsTrue();
     }
 
     /// <summary>Tests that CompletionObservableDelegate failure signal with SourceFailsWhenOtherFails=true completes with failure.</summary>
@@ -757,8 +756,8 @@ public class TakeUntilOperatorTests
         notifyStop!(Result.Failure(new InvalidOperationException("stop failed")));
         await Task.Delay(200);
 
-        Assert.That(completionResult, Is.Not.Null);
-        Assert.That(completionResult!.Value.IsFailure, Is.True);
+        await Assert.That(completionResult).IsNotNull();
+        await Assert.That(completionResult!.Value.IsFailure).IsTrue();
     }
 
     /// <summary>Tests that CompletionObservableDelegate failure signal with default options sends error resume.</summary>
@@ -791,7 +790,7 @@ public class TakeUntilOperatorTests
         notifyStop!(Result.Failure(new InvalidOperationException("stop failed")));
         await Task.Delay(200);
 
-        Assert.That(errors, Has.Count.EqualTo(1));
+        await Assert.That(errors).Count().IsEqualTo(1);
     }
 
     /// <summary>Tests that source error resume is forwarded through TakeUntil(CompletionObservableDelegate).</summary>
@@ -817,7 +816,7 @@ public class TakeUntilOperatorTests
         await source.OnErrorResumeAsync(new InvalidOperationException("warning"), CancellationToken.None);
         await Task.Delay(100);
 
-        Assert.That(errors, Has.Count.EqualTo(1));
+        await Assert.That(errors).Count().IsEqualTo(1);
     }
 
     /// <summary>Tests that source completion is forwarded through TakeUntil(CompletionObservableDelegate).</summary>
@@ -844,8 +843,8 @@ public class TakeUntilOperatorTests
         await source.OnCompletedAsync(Result.Success);
         await Task.Delay(100);
 
-        Assert.That(completionResult, Is.Not.Null);
-        Assert.That(completionResult!.Value.IsSuccess, Is.True);
+        await Assert.That(completionResult).IsNotNull();
+        await Assert.That(completionResult!.Value.IsSuccess).IsTrue();
     }
 
     /// <summary>Tests disposal of TakeUntil(CompletionObservableDelegate) stops emissions.</summary>
@@ -875,8 +874,8 @@ public class TakeUntilOperatorTests
         await source.OnNextAsync(2, CancellationToken.None);
         await Task.Delay(50);
 
-        Assert.That(items, Does.Contain(1));
-        Assert.That(items, Does.Not.Contain(2));
+        await Assert.That(items).Contains(1);
+        await Assert.That(items).DoesNotContain(2);
     }
 
     // ==========================================
@@ -885,19 +884,19 @@ public class TakeUntilOperatorTests
 
     /// <summary>Tests TakeUntilOptions default has SourceFailsWhenOtherFails false.</summary>
     [Test]
-    public void WhenTakeUntilOptionsDefault_ThenSourceFailsWhenOtherFailsIsFalse()
+    public async Task WhenTakeUntilOptionsDefault_ThenSourceFailsWhenOtherFailsIsFalse()
     {
         var options = TakeUntilOptions.Default;
 
-        Assert.That(options.SourceFailsWhenOtherFails, Is.False);
+        await Assert.That(options.SourceFailsWhenOtherFails).IsFalse();
     }
 
     /// <summary>Tests TakeUntilOptions with SourceFailsWhenOtherFails set to true.</summary>
     [Test]
-    public void WhenTakeUntilOptionsSourceFailsWhenOtherFailsTrue_ThenPropertyIsTrue()
+    public async Task WhenTakeUntilOptionsSourceFailsWhenOtherFailsTrue_ThenPropertyIsTrue()
     {
         var options = new TakeUntilOptions { SourceFailsWhenOtherFails = true };
 
-        Assert.That(options.SourceFailsWhenOtherFails, Is.True);
+        await Assert.That(options.SourceFailsWhenOtherFails).IsTrue();
     }
 }

@@ -2,8 +2,6 @@
 // ReactiveUI Association Incorporated licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using System.Reactive.Linq;
-using NUnit.Framework;
 using ReactiveUI.Extensions.Async;
 using ReactiveUI.Extensions.Async.Disposables;
 using ReactiveUI.Extensions.Async.Internals;
@@ -46,8 +44,8 @@ public class DeepCoverageTests
         await s4.OnNextAsync(1000, CancellationToken.None);
         await Task.Delay(100);
 
-        Assert.That(results, Has.Count.GreaterThanOrEqualTo(1));
-        Assert.That(results[0], Is.EqualTo(1111));
+        await Assert.That(results).Count().IsGreaterThanOrEqualTo(1);
+        await Assert.That(results[0]).IsEqualTo(1111);
     }
 
     /// <summary>Tests CombineLatest with 5 sources.</summary>
@@ -81,8 +79,8 @@ public class DeepCoverageTests
 
         await Task.Delay(100);
 
-        Assert.That(results, Has.Count.GreaterThanOrEqualTo(1));
-        Assert.That(results[0], Is.EqualTo(150));
+        await Assert.That(results).Count().IsGreaterThanOrEqualTo(1);
+        await Assert.That(results[0]).IsEqualTo(150);
     }
 
     /// <summary>Tests CombineLatest with 6 sources.</summary>
@@ -117,8 +115,8 @@ public class DeepCoverageTests
 
         await Task.Delay(100);
 
-        Assert.That(results, Has.Count.GreaterThanOrEqualTo(1));
-        Assert.That(results[0], Is.EqualTo(21));
+        await Assert.That(results).Count().IsGreaterThanOrEqualTo(1);
+        await Assert.That(results[0]).IsEqualTo(21);
     }
 
     /// <summary>Tests CombineLatest with 7 sources.</summary>
@@ -154,8 +152,8 @@ public class DeepCoverageTests
 
         await Task.Delay(100);
 
-        Assert.That(results, Has.Count.GreaterThanOrEqualTo(1));
-        Assert.That(results[0], Is.EqualTo(7));
+        await Assert.That(results).Count().IsGreaterThanOrEqualTo(1);
+        await Assert.That(results[0]).IsEqualTo(7);
     }
 
     /// <summary>Tests CombineLatest with 8 sources.</summary>
@@ -192,8 +190,8 @@ public class DeepCoverageTests
 
         await Task.Delay(100);
 
-        Assert.That(results, Has.Count.GreaterThanOrEqualTo(1));
-        Assert.That(results[0], Is.EqualTo(8));
+        await Assert.That(results).Count().IsGreaterThanOrEqualTo(1);
+        await Assert.That(results[0]).IsEqualTo(8);
     }
 
     /// <summary>Tests CompositeDisposableAsync Contains returns true for added item.</summary>
@@ -205,7 +203,7 @@ public class DeepCoverageTests
 
         await composite.AddAsync(d);
 
-        Assert.That(composite.Contains(d), Is.True);
+        await Assert.That(composite.Contains(d)).IsTrue();
         await composite.DisposeAsync();
     }
 
@@ -219,7 +217,7 @@ public class DeepCoverageTests
         await composite.AddAsync(d);
         await composite.DisposeAsync();
 
-        Assert.That(composite.Contains(d), Is.False);
+        await Assert.That(composite.Contains(d)).IsFalse();
     }
 
     /// <summary>Tests CompositeDisposableAsync CopyTo copies all items.</summary>
@@ -233,8 +231,8 @@ public class DeepCoverageTests
         var array = new IAsyncDisposable[2];
         composite.CopyTo(array, 0);
 
-        Assert.That(array[0], Is.Not.Null);
-        Assert.That(array[1], Is.Not.Null);
+        await Assert.That(array[0]).IsNotNull();
+        await Assert.That(array[1]).IsNotNull();
         await composite.DisposeAsync();
     }
 
@@ -262,7 +260,7 @@ public class DeepCoverageTests
         await composite.DisposeAsync();
         await composite.DisposeAsync();
 
-        Assert.That(disposed, Is.True);
+        await Assert.That(disposed).IsTrue();
     }
 
     /// <summary>Tests CompositeDisposableAsync remove from disposed returns false.</summary>
@@ -273,7 +271,7 @@ public class DeepCoverageTests
         await composite.DisposeAsync();
 
         var result = await composite.Remove(DisposableAsync.Empty);
-        Assert.That(result, Is.False);
+        await Assert.That(result).IsFalse();
     }
 
     /// <summary>Tests CompositeDisposableAsync remove non-existent returns false.</summary>
@@ -282,7 +280,7 @@ public class DeepCoverageTests
     {
         var composite = new CompositeDisposableAsync();
         var result = await composite.Remove(DisposableAsync.Empty);
-        Assert.That(result, Is.False);
+        await Assert.That(result).IsFalse();
         await composite.DisposeAsync();
     }
 
@@ -294,7 +292,7 @@ public class DeepCoverageTests
         await composite.DisposeAsync();
         await composite.Clear();
 
-        Assert.That(composite.IsDisposed, Is.True);
+        await Assert.That(composite.IsDisposed).IsTrue();
     }
 
     /// <summary>Tests CompositeDisposableAsync clear on empty is safe.</summary>
@@ -304,7 +302,7 @@ public class DeepCoverageTests
         var composite = new CompositeDisposableAsync();
         await composite.Clear();
 
-        Assert.That(composite.Count, Is.EqualTo(0));
+        await Assert.That(composite.Count).IsEqualTo(0);
         await composite.DisposeAsync();
     }
 
@@ -327,7 +325,7 @@ public class DeepCoverageTests
 
         await Task.Delay(100);
 
-        Assert.That(items, Is.EqualTo(new[] { 1, 2, 3 }));
+        await Assert.That(items).IsEquivalentTo(new[] { 1, 2, 3 });
     }
 
     /// <summary>Tests Bridge ToObservable with async Select pipeline.</summary>
@@ -343,7 +341,7 @@ public class DeepCoverageTests
 
         var result = await asyncSource.ToObservable().ToList();
 
-        Assert.That(result, Is.EqualTo(new[] { 100, 200, 300 }));
+        await Assert.That(result).IsEquivalentTo(new[] { 100, 200, 300 });
     }
 
     /// <summary>Tests Merge with error from one source propagates correctly.</summary>
@@ -376,7 +374,7 @@ public class DeepCoverageTests
             .Timeout(TimeSpan.FromMilliseconds(50), AsyncObs.Return(999))
             .FirstAsync();
 
-        Assert.That(result, Is.EqualTo(999));
+        await Assert.That(result).IsEqualTo(999);
     }
 
     /// <summary>Tests Timeout fast source completes before timeout.</summary>
@@ -387,7 +385,7 @@ public class DeepCoverageTests
             .Timeout(TimeSpan.FromSeconds(5))
             .ToListAsync();
 
-        Assert.That(result, Is.EqualTo(new[] { 1, 2, 3 }));
+        await Assert.That(result).IsEquivalentTo(new[] { 1, 2, 3 });
     }
 
     /// <summary>Tests ObserverAsync lifecycle with cancellation.</summary>
@@ -412,7 +410,7 @@ public class DeepCoverageTests
         cts.Cancel();
         await Task.Delay(50);
 
-        Assert.That(items, Does.Contain(1));
+        await Assert.That(items).Contains(1);
     }
 
     /// <summary>Tests Switch with inner sequence error.</summary>
@@ -433,7 +431,7 @@ public class DeepCoverageTests
 
         await Task.Delay(200);
 
-        Assert.That(errors, Has.Count.GreaterThanOrEqualTo(0));
+        await Assert.That(errors).Count().IsGreaterThanOrEqualTo(0);
     }
 
     /// <summary>Tests Merge with max concurrency and error propagation.</summary>
@@ -450,7 +448,7 @@ public class DeepCoverageTests
 
         var result = await source.Merge(2).ToListAsync();
 
-        Assert.That(result, Has.Count.EqualTo(4));
+        await Assert.That(result).Count().IsEqualTo(4);
     }
 
     /// <summary>Tests SingleOrDefaultAsync returns value for single element.</summary>
@@ -458,7 +456,7 @@ public class DeepCoverageTests
     public async Task WhenSingleOrDefaultAsyncSingleElement_ThenReturnsElement()
     {
         var result = await AsyncObs.Return(42).SingleOrDefaultAsync();
-        Assert.That(result, Is.EqualTo(42));
+        await Assert.That(result).IsEqualTo(42);
     }
 
     /// <summary>Tests SingleAsync with predicate.</summary>
@@ -466,7 +464,7 @@ public class DeepCoverageTests
     public async Task WhenSingleAsyncWithPredicate_ThenReturnsSingleMatch()
     {
         var result = await AsyncObs.Range(1, 5).SingleAsync(x => x == 3);
-        Assert.That(result, Is.EqualTo(3));
+        await Assert.That(result).IsEqualTo(3);
     }
 
     /// <summary>Tests LastOrDefaultAsync returns last for non-empty.</summary>
@@ -474,7 +472,7 @@ public class DeepCoverageTests
     public async Task WhenLastOrDefaultAsyncNonEmpty_ThenReturnsLast()
     {
         var result = await AsyncObs.Range(1, 3).LastOrDefaultAsync();
-        Assert.That(result, Is.EqualTo(3));
+        await Assert.That(result).IsEqualTo(3);
     }
 
     /// <summary>Tests LastAsync with predicate and default.</summary>
@@ -482,7 +480,7 @@ public class DeepCoverageTests
     public async Task WhenLastOrDefaultAsyncWithPredicate_ThenReturnsLastMatch()
     {
         var result = await AsyncObs.Range(1, 5).Where(x => x < 3).LastOrDefaultAsync(-1);
-        Assert.That(result, Is.EqualTo(2));
+        await Assert.That(result).IsEqualTo(2);
     }
 
     /// <summary>Tests FirstOrDefaultAsync predicate overload with match.</summary>
@@ -490,7 +488,7 @@ public class DeepCoverageTests
     public async Task WhenFirstOrDefaultAsyncPredicateMatch_ThenReturnsFirst()
     {
         var result = await AsyncObs.Range(1, 5).FirstOrDefaultAsync(x => x > 3, 0);
-        Assert.That(result, Is.EqualTo(4));
+        await Assert.That(result).IsEqualTo(4);
     }
 
     /// <summary>Tests FirstOrDefaultAsync predicate overload with no match.</summary>
@@ -498,7 +496,7 @@ public class DeepCoverageTests
     public async Task WhenFirstOrDefaultAsyncPredicateNoMatch_ThenReturnsDefault()
     {
         var result = await AsyncObs.Range(1, 5).FirstOrDefaultAsync(x => x > 10, -1);
-        Assert.That(result, Is.EqualTo(-1));
+        await Assert.That(result).IsEqualTo(-1);
     }
 
     /// <summary>Tests Throttle with TimeProvider overload.</summary>
@@ -526,8 +524,8 @@ public class DeepCoverageTests
         await subject.OnCompletedAsync(Result.Success);
         await Task.Delay(50);
 
-        Assert.That(results, Has.Count.EqualTo(1));
-        Assert.That(results[0], Is.EqualTo(2));
+        await Assert.That(results).Count().IsEqualTo(1);
+        await Assert.That(results[0]).IsEqualTo(2);
     }
 
     /// <summary>Tests Concat observable of observables with enumerable sources.</summary>
@@ -543,7 +541,7 @@ public class DeepCoverageTests
 
         var result = await sources.Concat().ToListAsync();
 
-        Assert.That(result, Is.EqualTo(new[] { 1, 2, 3 }));
+        await Assert.That(result).IsEquivalentTo(new[] { 1, 2, 3 });
     }
 
     /// <summary>Tests Concat observable of observables with observable source.</summary>
@@ -558,7 +556,7 @@ public class DeepCoverageTests
 
         var result = await source.Concat().ToListAsync();
 
-        Assert.That(result, Is.EqualTo(new[] { 1, 2, 3, 4 }));
+        await Assert.That(result).IsEquivalentTo(new[] { 1, 2, 3, 4 });
     }
 
     /// <summary>Tests CreateAsBackgroundJob emits and completes.</summary>
@@ -574,7 +572,7 @@ public class DeepCoverageTests
 
         var result = await source.ToListAsync();
 
-        Assert.That(result, Is.EqualTo(new[] { 1, 2 }));
+        await Assert.That(result).IsEquivalentTo(new[] { 1, 2 });
     }
 
     /// <summary>Tests Prepend with params array overload.</summary>
@@ -586,7 +584,7 @@ public class DeepCoverageTests
             .Prepend(values)
             .ToListAsync();
 
-        Assert.That(result, Is.EqualTo(new[] { 10, 20, 30 }));
+        await Assert.That(result).IsEquivalentTo(new[] { 10, 20, 30 });
     }
 
     /// <summary>Tests SubscribeAsync with CancellationToken from an error source.</summary>
@@ -611,7 +609,7 @@ public class DeepCoverageTests
 
         await Task.Delay(100);
 
-        Assert.That(errors, Has.Count.EqualTo(1));
+        await Assert.That(errors).Count().IsEqualTo(1);
     }
 
     /// <summary>Tests Behavior subject updates on new value.</summary>
@@ -635,7 +633,7 @@ public class DeepCoverageTests
 
         await Task.Delay(100);
 
-        Assert.That(items, Does.Contain(20));
+        await Assert.That(items).Contains(20);
     }
 
     /// <summary>Tests ReplayLatest subject with no values emits nothing to subscriber.</summary>
@@ -657,7 +655,7 @@ public class DeepCoverageTests
         await subject.OnNextAsync(42, CancellationToken.None);
         await Task.Delay(100);
 
-        Assert.That(items, Does.Contain(42));
+        await Assert.That(items).Contains(42);
     }
 
     /// <summary>Tests Multicast with replay latest subject shares and replays.</summary>
@@ -681,7 +679,7 @@ public class DeepCoverageTests
         await using var conn = await connectable.ConnectAsync(CancellationToken.None);
         await Task.Delay(200);
 
-        Assert.That(items, Has.Count.GreaterThanOrEqualTo(1));
+        await Assert.That(items).Count().IsGreaterThanOrEqualTo(1);
     }
 
     /// <summary>Tests Enumerator from GetEnumerator on CompositeDisposableAsync.</summary>
@@ -698,7 +696,7 @@ public class DeepCoverageTests
             count++;
         }
 
-        Assert.That(count, Is.EqualTo(2));
+        await Assert.That(count).IsEqualTo(2);
         await composite.DisposeAsync();
     }
 }

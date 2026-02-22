@@ -18,13 +18,12 @@ namespace ReactiveUI.Extensions.Async.Subjects;
 /// ensures thread-safe access for concurrent operations.</remarks>
 /// <typeparam name="T">The type of the elements processed by the subject.</typeparam>
 /// <param name="startValue">An optional initial value to be emitted to new subscribers before any other values are published.</param>
-public abstract class BaseReplayLatestSubjectAsync<T>(Optional<T> startValue) : ObservableAsync<T>, ISubjectAsync<T>, IDisposable
+public abstract class BaseReplayLatestSubjectAsync<T>(Optional<T> startValue) : ObservableAsync<T>, ISubjectAsync<T>
 {
     private readonly AsyncGate _gate = new();
     private Optional<T> _lastValue = startValue;
     private ImmutableList<IObserverAsync<T>> _observers = [];
     private Result? _result;
-    private bool _disposedValue;
 
     /// <summary>
     /// Gets an observable sequence that represents the asynchronous values of the subject.
@@ -106,14 +105,14 @@ public abstract class BaseReplayLatestSubjectAsync<T>(Optional<T> startValue) : 
     }
 
     /// <summary>
-    /// Releases all resources used by the current instance of the class.
+    /// Asynchronously releases the unmanaged resources used by the object.
     /// </summary>
-    /// <remarks>Call this method when you are finished using the object to release unmanaged resources and
-    /// perform other cleanup operations. After calling Dispose, the object should not be used further.</remarks>
-    public void Dispose()
+    /// <returns>A ValueTask that represents the asynchronous dispose operation.</returns>
+    public ValueTask DisposeAsync()
     {
-        Dispose(disposing: true);
+        _gate.Dispose();
         GC.SuppressFinalize(this);
+        return default;
     }
 
     /// <summary>
@@ -160,6 +159,11 @@ public abstract class BaseReplayLatestSubjectAsync<T>(Optional<T> startValue) : 
     /// completed, returns an empty disposable.</returns>
     protected override async ValueTask<IAsyncDisposable> SubscribeAsyncCore(IObserverAsync<T> observer, CancellationToken cancellationToken)
     {
+        if (observer == null)
+        {
+            throw new ArgumentNullException(nameof(observer));
+        }
+
         cancellationToken.ThrowIfCancellationRequested();
         Result? result;
         using (await _gate.LockAsync())
@@ -188,25 +192,5 @@ public abstract class BaseReplayLatestSubjectAsync<T>(Optional<T> startValue) : 
                 _observers = _observers.Remove(observer);
             }
         });
-    }
-
-    /// <summary>
-    /// Releases the unmanaged resources used by the object and, optionally, releases the managed resources.
-    /// </summary>
-    /// <remarks>This method is called by public Dispose methods and the finalizer. When disposing is true,
-    /// this method releases all resources held by managed objects. When disposing is false, only unmanaged resources
-    /// are released. Override this method to release resources specific to the derived class.</remarks>
-    /// <param name="disposing">true to release both managed and unmanaged resources; false to release only unmanaged resources.</param>
-    protected virtual void Dispose(bool disposing)
-    {
-        if (!_disposedValue)
-        {
-            if (disposing)
-            {
-                _gate.Dispose();
-            }
-
-            _disposedValue = true;
-        }
     }
 }
