@@ -37,7 +37,7 @@ public class TimeBasedOperatorTests
 
         var resultReceived = await AsyncTestHelpers.WaitForConditionAsync(
             () => results.Count == 1,
-            TimeSpan.FromSeconds(2));
+            TimeSpan.FromSeconds(5));
 
         await subject.OnCompletedAsync(Result.Success);
 

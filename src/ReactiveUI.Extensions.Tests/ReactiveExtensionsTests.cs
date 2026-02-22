@@ -1055,10 +1055,13 @@ public class ReactiveExtensionsTests
         subject.OnNext(1);
         subject.OnError(new InvalidOperationException());
 
-        await Task.Delay(100);
+        var resultReceived = await AsyncTestHelpers.WaitForConditionAsync(
+            () => results.Count == 1 && caughtException != null,
+            TimeSpan.FromSeconds(5));
 
         using (Assert.Multiple())
         {
+            await Assert.That(resultReceived).IsTrue();
             await Assert.That(results).IsEquivalentTo([1]);
             await Assert.That(caughtException).IsNotNull();
         }
@@ -1644,8 +1647,8 @@ public class ReactiveExtensionsTests
             .Subscribe(_ => { }, ex => finalError = true);
 
         var finalErrorReceived = await AsyncTestHelpers.WaitForConditionAsync(
-            () => finalError,
-            TimeSpan.FromSeconds(2));
+            () => finalError && errorsCaught == 2,
+            TimeSpan.FromSeconds(5));
 
         using (Assert.Multiple())
         {
