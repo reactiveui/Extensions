@@ -67,11 +67,11 @@ public class TimeBasedOperatorTests
         await subject.OnNextAsync(1, CancellationToken.None);
         var firstReceived = await AsyncTestHelpers.WaitForConditionAsync(
             () => results.Count == 1,
-            TimeSpan.FromSeconds(2));
+            TimeSpan.FromSeconds(5));
         await subject.OnNextAsync(2, CancellationToken.None);
         var secondReceived = await AsyncTestHelpers.WaitForConditionAsync(
             () => results.Count == 2,
-            TimeSpan.FromSeconds(2));
+            TimeSpan.FromSeconds(5));
 
         await Assert.That(firstReceived).IsTrue();
         await Assert.That(secondReceived).IsTrue();

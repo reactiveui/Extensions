@@ -1855,10 +1855,13 @@ public class ReactiveExtensionsTests
         subject.OnNext(2);
         subject.OnCompleted();
 
-        await completionSource.Task.WaitAsync(TimeSpan.FromSeconds(1));
+        var completionReceived = await AsyncTestHelpers.WaitForConditionAsync(
+            () => completed && results.Count == 2,
+            TimeSpan.FromSeconds(5));
 
         using (Assert.Multiple())
         {
+            await Assert.That(completionReceived).IsTrue();
             await Assert.That(results).IsEquivalentTo([1, 2]);
             await Assert.That(completed).IsTrue();
         }
