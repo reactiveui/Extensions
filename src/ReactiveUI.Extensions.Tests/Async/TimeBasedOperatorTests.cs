@@ -35,11 +35,13 @@ public class TimeBasedOperatorTests
         await subject.OnNextAsync(2, CancellationToken.None);
         await subject.OnNextAsync(3, CancellationToken.None);
 
-        await Task.Delay(250);
+        var resultReceived = await AsyncTestHelpers.WaitForConditionAsync(
+            () => results.Count == 1,
+            TimeSpan.FromSeconds(2));
 
         await subject.OnCompletedAsync(Result.Success);
-        await Task.Delay(100);
 
+        await Assert.That(resultReceived).IsTrue();
         await Assert.That(results).Count().IsEqualTo(1);
         await Assert.That(results[0]).IsEqualTo(3);
     }
@@ -63,14 +65,16 @@ public class TimeBasedOperatorTests
                 null);
 
         await subject.OnNextAsync(1, CancellationToken.None);
-        await Task.Delay(150);
+        var firstReceived = await AsyncTestHelpers.WaitForConditionAsync(
+            () => results.Count == 1,
+            TimeSpan.FromSeconds(2));
         await subject.OnNextAsync(2, CancellationToken.None);
-        var deadline = DateTime.UtcNow.AddSeconds(2);
-        while (results.Count < 2 && DateTime.UtcNow < deadline)
-        {
-            await Task.Delay(10);
-        }
+        var secondReceived = await AsyncTestHelpers.WaitForConditionAsync(
+            () => results.Count == 2,
+            TimeSpan.FromSeconds(2));
 
+        await Assert.That(firstReceived).IsTrue();
+        await Assert.That(secondReceived).IsTrue();
         await Assert.That(results).IsEquivalentTo(new[] { 1, 2 });
     }
 

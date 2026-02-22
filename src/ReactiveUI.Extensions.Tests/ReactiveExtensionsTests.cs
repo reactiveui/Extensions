@@ -4,6 +4,7 @@
 
 using DynamicData;
 using Microsoft.Reactive.Testing;
+using ReactiveUI.Extensions.Tests.Async;
 
 namespace ReactiveUI.Extensions.Tests;
 
@@ -1372,12 +1373,14 @@ public class ReactiveExtensionsTests
         using var sub1 = ReactiveExtensions.SyncTimer(timeSpan).Take(2).Subscribe(results1.Add);
         using var sub2 = ReactiveExtensions.SyncTimer(timeSpan).Take(2).Subscribe(results2.Add);
 
-        // Wait for ticks to arrive
-        Thread.Sleep(300);
+        var ticksReceived = await AsyncTestHelpers.WaitForConditionAsync(
+            () => results1.Count >= 1 && results2.Count >= 1,
+            TimeSpan.FromSeconds(2));
 
         using (Assert.Multiple())
         {
             // Both subscriptions should get ticks (shared timer)
+            await Assert.That(ticksReceived).IsTrue();
             await Assert.That(results1).Count().IsGreaterThanOrEqualTo(1);
             await Assert.That(results2).Count().IsGreaterThanOrEqualTo(1);
         }
@@ -1570,11 +1573,13 @@ public class ReactiveExtensionsTests
                 TimeSpan.FromMilliseconds(10))
             .Subscribe(results.Add);
 
-        // Wait for retries
-        Thread.Sleep(100);
+        var resultReceived = await AsyncTestHelpers.WaitForConditionAsync(
+            () => results.Count == 1,
+            TimeSpan.FromSeconds(2));
 
         using (Assert.Multiple())
         {
+            await Assert.That(resultReceived).IsTrue();
             await Assert.That(errorsCaught).IsEqualTo(1);
             await Assert.That(results).IsEquivalentTo([42]);
         }
@@ -1602,9 +1607,14 @@ public class ReactiveExtensionsTests
                 retryCount: 2)
             .Subscribe(_ => { }, ex => finalError = true);
 
+        var finalErrorReceived = await AsyncTestHelpers.WaitForConditionAsync(
+            () => finalError,
+            TimeSpan.FromSeconds(2));
+
         using (Assert.Multiple())
         {
             // Should retry 2 times (attempts 1 + 2 retries = total of 2 error callbacks on retries only)
+            await Assert.That(finalErrorReceived).IsTrue();
             await Assert.That(errorsCaught).IsEqualTo(2);
             await Assert.That(finalError).IsTrue();
         }
@@ -1633,12 +1643,14 @@ public class ReactiveExtensionsTests
                 delay: TimeSpan.FromMilliseconds(10))
             .Subscribe(_ => { }, ex => finalError = true);
 
-        // Wait for retries
-        Thread.Sleep(100);
+        var finalErrorReceived = await AsyncTestHelpers.WaitForConditionAsync(
+            () => finalError,
+            TimeSpan.FromSeconds(2));
 
         using (Assert.Multiple())
         {
             // Should retry 2 times (2 error callbacks on retries)
+            await Assert.That(finalErrorReceived).IsTrue();
             await Assert.That(errorsCaught).IsEqualTo(2);
             await Assert.That(finalError).IsTrue();
         }
