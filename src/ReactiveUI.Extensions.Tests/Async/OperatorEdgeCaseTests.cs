@@ -1359,9 +1359,11 @@ public class OperatorEdgeCaseTests
                     return default;
                 });
 
-        await Task.Delay(300);
+        var completionReceived = await AsyncTestHelpers.WaitForConditionAsync(
+            () => completionResult.HasValue,
+            TimeSpan.FromSeconds(5));
 
-        await Assert.That(completionResult).IsNotNull();
+        await Assert.That(completionReceived).IsTrue();
         await Assert.That(completionResult!.Value.IsSuccess).IsTrue();
     }
 

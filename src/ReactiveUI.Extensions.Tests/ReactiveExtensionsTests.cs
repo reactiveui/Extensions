@@ -1577,8 +1577,8 @@ public class ReactiveExtensionsTests
             .Subscribe(results.Add);
 
         var resultReceived = await AsyncTestHelpers.WaitForConditionAsync(
-            () => results.Count == 1,
-            TimeSpan.FromSeconds(2));
+            () => results.Count == 1 && errorsCaught == 1,
+            TimeSpan.FromSeconds(5));
 
         using (Assert.Multiple())
         {

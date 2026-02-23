@@ -399,10 +399,11 @@ public class FactoryObservableTests
     [Test]
     public async Task WhenIntervalWithCancellation_ThenEmitsPeriodicValues()
     {
-        using var cts = new CancellationTokenSource(250);
+        using var cts = new CancellationTokenSource();
         var source = ObservableAsync.Interval(TimeSpan.FromMilliseconds(50));
 
         var items = new List<long>();
+        var received = false;
         try
         {
             await using var sub = await source.SubscribeAsync(
@@ -414,12 +415,22 @@ public class FactoryObservableTests
                 null,
                 null,
                 cts.Token);
-            await Task.Delay(300, CancellationToken.None);
+            received = await AsyncTestHelpers.WaitForConditionAsync(
+                () => items.Count >= 2,
+                TimeSpan.FromSeconds(5));
         }
         catch (OperationCanceledException)
         {
         }
+        finally
+        {
+            if (!cts.IsCancellationRequested)
+            {
+                cts.Cancel();
+            }
+        }
 
+        await Assert.That(received).IsTrue();
         await Assert.That(items.Count).IsGreaterThanOrEqualTo(2);
         await Assert.That(items[0]).IsEqualTo(1L);
     }
