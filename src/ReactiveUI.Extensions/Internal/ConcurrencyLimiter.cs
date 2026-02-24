@@ -130,7 +130,11 @@ internal class ConcurrencyLimiter<T>
             }
 
             _outstanding++;
-            _rator?.Current?.ContinueWith(ant => ProcessTaskCompletion(observer, ant));
+            _rator?.Current?.ContinueWith(
+                ant => ProcessTaskCompletion(observer, ant),
+                CancellationToken.None,
+                TaskContinuationOptions.ExecuteSynchronously,
+                TaskScheduler.Default);
         }
     }
 }

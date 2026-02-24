@@ -1,0 +1,75 @@
+// Copyright (c) 2019-2025 ReactiveUI Association Incorporated. All rights reserved.
+// ReactiveUI Association Incorporated licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for full license information.
+
+using ReactiveUI.Extensions.Async.Internals;
+
+namespace ReactiveUI.Extensions.Async;
+
+/// <summary>
+/// Provides factory methods for creating asynchronous observables from asynchronous operations.
+/// </summary>
+/// <remarks>The methods in this class allow integration of asynchronous tasks or functions into the observable
+/// pattern, enabling consumers to subscribe to results produced by asynchronous operations. All created observables
+/// execute the provided asynchronous factory as a background job and emit the result to subscribers upon
+/// completion.</remarks>
+public static partial class ObservableAsync
+{
+    /// <summary>
+    /// Creates an asynchronous observable sequence that emits a single value produced by the specified factory
+    /// function.
+    /// </summary>
+    /// <remarks>The observable sequence will emit the value produced by the factory and then signal
+    /// completion. The factory function is invoked when the sequence is subscribed to, and supports cancellation via
+    /// the provided <see cref="CancellationToken"/>.</remarks>
+    /// <typeparam name="T">The type of the value produced by the factory and emitted by the observable sequence.</typeparam>
+    /// <param name="factory">A function that asynchronously produces a value of type <typeparamref name="T"/> when invoked with a <see
+    /// cref="CancellationToken"/>. Cannot be null.</param>
+    /// <returns>An <see cref="ObservableAsync{T}"/> that emits the value returned by the factory function and then completes.</returns>
+    /// <exception cref="ArgumentNullException">Thrown if <paramref name="factory"/> is null.</exception>
+    public static IObservableAsync<T> FromAsync<T>(Func<CancellationToken, ValueTask<T>> factory)
+    {
+        if (factory is null)
+        {
+            throw new ArgumentNullException(nameof(factory));
+        }
+
+        return CreateAsBackgroundJob<T>(
+            async (obs, token) =>
+        {
+            var result = await factory(token);
+            await obs.OnNextAsync(result, token);
+            await obs.OnCompletedAsync(Result.Success);
+        },
+            true);
+    }
+
+    /// <summary>
+    /// Creates an asynchronous observable sequence that executes the specified factory function and signals completion
+    /// when the operation finishes.
+    /// </summary>
+    /// <remarks>The returned observable executes the factory function as a background job. The sequence emits
+    /// <see cref="Unit.Default"/> after the factory completes and then signals completion. Cancellation is supported
+    /// via the provided token.</remarks>
+    /// <param name="factory">A function that performs the asynchronous operation. The function receives a cancellation token that can be used
+    /// to cancel the operation.</param>
+    /// <returns>An observable sequence that emits a single value of <see cref="Unit"/> when the factory function completes,
+    /// followed by a completion notification.</returns>
+    /// <exception cref="ArgumentNullException">Thrown if <paramref name="factory"/> is <see langword="null"/>.</exception>
+    public static IObservableAsync<Unit> FromAsync(Func<CancellationToken, ValueTask> factory)
+    {
+        if (factory is null)
+        {
+            throw new ArgumentNullException(nameof(factory));
+        }
+
+        return CreateAsBackgroundJob<Unit>(
+            async (obs, token) =>
+        {
+            await factory(token);
+            await obs.OnNextAsync(Unit.Default, token);
+            await obs.OnCompletedAsync(Result.Success);
+        },
+            true);
+    }
+}

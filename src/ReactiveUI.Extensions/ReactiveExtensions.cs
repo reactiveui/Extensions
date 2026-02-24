@@ -5,6 +5,7 @@
 using System.ComponentModel;
 using System.Linq.Expressions;
 using System.Reactive.Threading.Tasks;
+using System.Security.Cryptography;
 
 namespace ReactiveUI.Extensions;
 
@@ -24,8 +25,7 @@ public static class ReactiveExtensions
     /// <param name="observable">The observable that can contain nulls.</param>
     /// <returns>A non nullable version of the observable that only emits valid values.</returns>
     public static IObservable<T> WhereIsNotNull<T>(this IObservable<T> observable) =>
-        observable
-            .Where(x => x is not null)!;
+        observable.Where(x => x is not null)!;
 
     /// <summary>
     /// Change the source observable type to <see cref="Unit"/>.
@@ -115,9 +115,7 @@ public static class ReactiveExtensions
     public static IObservable<IList<T>> BufferUntilIdle<T>(
         this IObservable<T> source,
         TimeSpan idleTime,
-        IScheduler? scheduler = null)
-    {
-        return scheduler == null
+        IScheduler? scheduler = null) => scheduler == null
             ? source.Publish(shared => shared.Buffer(() => shared.Throttle(idleTime)))
             : Observable.Create<IList<T>>(observer =>
             {
@@ -167,7 +165,6 @@ public static class ReactiveExtensions
 
                 return new CompositeDisposable(subscription, timer);
             });
-    }
 
     /// <summary>
     /// Catch exception and return Observable.Empty.
@@ -186,12 +183,12 @@ public static class ReactiveExtensions
     /// <param name="source">The source.</param>
     /// <param name="errorAction">The error action.</param>
     /// <returns>A sequence that invokes <paramref name="errorAction"/> on error and completes.</returns>
-    public static IObservable<TSource?> CatchIgnore<TSource, TException>(this IObservable<TSource?> source, Action<TException> errorAction)
+    public static IObservable<TSource> CatchIgnore<TSource, TException>(this IObservable<TSource> source, Action<TException> errorAction)
         where TException : Exception =>
             source.Catch((TException ex) =>
             {
                 errorAction(ex);
-                return Observable.Empty<TSource?>();
+                return Observable.Empty<TSource>();
             });
 
     /// <summary>
@@ -217,10 +214,10 @@ public static class ReactiveExtensions
     /// <param name="this">The first observable.</param>
     /// <param name="sources">Other sources.</param>
     /// <returns>A sequence emitting the maximum of the latest values.</returns>
-    public static IObservable<T?> GetMax<T>(this IObservable<T?> @this, params IObservable<T?>[] sources)
+    public static IObservable<T> GetMax<T>(this IObservable<T> @this, params IObservable<T>[] sources)
         where T : struct
     {
-        List<IObservable<T?>> source = [@this, .. sources];
+        List<IObservable<T>> source = [@this, .. sources];
         return source.CombineLatest().Select(x => x.Max());
     }
 
@@ -231,10 +228,10 @@ public static class ReactiveExtensions
     /// <param name="this">The first observable.</param>
     /// <param name="sources">Other sources.</param>
     /// <returns>A sequence emitting the minimum of the latest values.</returns>
-    public static IObservable<T?> GetMin<T>(this IObservable<T?> @this, params IObservable<T?>[] sources)
+    public static IObservable<T> GetMin<T>(this IObservable<T> @this, params IObservable<T>[] sources)
         where T : struct
     {
-        List<IObservable<T?>> source = [@this, .. sources];
+        List<IObservable<T>> source = [@this, .. sources];
         return source.CombineLatest().Select(x => x.Min());
     }
 
@@ -445,8 +442,15 @@ public static class ReactiveExtensions
     /// <param name="taskFunctions">Tasks to execute.</param>
     /// <param name="maxConcurrency">Maximum concurrency.</param>
     /// <returns>A sequence of task results.</returns>
-    public static IObservable<T> WithLimitedConcurrency<T>(this IEnumerable<Task<T>> taskFunctions, int maxConcurrency) =>
-        new ConcurrencyLimiter<T>(taskFunctions, maxConcurrency).IObservable;
+    public static IObservable<T> WithLimitedConcurrency<T>(this IEnumerable<Task<T>> taskFunctions, int maxConcurrency)
+    {
+        if (taskFunctions == null)
+        {
+            throw new ArgumentNullException(nameof(taskFunctions));
+        }
+
+        return new ConcurrencyLimiter<T>(taskFunctions, maxConcurrency).IObservable;
+    }
 
     /// <summary>
     /// Pushes multiple values to an observer.
@@ -454,8 +458,20 @@ public static class ReactiveExtensions
     /// <typeparam name="T">Type of value.</typeparam>
     /// <param name="observer">Observer to push to.</param>
     /// <param name="events">Values to push.</param>
-    public static void OnNext<T>(this IObserver<T?> observer, params T?[] events) =>
-        FastForEach(observer, events!);
+    public static void OnNext<T>(this IObserver<T> observer, params T[] events)
+    {
+        if (observer == null)
+        {
+            throw new ArgumentNullException(nameof(observer));
+        }
+
+        if (events == null)
+        {
+            throw new ArgumentNullException(nameof(events));
+        }
+
+        FastForEach(observer, events);
+    }
 
     /// <summary>
     /// If the scheduler is not null observes on that scheduler.
@@ -537,7 +553,7 @@ public static class ReactiveExtensions
     /// <typeparam name="T">The type.</typeparam>
     /// <param name="source">The source.</param>
     /// <returns>An IObservable of T.</returns>
-    public static IObservable<T> SkipWhileNull<T>(this IObservable<T?> source)
+    public static IObservable<T> SkipWhileNull<T>(this IObservable<T> source)
         where T : class => source.SkipWhile(x => x == null)!;
 
     /// <summary>
@@ -577,6 +593,11 @@ public static class ReactiveExtensions
     /// <returns>Disposable for the scheduled action.</returns>
     public static IDisposable ScheduleSafe(this IScheduler? scheduler, Action action)
     {
+        if (action == null)
+        {
+            throw new ArgumentNullException(nameof(action));
+        }
+
         if (scheduler == null)
         {
             action();
@@ -595,6 +616,11 @@ public static class ReactiveExtensions
     /// <returns>Disposable for the scheduled action.</returns>
     public static IDisposable ScheduleSafe(this IScheduler? scheduler, TimeSpan dueTime, Action action)
     {
+        if (action == null)
+        {
+            throw new ArgumentNullException(nameof(action));
+        }
+
         if (scheduler == null)
         {
             Thread.Sleep(dueTime);
@@ -849,12 +875,23 @@ public static class ReactiveExtensions
     public static IObservable<T[]> Shuffle<T>(this IObservable<T[]> source) =>
         Observable.Create<T[]>(observer => source.Subscribe(array =>
         {
-            Random random = new(unchecked(Environment.TickCount * 31));
+            using var random = RandomNumberGenerator.Create();
+            var buffer = new byte[sizeof(uint)];
             var n = array.Length;
             while (n > 1)
             {
                 n--;
-                var k = random.Next(n + 1);
+                var maxExclusive = (uint)(n + 1);
+                uint value;
+                var limit = uint.MaxValue - (uint.MaxValue % maxExclusive);
+                do
+                {
+                    random.GetBytes(buffer);
+                    value = BitConverter.ToUInt32(buffer, 0);
+                }
+                while (value >= limit);
+
+                var k = (int)(value % maxExclusive);
                 (array[n], array[k]) = (array[k], array[n]);
             }
 
@@ -867,7 +904,7 @@ public static class ReactiveExtensions
     /// <typeparam name="TSource">Element type.</typeparam>
     /// <param name="source">Source sequence.</param>
     /// <returns>Retried sequence.</returns>
-    public static IObservable<TSource?> OnErrorRetry<TSource>(this IObservable<TSource?> source) => source.Retry();
+    public static IObservable<TSource> OnErrorRetry<TSource>(this IObservable<TSource> source) => source.Retry();
 
     /// <summary>
     /// When caught exception, do onError action and repeat observable sequence.
@@ -877,7 +914,7 @@ public static class ReactiveExtensions
     /// <param name="source">The source.</param>
     /// <param name="onError">The on error.</param>
     /// <returns>A sequence that retries on error with optional delay.</returns>
-    public static IObservable<TSource?> OnErrorRetry<TSource, TException>(this IObservable<TSource?> source, Action<TException> onError)
+    public static IObservable<TSource> OnErrorRetry<TSource, TException>(this IObservable<TSource> source, Action<TException> onError)
         where TException : Exception => source.OnErrorRetry(onError, TimeSpan.Zero);
 
     /// <summary>
@@ -889,7 +926,7 @@ public static class ReactiveExtensions
     /// <param name="onError">The on error.</param>
     /// <param name="delay">The delay.</param>
     /// <returns>A sequence that retries on error with optional delay.</returns>
-    public static IObservable<TSource?> OnErrorRetry<TSource, TException>(this IObservable<TSource?> source, Action<TException> onError, TimeSpan delay)
+    public static IObservable<TSource> OnErrorRetry<TSource, TException>(this IObservable<TSource> source, Action<TException> onError, TimeSpan delay)
         where TException : Exception => source.OnErrorRetry(onError, int.MaxValue, delay);
 
     /// <summary>
@@ -901,7 +938,7 @@ public static class ReactiveExtensions
     /// <param name="onError">The on error.</param>
     /// <param name="retryCount">The retry count.</param>
     /// <returns>A sequence that retries on error with optional delay.</returns>
-    public static IObservable<TSource?> OnErrorRetry<TSource, TException>(this IObservable<TSource?> source, Action<TException> onError, int retryCount)
+    public static IObservable<TSource> OnErrorRetry<TSource, TException>(this IObservable<TSource> source, Action<TException> onError, int retryCount)
         where TException : Exception => source.OnErrorRetry(onError, retryCount, TimeSpan.Zero);
 
     /// <summary>
@@ -915,7 +952,7 @@ public static class ReactiveExtensions
     /// <param name="retryCount">The retry count.</param>
     /// <param name="delay">The delay.</param>
     /// <returns>A sequence that retries on error with optional delay.</returns>
-    public static IObservable<TSource?> OnErrorRetry<TSource, TException>(this IObservable<TSource?> source, Action<TException> onError, int retryCount, TimeSpan delay)
+    public static IObservable<TSource> OnErrorRetry<TSource, TException>(this IObservable<TSource> source, Action<TException> onError, int retryCount, TimeSpan delay)
         where TException : Exception => source.OnErrorRetry(onError, retryCount, delay, Scheduler.Default);
 
     /// <summary>
@@ -930,13 +967,13 @@ public static class ReactiveExtensions
     /// <param name="delay">The delay.</param>
     /// <param name="delayScheduler">The delay scheduler.</param>
     /// <returns>A sequence that retries on error with optional delay.</returns>
-    public static IObservable<TSource?> OnErrorRetry<TSource, TException>(this IObservable<TSource?> source, Action<TException> onError, int retryCount, TimeSpan delay, IScheduler delayScheduler)
+    public static IObservable<TSource> OnErrorRetry<TSource, TException>(this IObservable<TSource> source, Action<TException> onError, int retryCount, TimeSpan delay, IScheduler delayScheduler)
         where TException : Exception => Observable.Defer(() =>
         {
             var dueTime = (delay.Ticks < 0) ? TimeSpan.Zero : delay;
-            var empty = Observable.Empty<TSource?>();
+            var empty = Observable.Empty<TSource>();
             var count = 0;
-            IObservable<TSource?>? self = null;
+            IObservable<TSource>? self = null;
             self = source.Catch((TException ex) =>
             {
                 onError(ex);
@@ -945,7 +982,7 @@ public static class ReactiveExtensions
                         ? (dueTime == TimeSpan.Zero)
                             ? self!.SubscribeOn(Scheduler.CurrentThread)
                             : empty.Delay(dueTime, delayScheduler).Concat(self!).SubscribeOn(Scheduler.CurrentThread)
-                        : Observable.Throw<TSource?>(ex);
+                        : Observable.Throw<TSource>(ex);
             });
             return self;
         });
@@ -1259,6 +1296,11 @@ public static class ReactiveExtensions
         this IObservable<T> source,
         T initialValue)
     {
+        if (source is null)
+        {
+            throw new ArgumentNullException(nameof(source));
+        }
+
         var subject = new BehaviorSubject<T>(initialValue);
         source.Subscribe(subject);
         return subject.AsObservable();
@@ -1367,6 +1409,11 @@ public static class ReactiveExtensions
         Expression<Func<T, TProperty>> propertyExpression)
         where T : INotifyPropertyChanged
     {
+        if (propertyExpression is null)
+        {
+            throw new ArgumentNullException(nameof(propertyExpression));
+        }
+
         var member = (propertyExpression.Body as MemberExpression)
             ?? throw new ArgumentException("Expression must be a property");
 
@@ -1492,6 +1539,25 @@ public static class ReactiveExtensions
             .Select(x => condition(x)
                 ? Observable.Return(x)
                 : Observable.Return(x).Delay(debounce))
+            .Switch();
+
+    /// <summary>
+    /// Debounce until a condition becomes true.
+    /// </summary>
+    /// <typeparam name="T">The type.</typeparam>
+    /// <param name="source">The source.</param>
+    /// <param name="debounce">The debounce.</param>
+    /// <param name="condition">The condition.</param>
+    /// <param name="scheduler">The scheduler for the delay.</param>
+    /// <returns>An IObservable of T.</returns>
+    public static IObservable<T> DebounceUntil<T>(
+        this IObservable<T> source,
+        TimeSpan debounce,
+        Func<T, bool> condition,
+        IScheduler scheduler) => source
+            .Select(x => condition(x)
+                ? Observable.Return(x)
+                : Observable.Return(x).Delay(debounce, scheduler))
             .Switch();
 
     /// <summary>
