@@ -1385,20 +1385,18 @@ public class ReactiveExtensionsTests
     public async Task SyncTimer_ProducesSharedTicks()
     {
         var timeSpan = TimeSpan.FromMilliseconds(100);
+        var scheduler = new TestScheduler();
         var results1 = new List<DateTime>();
         var results2 = new List<DateTime>();
 
-        using var sub1 = ReactiveExtensions.SyncTimer(timeSpan).Take(2).Subscribe(results1.Add);
-        using var sub2 = ReactiveExtensions.SyncTimer(timeSpan).Take(2).Subscribe(results2.Add);
+        using var sub1 = ReactiveExtensions.SyncTimer(timeSpan, scheduler).Take(2).Subscribe(results1.Add);
+        using var sub2 = ReactiveExtensions.SyncTimer(timeSpan, scheduler).Take(2).Subscribe(results2.Add);
 
-        var ticksReceived = await AsyncTestHelpers.WaitForConditionAsync(
-            () => results1.Count >= 1 && results2.Count >= 1,
-            TimeSpan.FromSeconds(2));
+        scheduler.AdvanceBy(timeSpan.Ticks * 2);
 
         using (Assert.Multiple())
         {
             // Both subscriptions should get ticks (shared timer)
-            await Assert.That(ticksReceived).IsTrue();
             await Assert.That(results1).Count().IsGreaterThanOrEqualTo(1);
             await Assert.That(results2).Count().IsGreaterThanOrEqualTo(1);
         }
@@ -1569,6 +1567,7 @@ public class ReactiveExtensionsTests
         var attemptCount = 0;
         var errorsCaught = 0;
         var results = new List<int>();
+        var scheduler = new TestScheduler();
 
         var source = Observable.Create<int>(observer =>
         {
@@ -1588,16 +1587,15 @@ public class ReactiveExtensionsTests
 
         source.OnErrorRetry<int, InvalidOperationException>(
                 ex => errorsCaught++,
-                TimeSpan.FromMilliseconds(10))
+                retryCount: int.MaxValue,
+                delay: TimeSpan.FromMilliseconds(10),
+                delayScheduler: scheduler)
             .Subscribe(results.Add);
 
-        var resultReceived = await AsyncTestHelpers.WaitForConditionAsync(
-            () => results.Count == 1 && errorsCaught == 1,
-            TimeSpan.FromSeconds(5));
+        scheduler.AdvanceBy(TimeSpan.FromMilliseconds(10).Ticks);
 
         using (Assert.Multiple())
         {
-            await Assert.That(resultReceived).IsTrue();
             await Assert.That(errorsCaught).IsEqualTo(1);
             await Assert.That(results).IsEquivalentTo([42]);
         }
@@ -1647,6 +1645,7 @@ public class ReactiveExtensionsTests
         var attemptCount = 0;
         var errorsCaught = 0;
         var finalError = false;
+        var scheduler = new TestScheduler();
 
         var source = Observable.Create<int>(observer =>
         {
@@ -1658,17 +1657,15 @@ public class ReactiveExtensionsTests
         source.OnErrorRetry<int, InvalidOperationException>(
                 ex => errorsCaught++,
                 retryCount: 2,
-                delay: TimeSpan.FromMilliseconds(10))
+                delay: TimeSpan.FromMilliseconds(10),
+                delayScheduler: scheduler)
             .Subscribe(_ => { }, ex => finalError = true);
 
-        var finalErrorReceived = await AsyncTestHelpers.WaitForConditionAsync(
-            () => finalError && errorsCaught == 2,
-            TimeSpan.FromSeconds(5));
+        scheduler.AdvanceBy(TimeSpan.FromMilliseconds(10).Ticks);
 
         using (Assert.Multiple())
         {
             // Should retry 2 times (2 error callbacks on retries)
-            await Assert.That(finalErrorReceived).IsTrue();
             await Assert.That(errorsCaught).IsEqualTo(2);
             await Assert.That(finalError).IsTrue();
         }

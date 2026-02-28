@@ -14,8 +14,8 @@ namespace ReactiveUI.Extensions;
 /// </summary>
 public static class ReactiveExtensions
 {
-    // Thread-safe cache of timers keyed by TimeSpan. Ensures single shared timer per period.
-    private static readonly ConcurrentDictionary<TimeSpan, Lazy<IConnectableObservable<DateTime>>> _timerList = new();
+    // Thread-safe cache of timers keyed by TimeSpan and scheduler. Ensures single shared timer per period.
+    private static readonly ConcurrentDictionary<(TimeSpan TimeSpan, IScheduler Scheduler), Lazy<IConnectableObservable<DateTime>>> _timerList = new();
 
     /// <summary>
     /// Returns only values that are not null.
@@ -43,15 +43,28 @@ public static class ReactiveExtensions
     /// </summary>
     /// <param name="timeSpan">The time span.</param>
     /// <returns>An observable sequence producing the shared DateTime ticks.</returns>
-    public static IObservable<DateTime> SyncTimer(TimeSpan timeSpan)
+    public static IObservable<DateTime> SyncTimer(TimeSpan timeSpan) => SyncTimer(timeSpan, Scheduler.Default);
+
+    /// <summary>
+    /// Synchronized timer all instances of this with the same TimeSpan and scheduler use the same timer.
+    /// </summary>
+    /// <param name="timeSpan">The time span.</param>
+    /// <param name="scheduler">Scheduler used to emit ticks.</param>
+    /// <returns>An observable sequence producing the shared DateTime ticks.</returns>
+    public static IObservable<DateTime> SyncTimer(TimeSpan timeSpan, IScheduler scheduler)
     {
+        if (scheduler == null)
+        {
+            throw new ArgumentNullException(nameof(scheduler));
+        }
+
         var lazy = _timerList.GetOrAdd(
-            timeSpan,
-            ts => new Lazy<IConnectableObservable<DateTime>>(
+            (timeSpan, scheduler),
+            key => new Lazy<IConnectableObservable<DateTime>>(
                 () =>
                 {
                     var published = Observable
-                        .Timer(TimeSpan.Zero, ts)
+                        .Timer(TimeSpan.Zero, key.TimeSpan, key.Scheduler)
                         .Timestamp()
                         .Select(x => x.Timestamp.DateTime)
                         .Publish();
