@@ -1318,7 +1318,7 @@ public static class ReactiveExtensions
         => source.RetryWithDelay(retryCount, _ => delay);
 
     /// <summary>
-    /// Always replay the last value, even if the source hasn’t produced one yet.
+    /// Always replay the last value, even if the source hasnÂ’t produced one yet.
     /// </summary>
     /// <typeparam name="T">The type.</typeparam>
     /// <param name="source">The source.</param>
