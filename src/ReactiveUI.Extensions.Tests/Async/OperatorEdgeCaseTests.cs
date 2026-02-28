@@ -923,8 +923,13 @@ public class OperatorEdgeCaseTests
     [Test]
     public async Task WhenOnDisposeAsyncSourceFails_ThenCallbackInvoked()
     {
+        var disposeCallbackInvoked = false;
         var source = ObservableAsync.Throw<int>(new InvalidOperationException("fail"))
-            .OnDispose(() => default);
+            .OnDispose(() =>
+            {
+                disposeCallbackInvoked = true;
+                return default;
+            });
 
         Result? completionResult = null;
 
@@ -942,6 +947,7 @@ public class OperatorEdgeCaseTests
 
         await Assert.That(completionResult).IsNotNull();
         await Assert.That(completionResult!.Value.IsFailure).IsTrue();
+        await Assert.That(disposeCallbackInvoked).IsTrue();
     }
 
     /// <summary>Tests that sync OnDispose is called when source errors.</summary>
