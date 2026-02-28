@@ -108,9 +108,14 @@ public class ReactiveExtensionsTests
         var result = 0;
         var itterations = 0;
         var subject = new Subject<bool>();
+        var tasks = new List<Task>();
         using var disposable = subject
             .SynchronizeAsync()
-            .Subscribe(async x =>
+            .Subscribe(x => tasks.Add(HandleAsync(x)));
+
+        async Task HandleAsync((bool Value, IDisposable Sync) x)
+        {
+            try
             {
                 if (x.Value)
                 {
@@ -122,10 +127,13 @@ public class ReactiveExtensionsTests
                     await Task.Delay(500);
                     result--;
                 }
-
+            }
+            finally
+            {
                 x.Sync.Dispose();
                 itterations++;
-            });
+            }
+        }
 
         subject.OnNext(true);
         subject.OnNext(false);
@@ -133,6 +141,8 @@ public class ReactiveExtensionsTests
         subject.OnNext(false);
         subject.OnNext(true);
         subject.OnNext(false);
+
+        await Task.WhenAll(tasks);
 
         while (itterations < 6)
         {
@@ -153,9 +163,14 @@ public class ReactiveExtensionsTests
         var result = 0;
         var itterations = 0;
         var subject = new Subject<bool>();
+        var tasks = new List<Task>();
         using var disposable = subject
             .SynchronizeSynchronous()
-            .Subscribe(async x =>
+            .Subscribe(x => tasks.Add(HandleAsync(x)));
+
+        async Task HandleAsync((bool Value, IDisposable Sync) x)
+        {
+            try
             {
                 if (x.Value)
                 {
@@ -167,22 +182,22 @@ public class ReactiveExtensionsTests
                     await Task.Delay(500);
                     result--;
                 }
-
+            }
+            finally
+            {
                 x.Sync.Dispose();
                 itterations++;
-            });
-
-        subject.OnNext(true);
-        subject.OnNext(false);
-        subject.OnNext(true);
-        subject.OnNext(false);
-        subject.OnNext(true);
-        subject.OnNext(false);
-
-        while (itterations < 6)
-        {
-            Thread.Yield();
+            }
         }
+
+        subject.OnNext(true);
+        subject.OnNext(false);
+        subject.OnNext(true);
+        subject.OnNext(false);
+        subject.OnNext(true);
+        subject.OnNext(false);
+
+        await Task.WhenAll(tasks);
 
         // Then
         await Assert.That(result).IsZero();
