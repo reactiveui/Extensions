@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2019-2025 ReactiveUI Association Incorporated. All rights reserved.
+﻿// Copyright (c) 2019-2026 ReactiveUI Association Incorporated. All rights reserved.
 // ReactiveUI Association Incorporated licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
@@ -22,10 +22,14 @@ public static partial class ObservableAsync
     /// <returns>A ValueTask that represents the asynchronous wait operation.</returns>
     public static async ValueTask WaitCompletionAsync<T>(this IObservableAsync<T> @this, CancellationToken cancellationToken = default)
     {
+#if NET8_0_OR_GREATER
+        ArgumentNullException.ThrowIfNull(@this);
+#else
         if (@this is null)
         {
             throw new ArgumentNullException(nameof(@this));
         }
+#endif
 
         var observer = new WaitCompletionAsyncObserver<T>(cancellationToken);
         _ = await @this.SubscribeAsync(observer, cancellationToken);

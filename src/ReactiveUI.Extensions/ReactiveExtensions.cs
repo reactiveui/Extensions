@@ -1,11 +1,6 @@
-// Copyright (c) 2019-2025 ReactiveUI Association Incorporated. All rights reserved.
+// Copyright (c) 2019-2026 ReactiveUI Association Incorporated. All rights reserved.
 // ReactiveUI Association Incorporated licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
-
-using System.ComponentModel;
-using System.Linq.Expressions;
-using System.Reactive.Threading.Tasks;
-using System.Security.Cryptography;
 
 namespace ReactiveUI.Extensions;
 
@@ -53,10 +48,14 @@ public static class ReactiveExtensions
     /// <returns>An observable sequence producing the shared DateTime ticks.</returns>
     public static IObservable<DateTime> SyncTimer(TimeSpan timeSpan, IScheduler scheduler)
     {
+#if NET8_0_OR_GREATER
+        ArgumentNullException.ThrowIfNull(scheduler, nameof(scheduler));
+#else
         if (scheduler == null)
         {
             throw new ArgumentNullException(nameof(scheduler));
         }
+#endif
 
         var lazy = _timerList.GetOrAdd(
             (timeSpan, scheduler),
@@ -312,7 +311,11 @@ public static class ReactiveExtensions
             var lastUpdateTime = DateTimeOffset.MinValue;
             MultipleAssignmentDisposable updateScheduled = new();
             var completionRequested = false;
+#if NET9_0_OR_GREATER
+            Lock gate = new();
+#else
             object gate = new();
+#endif
 
             return source.ObserveOn(scheduler)
                 .Subscribe(
@@ -388,7 +391,11 @@ public static class ReactiveExtensions
         Observable.Create<IHeartbeat<T>>(observer =>
         {
             MultipleAssignmentDisposable heartbeatTimerSubscription = new();
+#if NET9_0_OR_GREATER
+            Lock gate = new();
+#else
             object gate = new();
+#endif
 
             void ScheduleHeartbeats()
             {
@@ -457,10 +464,14 @@ public static class ReactiveExtensions
     /// <returns>A sequence of task results.</returns>
     public static IObservable<T> WithLimitedConcurrency<T>(this IEnumerable<Task<T>> taskFunctions, int maxConcurrency)
     {
+#if NET8_0_OR_GREATER
+        ArgumentNullException.ThrowIfNull(taskFunctions, nameof(taskFunctions));
+#else
         if (taskFunctions == null)
         {
             throw new ArgumentNullException(nameof(taskFunctions));
         }
+#endif
 
         return new ConcurrencyLimiter<T>(taskFunctions, maxConcurrency).IObservable;
     }
@@ -606,10 +617,14 @@ public static class ReactiveExtensions
     /// <returns>Disposable for the scheduled action.</returns>
     public static IDisposable ScheduleSafe(this IScheduler? scheduler, Action action)
     {
+#if NET8_0_OR_GREATER
+        ArgumentNullException.ThrowIfNull(action, nameof(action));
+#else
         if (action == null)
         {
             throw new ArgumentNullException(nameof(action));
         }
+#endif
 
         if (scheduler == null)
         {
@@ -629,10 +644,14 @@ public static class ReactiveExtensions
     /// <returns>Disposable for the scheduled action.</returns>
     public static IDisposable ScheduleSafe(this IScheduler? scheduler, TimeSpan dueTime, Action action)
     {
+#if NET8_0_OR_GREATER
+        ArgumentNullException.ThrowIfNull(action, nameof(action));
+#else
         if (action == null)
         {
             throw new ArgumentNullException(nameof(action));
         }
+#endif
 
         if (scheduler == null)
         {
@@ -1309,10 +1328,14 @@ public static class ReactiveExtensions
         this IObservable<T> source,
         T initialValue)
     {
+#if NET8_0_OR_GREATER
+        ArgumentNullException.ThrowIfNull(source, nameof(source));
+#else
         if (source is null)
         {
             throw new ArgumentNullException(nameof(source));
         }
+#endif
 
         var subject = new BehaviorSubject<T>(initialValue);
         source.Subscribe(subject);
@@ -1332,7 +1355,11 @@ public static class ReactiveExtensions
         scheduler ??= Scheduler.Default;
         return Observable.Create<T>(obs =>
         {
+#if NET9_0_OR_GREATER
+            Lock gate = new();
+#else
             object gate = new();
+#endif
             var last = DateTimeOffset.MinValue;
             return source.Subscribe(
                 x =>
@@ -1422,10 +1449,14 @@ public static class ReactiveExtensions
         Expression<Func<T, TProperty>> propertyExpression)
         where T : INotifyPropertyChanged
     {
+#if NET8_0_OR_GREATER
+        ArgumentNullException.ThrowIfNull(propertyExpression, nameof(propertyExpression));
+#else
         if (propertyExpression is null)
         {
             throw new ArgumentNullException(nameof(propertyExpression));
         }
+#endif
 
         var member = (propertyExpression.Body as MemberExpression)
             ?? throw new ArgumentException("Expression must be a property");
@@ -1484,7 +1515,11 @@ public static class ReactiveExtensions
         return Observable.Create<T>(obs =>
         {
             SerialDisposable timer = new();
+#if NET9_0_OR_GREATER
+            Lock gate = new();
+#else
             object gate = new();
+#endif
             var isFirst = true;
             T? lastValue = default;
             var hasValue = false;
@@ -1667,7 +1702,11 @@ public static class ReactiveExtensions
         scheduler ??= Scheduler.Default;
         return Observable.Create<IList<T>>(observer =>
         {
+#if NET9_0_OR_GREATER
+            Lock gate = new();
+#else
             object gate = new();
+#endif
             List<T> buffer = [];
             SerialDisposable timer = new();
 

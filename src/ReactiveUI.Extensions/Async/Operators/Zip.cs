@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2025 ReactiveUI Association Incorporated. All rights reserved.
+// Copyright (c) 2019-2026 ReactiveUI Association Incorporated. All rights reserved.
 // ReactiveUI Association Incorporated licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
@@ -31,6 +31,11 @@ public static partial class ObservableAsync
         IObservableAsync<T2> second,
         Func<T1, T2, TResult> resultSelector)
     {
+#if NET8_0_OR_GREATER
+        ArgumentNullException.ThrowIfNull(first, nameof(first));
+        ArgumentNullException.ThrowIfNull(second, nameof(second));
+        ArgumentNullException.ThrowIfNull(resultSelector, nameof(resultSelector));
+#else
         if (first is null)
         {
             throw new ArgumentNullException(nameof(first));
@@ -45,6 +50,7 @@ public static partial class ObservableAsync
         {
             throw new ArgumentNullException(nameof(resultSelector));
         }
+#endif
 
         return new ZipObservable<T1, T2, TResult>(first, second, resultSelector);
     }
@@ -98,7 +104,11 @@ public static partial class ObservableAsync
 
         private sealed class ZipState(IObserverAsync<TResult> observer, Func<T1, T2, TResult> resultSelector)
         {
+#if NET9_0_OR_GREATER
+            private readonly Lock _gate = new();
+#else
             private readonly object _gate = new();
+#endif
             private readonly Queue<T1> _queue1 = new();
             private readonly Queue<T2> _queue2 = new();
             private bool _completed1;

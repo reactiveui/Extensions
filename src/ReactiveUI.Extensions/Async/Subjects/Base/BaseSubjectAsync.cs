@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2019-2025 ReactiveUI Association Incorporated. All rights reserved.
+﻿// Copyright (c) 2019-2026 ReactiveUI Association Incorporated. All rights reserved.
 // ReactiveUI Association Incorporated licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
@@ -20,7 +20,11 @@ namespace ReactiveUI.Extensions.Async.Subjects;
 /// <typeparam name="T">The type of elements processed by the subject and observed by subscribers.</typeparam>
 public abstract class BaseSubjectAsync<T> : ObservableAsync<T>, ISubjectAsync<T>
 {
+#if NET9_0_OR_GREATER
+    private readonly Lock _gate = new();
+#else
     private readonly object _gate = new();
+#endif
     private ImmutableList<IObserverAsync<T>> _observers = [];
     private Result? _result;
 
@@ -129,10 +133,14 @@ public abstract class BaseSubjectAsync<T> : ObservableAsync<T>, ISubjectAsync<T>
     protected override async ValueTask<IAsyncDisposable> SubscribeAsyncCore(IObserverAsync<T> observer, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
+#if NET8_0_OR_GREATER
+        ArgumentNullException.ThrowIfNull(observer, nameof(observer));
+#else
         if (observer is null)
         {
             throw new ArgumentNullException(nameof(observer));
         }
+#endif
 
         Result? result;
 

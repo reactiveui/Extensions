@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2019-2025 ReactiveUI Association Incorporated. All rights reserved.
+﻿// Copyright (c) 2019-2026 ReactiveUI Association Incorporated. All rights reserved.
 // ReactiveUI Association Incorporated licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
@@ -35,6 +35,10 @@ public static partial class ObservableAsync
         Func<Channel<T>> channelFactory,
         Func<Exception, CancellationToken, ValueTask>? onErrorResume = null)
     {
+#if NET8_0_OR_GREATER
+        ArgumentNullException.ThrowIfNull(@this, nameof(@this));
+        ArgumentNullException.ThrowIfNull(channelFactory, nameof(channelFactory));
+#else
         if (@this is null)
         {
             throw new ArgumentNullException(nameof(@this));
@@ -44,6 +48,7 @@ public static partial class ObservableAsync
         {
             throw new ArgumentNullException(nameof(channelFactory));
         }
+#endif
 
         return Impl(@this, channelFactory, onErrorResume);
 

@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2019-2025 ReactiveUI Association Incorporated. All rights reserved.
+﻿// Copyright (c) 2019-2026 ReactiveUI Association Incorporated. All rights reserved.
 // ReactiveUI Association Incorporated licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
@@ -33,6 +33,10 @@ public static partial class ObservableAsync
         /// <exception cref="ArgumentNullException">Thrown if either the source sequence or the other observable is null.</exception>
         public IObservableAsync<T> TakeUntil<TOther>(IObservableAsync<TOther> other, TakeUntilOptions? options = null)
         {
+#if NET8_0_OR_GREATER
+            ArgumentNullException.ThrowIfNull(source, nameof(source));
+            ArgumentNullException.ThrowIfNull(other, nameof(other));
+#else
             if (source is null)
             {
                 throw new ArgumentNullException(nameof(source));
@@ -42,6 +46,7 @@ public static partial class ObservableAsync
             {
                 throw new ArgumentNullException(nameof(other));
             }
+#endif
 
             return new TakeUntilAsyncObservable<T, TOther>(source, other, options ?? TakeUntilOptions.Default);
         }
@@ -57,10 +62,14 @@ public static partial class ObservableAsync
         /// <exception cref="ArgumentNullException">Thrown if the source observable is null.</exception>
         public IObservableAsync<T> TakeUntil(Task task, TakeUntilOptions? options = null)
         {
+#if NET8_0_OR_GREATER
+            ArgumentNullException.ThrowIfNull(source, nameof(source));
+#else
             if (source is null)
             {
                 throw new ArgumentNullException(nameof(source));
             }
+#endif
 
             return new TakeUntilTask<T>(source, task, options ?? TakeUntilOptions.Default);
         }
@@ -74,10 +83,8 @@ public static partial class ObservableAsync
         /// <param name="cancellationToken">A cancellation token that, when canceled, will terminate the resulting observable sequence.</param>
         /// <returns>An observable sequence that completes when the provided cancellation token is canceled or when the source
         /// sequence completes.</returns>
-        public IObservableAsync<T> TakeUntil(CancellationToken cancellationToken)
-        {
-            return new TakeUntilCancellationToken<T>(source, cancellationToken);
-        }
+        public IObservableAsync<T> TakeUntil(CancellationToken cancellationToken) =>
+            new TakeUntilCancellationToken<T>(source, cancellationToken);
 
         /// <summary>
         /// Returns a sequence that emits elements from the source until the specified predicate returns true for an
@@ -92,10 +99,14 @@ public static partial class ObservableAsync
         /// <exception cref="ArgumentNullException">Thrown if <paramref name="predicate"/> is null.</exception>
         public IObservableAsync<T> TakeUntil(Func<T, bool> predicate)
         {
+#if NET8_0_OR_GREATER
+            ArgumentNullException.ThrowIfNull(predicate, nameof(predicate));
+#else
             if (predicate is null)
             {
                 throw new ArgumentNullException(nameof(predicate));
             }
+#endif
 
             return new TakeUntilPredicate<T>(source, predicate);
         }
@@ -111,10 +122,14 @@ public static partial class ObservableAsync
         /// <exception cref="ArgumentNullException">Thrown if <paramref name="asyncPredicate"/> is null.</exception>
         public IObservableAsync<T> TakeUntil(Func<T, CancellationToken, ValueTask<bool>> asyncPredicate)
         {
+#if NET8_0_OR_GREATER
+            ArgumentNullException.ThrowIfNull(asyncPredicate, nameof(asyncPredicate));
+#else
             if (asyncPredicate is null)
             {
                 throw new ArgumentNullException(nameof(asyncPredicate));
             }
+#endif
 
             return new TakeUntilAsyncPredicate<T>(source, asyncPredicate);
         }
@@ -131,10 +146,14 @@ public static partial class ObservableAsync
         /// <exception cref="ArgumentNullException">Thrown if <paramref name="stopSignalSignal"/> is null.</exception>
         public IObservableAsync<T> TakeUntil(CompletionObservableDelegate stopSignalSignal, TakeUntilOptions? options = null)
         {
+#if NET8_0_OR_GREATER
+            ArgumentNullException.ThrowIfNull(stopSignalSignal, nameof(stopSignalSignal));
+#else
             if (stopSignalSignal is null)
             {
                 throw new ArgumentNullException(nameof(stopSignalSignal));
             }
+#endif
 
             return new TakeUntilFromRawSignal<T>(source, stopSignalSignal, options ?? TakeUntilOptions.Default);
         }

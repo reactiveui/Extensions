@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2019-2025 ReactiveUI Association Incorporated. All rights reserved.
+﻿// Copyright (c) 2019-2026 ReactiveUI Association Incorporated. All rights reserved.
 // ReactiveUI Association Incorporated licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
@@ -39,10 +39,14 @@ public static partial class ObservableAsync
         /// <exception cref="ArgumentNullException">Thrown if <paramref name="equalityComparer"/> is <see langword="null"/>.</exception>
         public IObservableAsync<T> DistinctUntilChanged(IEqualityComparer<T> equalityComparer)
         {
+#if NET8_0_OR_GREATER
+            ArgumentNullException.ThrowIfNull(equalityComparer, nameof(equalityComparer));
+#else
             if (equalityComparer is null)
             {
                 throw new ArgumentNullException(nameof(equalityComparer));
             }
+#endif
 
             return Create<T>(async (observer, subscribeToken) =>
             {
@@ -94,6 +98,10 @@ public static partial class ObservableAsync
         /// <exception cref="ArgumentNullException">Thrown if <paramref name="keySelector"/> or <paramref name="equalityComparer"/> is null.</exception>
         public IObservableAsync<T> DistinctUntilChangedBy<TKey>(Func<T, TKey> keySelector, IEqualityComparer<TKey> equalityComparer)
         {
+#if NET8_0_OR_GREATER
+            ArgumentNullException.ThrowIfNull(keySelector, nameof(keySelector));
+            ArgumentNullException.ThrowIfNull(equalityComparer, nameof(equalityComparer));
+#else
             if (keySelector is null)
             {
                 throw new ArgumentNullException(nameof(keySelector));
@@ -103,6 +111,7 @@ public static partial class ObservableAsync
             {
                 throw new ArgumentNullException(nameof(equalityComparer));
             }
+#endif
 
             return Create<T>(async (observer, subscribeToken) =>
             {

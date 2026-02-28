@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2019-2025 ReactiveUI Association Incorporated. All rights reserved.
+﻿// Copyright (c) 2019-2026 ReactiveUI Association Incorporated. All rights reserved.
 // ReactiveUI Association Incorporated licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
@@ -26,10 +26,14 @@ public static partial class ObservableAsync
     /// <exception cref="ArgumentNullException">Thrown if <paramref name="error"/> is null.</exception>
     public static IObservableAsync<T> Throw<T>(Exception error)
     {
+#if NET8_0_OR_GREATER
+        ArgumentNullException.ThrowIfNull(error, nameof(error));
+#else
         if (error == null)
         {
             throw new ArgumentNullException(nameof(error));
         }
+#endif
 
         return new ObservableAsyncThrow<T>(error);
     }

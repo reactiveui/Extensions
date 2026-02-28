@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2025 ReactiveUI Association Incorporated. All rights reserved.
+// Copyright (c) 2019-2026 ReactiveUI Association Incorporated. All rights reserved.
 // ReactiveUI Association Incorporated licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
@@ -24,10 +24,14 @@ public static partial class ObservableAsync
     /// <exception cref="ArgumentOutOfRangeException">Thrown if <paramref name="dueTime"/> is negative.</exception>
     public static IObservableAsync<long> Timer(TimeSpan dueTime, TimeProvider? timeProvider = null)
     {
+#if NET8_0_OR_GREATER
+        ArgumentOutOfRangeException.ThrowIfLessThan(dueTime, TimeSpan.Zero, nameof(dueTime));
+#else
         if (dueTime < TimeSpan.Zero)
         {
             throw new ArgumentOutOfRangeException(nameof(dueTime));
         }
+#endif
 
         var tp = timeProvider ?? TimeProvider.System;
 
@@ -55,6 +59,10 @@ public static partial class ObservableAsync
     /// or <paramref name="period"/> is non-positive.</exception>
     public static IObservableAsync<long> Timer(TimeSpan dueTime, TimeSpan period, TimeProvider? timeProvider = null)
     {
+#if NET8_0_OR_GREATER
+        ArgumentOutOfRangeException.ThrowIfLessThan(dueTime, TimeSpan.Zero, nameof(dueTime));
+        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(period, TimeSpan.Zero, nameof(period));
+#else
         if (dueTime < TimeSpan.Zero)
         {
             throw new ArgumentOutOfRangeException(nameof(dueTime));
@@ -64,6 +72,7 @@ public static partial class ObservableAsync
         {
             throw new ArgumentOutOfRangeException(nameof(period));
         }
+#endif
 
         var tp = timeProvider ?? TimeProvider.System;
 

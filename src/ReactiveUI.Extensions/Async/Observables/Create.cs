@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2019-2025 ReactiveUI Association Incorporated. All rights reserved.
+﻿// Copyright (c) 2019-2026 ReactiveUI Association Incorporated. All rights reserved.
 // ReactiveUI Association Incorporated licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
@@ -58,10 +58,14 @@ public static partial class ObservableAsync
 
     private static IObservableAsync<T> CreateAsBackgroundJob<T>(Func<IObserverAsync<T>, CancellationToken, ValueTask> job, bool startSynchronously, TaskScheduler? taskScheduler)
     {
+#if NET8_0_OR_GREATER
+        ArgumentNullException.ThrowIfNull(job, nameof(job));
+#else
         if (job is null)
         {
             throw new ArgumentNullException(nameof(job));
         }
+#endif
 
         if (startSynchronously)
         {
@@ -80,15 +84,12 @@ public static partial class ObservableAsync
         }
 
         return Create<T>((observer, _) => new(CancelableTaskSubscription.CreateAndStart(
-            async (obs, ct) =>
-        {
-            await Task.Factory.StartNew(
+            async (obs, ct) => await Task.Factory.StartNew(
                 () => job(obs, ct).AsTask(),
                 ct,
                 TaskCreationOptions.DenyChildAttach,
                 taskScheduler)
-                      .Unwrap();
-        },
+                      .Unwrap(),
             observer)));
     }
 }

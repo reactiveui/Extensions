@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2025 ReactiveUI Association Incorporated. All rights reserved.
+// Copyright (c) 2019-2026 ReactiveUI Association Incorporated. All rights reserved.
 // ReactiveUI Association Incorporated licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
@@ -70,6 +70,8 @@ public class OperatorEdgeCaseTests
 
         await Assert.That(completionResult).IsNotNull();
         await Assert.That(completionResult!.Value.IsFailure).IsTrue();
+
+        await outer.DisposeAsync();
     }
 
     /// <summary>Tests that Switch forwards error resume from inner sequence.</summary>
@@ -101,6 +103,8 @@ public class OperatorEdgeCaseTests
         await Task.Delay(200);
 
         await Assert.That(errors).Count().IsEqualTo(1);
+
+        await outer.DisposeAsync();
     }
 
     // ==========================================
@@ -167,19 +171,15 @@ public class OperatorEdgeCaseTests
 
     /// <summary>Tests that Zip throws on null second argument.</summary>
     [Test]
-    public void WhenZipNullSecond_ThenThrowsArgumentNull()
-    {
+    public void WhenZipNullSecond_ThenThrowsArgumentNull() =>
         Assert.Throws<ArgumentNullException>(() =>
             ObservableAsync.Return(1).Zip((IObservableAsync<string>)null!, (a, b) => a));
-    }
 
     /// <summary>Tests that Zip throws on null resultSelector.</summary>
     [Test]
-    public void WhenZipNullResultSelector_ThenThrowsArgumentNull()
-    {
+    public void WhenZipNullResultSelector_ThenThrowsArgumentNull() =>
         Assert.Throws<ArgumentNullException>(() =>
             ObservableAsync.Return(1).Zip(ObservableAsync.Return(2), (Func<int, int, int>)null!));
-    }
 
     /// <summary>Tests that Zip error from first source completes with failure.</summary>
     [Test]
@@ -205,6 +205,9 @@ public class OperatorEdgeCaseTests
 
         await Assert.That(completionResult).IsNotNull();
         await Assert.That(completionResult!.Value.IsFailure).IsTrue();
+
+        await first.DisposeAsync();
+        await second.DisposeAsync();
     }
 
     // ==========================================
@@ -399,6 +402,8 @@ public class OperatorEdgeCaseTests
         await Task.Delay(100);
 
         await Assert.That(errors).Count().IsEqualTo(1);
+
+        await source.DisposeAsync();
     }
 
     /// <summary>Tests that Throttle forwards completion from source.</summary>
@@ -424,6 +429,8 @@ public class OperatorEdgeCaseTests
 
         await Assert.That(completionResult).IsNotNull();
         await Assert.That(completionResult!.Value.IsSuccess).IsTrue();
+
+        await source.DisposeAsync();
     }
 
     /// <summary>Tests that Throttle forwards failure from source.</summary>
@@ -449,6 +456,8 @@ public class OperatorEdgeCaseTests
 
         await Assert.That(completionResult).IsNotNull();
         await Assert.That(completionResult!.Value.IsFailure).IsTrue();
+
+        await source.DisposeAsync();
     }
 
     // ==========================================
@@ -487,11 +496,9 @@ public class OperatorEdgeCaseTests
 
     /// <summary>Tests that Timeout with fallback negative duration throws.</summary>
     [Test]
-    public void WhenTimeoutWithFallbackNegativeDuration_ThenThrowsArgumentOutOfRange()
-    {
+    public void WhenTimeoutWithFallbackNegativeDuration_ThenThrowsArgumentOutOfRange() =>
         Assert.Throws<ArgumentOutOfRangeException>(() =>
             ObservableAsync.Return(1).Timeout(TimeSpan.FromMilliseconds(-1), ObservableAsync.Return(99)));
-    }
 
     // ==========================================
     // Select
@@ -719,11 +726,9 @@ public class OperatorEdgeCaseTests
 
     /// <summary>Tests that async Scan null accumulator throws.</summary>
     [Test]
-    public void WhenScanAsyncNullAccumulator_ThenThrowsArgumentNull()
-    {
+    public void WhenScanAsyncNullAccumulator_ThenThrowsArgumentNull() =>
         Assert.Throws<ArgumentNullException>(() =>
             ObservableAsync.Return(1).Scan(0, (Func<int, int, CancellationToken, ValueTask<int>>)null!));
-    }
 
     // ==========================================
     // Distinct / DistinctUntilChanged
@@ -813,11 +818,9 @@ public class OperatorEdgeCaseTests
 
     /// <summary>Tests that Wrap with null observer throws.</summary>
     [Test]
-    public void WhenWrapNullObserver_ThenThrowsArgumentNull()
-    {
+    public void WhenWrapNullObserver_ThenThrowsArgumentNull() =>
         Assert.Throws<ArgumentNullException>(() =>
             ObservableAsync.Wrap<int>(null!));
-    }
 
     // ==========================================
     // GroupBy
@@ -920,14 +923,8 @@ public class OperatorEdgeCaseTests
     [Test]
     public async Task WhenOnDisposeAsyncSourceFails_ThenCallbackInvoked()
     {
-        var disposed = false;
-
         var source = ObservableAsync.Throw<int>(new InvalidOperationException("fail"))
-            .OnDispose(() =>
-            {
-                disposed = true;
-                return default;
-            });
+            .OnDispose(() => default);
 
         Result? completionResult = null;
 
@@ -1134,11 +1131,9 @@ public class OperatorEdgeCaseTests
 
     /// <summary>Tests that async SkipWhile null predicate throws.</summary>
     [Test]
-    public void WhenSkipWhileAsyncNullPredicate_ThenThrowsArgumentNull()
-    {
+    public void WhenSkipWhileAsyncNullPredicate_ThenThrowsArgumentNull() =>
         Assert.Throws<ArgumentNullException>(() =>
             ObservableAsync.Return(1).SkipWhile((Func<int, CancellationToken, ValueTask<bool>>)null!));
-    }
 
     // ==========================================
     // Take / Skip edge cases
@@ -1252,21 +1247,15 @@ public class OperatorEdgeCaseTests
 
     /// <summary>Tests that SelectMany with async selector and null selector throws.</summary>
     [Test]
-    public void WhenSelectManyAsyncNullSelector_ThenThrowsArgumentNull()
-    {
+    public void WhenSelectManyAsyncNullSelector_ThenThrowsArgumentNull() =>
         Assert.Throws<ArgumentNullException>(() =>
             ObservableAsync.Return(1).SelectMany((Func<int, CancellationToken, ValueTask<IObservableAsync<int>>>)null!));
-    }
 
     /// <summary>Tests that SelectMany with result selector null throws.</summary>
     [Test]
-    public void WhenSelectManyNullResultSelector_ThenThrowsArgumentNull()
-    {
+    public void WhenSelectManyNullResultSelector_ThenThrowsArgumentNull() =>
         Assert.Throws<ArgumentNullException>(() =>
-            ObservableAsync.Return(1).SelectMany(
-                x => ObservableAsync.Return(x),
-                (Func<int, int, int>)null!));
-    }
+            ObservableAsync.Return(1).SelectMany(x => ObservableAsync.Return(x), (Func<int, int, int>)null!));
 
     /// <summary>Tests that SelectMany forwards error from inner.</summary>
     [Test]
@@ -1297,11 +1286,9 @@ public class OperatorEdgeCaseTests
 
     /// <summary>Tests that Catch with null handler throws.</summary>
     [Test]
-    public void WhenCatchNullHandler_ThenThrowsArgumentNull()
-    {
+    public void WhenCatchNullHandler_ThenThrowsArgumentNull() =>
         Assert.Throws<ArgumentNullException>(() =>
             ObservableAsync.Return(1).Catch((Func<Exception, IObservableAsync<int>>)null!));
-    }
 
     /// <summary>Tests that Catch with handler exception propagates handler failure.</summary>
     [Test]
@@ -1334,11 +1321,9 @@ public class OperatorEdgeCaseTests
 
     /// <summary>Tests that Throw creates a sequence that fails immediately.</summary>
     [Test]
-    public void WhenThrow_ThenFailsImmediately()
-    {
+    public void WhenThrow_ThenFailsImmediately() =>
         Assert.ThrowsAsync<InvalidOperationException>(
             async () => await ObservableAsync.Throw<int>(new InvalidOperationException("boom")).ToListAsync());
-    }
 
     /// <summary>Tests that Never does not complete.</summary>
     [Test]

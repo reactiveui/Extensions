@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2019-2025 ReactiveUI Association Incorporated. All rights reserved.
+﻿// Copyright (c) 2019-2026 ReactiveUI Association Incorporated. All rights reserved.
 // ReactiveUI Association Incorporated licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
@@ -23,10 +23,14 @@ public static class SubjectMixins
     /// <returns>An asynchronous observer that forwards notifications to the specified subject.</returns>
     public static IObserverAsync<T> AsObserverAsync<T>(this ISubjectAsync<T> subject)
     {
+#if NET8_0_OR_GREATER
+        ArgumentNullException.ThrowIfNull(subject, nameof(subject));
+#else
         if (subject == null)
         {
             throw new ArgumentNullException(nameof(subject));
         }
+#endif
 
         return new SubjectAsyncObserver<T>(subject);
     }
@@ -45,6 +49,10 @@ public static class SubjectMixins
     /// <returns>A subject that emits values transformed by the specified mapping function.</returns>
     public static ISubjectAsync<T> MapValues<T>(this ISubjectAsync<T> @this, Func<IObservableAsync<T>, IObservableAsync<T>> mapper)
     {
+#if NET8_0_OR_GREATER
+        ArgumentNullException.ThrowIfNull(@this, nameof(@this));
+        ArgumentNullException.ThrowIfNull(mapper, nameof(mapper));
+#else
         if (@this == null)
         {
             throw new ArgumentNullException(nameof(@this));
@@ -54,6 +62,7 @@ public static class SubjectMixins
         {
             throw new ArgumentNullException(nameof(mapper));
         }
+#endif
 
         return new MappedSubject<T>(@this, mapper);
     }

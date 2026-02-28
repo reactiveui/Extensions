@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2019-2025 ReactiveUI Association Incorporated. All rights reserved.
+﻿// Copyright (c) 2019-2026 ReactiveUI Association Incorporated. All rights reserved.
 // ReactiveUI Association Incorporated licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
@@ -43,6 +43,10 @@ public static partial class ObservableAsync
             Func<Result, ValueTask>? onCompletedAsync = null,
             CancellationToken cancellationToken = default)
         {
+#if NET8_0_OR_GREATER
+            ArgumentNullException.ThrowIfNull(source, nameof(source));
+            ArgumentNullException.ThrowIfNull(onNextAsync, nameof(onNextAsync));
+#else
             if (source is null)
             {
                 throw new ArgumentNullException(nameof(source));
@@ -52,6 +56,7 @@ public static partial class ObservableAsync
             {
                 throw new ArgumentNullException(nameof(onNextAsync));
             }
+#endif
 
             var observer = new AnonymousObserverAsync<T>(onNextAsync, onErrorResumeAsync, onCompletedAsync);
             return source.SubscribeAsync(observer, cancellationToken);
@@ -67,10 +72,14 @@ public static partial class ObservableAsync
         /// <exception cref="ArgumentNullException">Thrown if <paramref name="onNext"/> is null.</exception>
         public ValueTask<IAsyncDisposable> SubscribeAsync(Action<T> onNext, CancellationToken cancellationToken = default)
         {
+#if NET8_0_OR_GREATER
+            ArgumentNullException.ThrowIfNull(onNext, nameof(onNext));
+#else
             if (onNext is null)
             {
                 throw new ArgumentNullException(nameof(onNext));
             }
+#endif
 
             var observer = new AnonymousObserverAsync<T>((x, _) =>
             {
@@ -103,6 +112,10 @@ public static partial class ObservableAsync
             Action<Result>? onCompleted = null,
             CancellationToken cancellationToken = default)
         {
+#if NET8_0_OR_GREATER
+            ArgumentNullException.ThrowIfNull(onNext, nameof(onNext));
+            ArgumentNullException.ThrowIfNull(source, nameof(source));
+#else
             if (onNext is null)
             {
                 throw new ArgumentNullException(nameof(onNext));
@@ -112,6 +125,7 @@ public static partial class ObservableAsync
             {
                 throw new ArgumentNullException(nameof(source));
             }
+#endif
 
             static ValueTask OnErrorResumeAsync(Exception e, Action<Exception>? onErrorResume)
             {
@@ -177,6 +191,10 @@ public static partial class ObservableAsync
         /// <exception cref="ArgumentNullException">Thrown if the underlying source is null.</exception>
         public ValueTask<IAsyncDisposable> SubscribeAsync(Func<T, CancellationToken, ValueTask> onNextAsync, CancellationToken cancellationToken)
         {
+#if NET8_0_OR_GREATER
+            ArgumentNullException.ThrowIfNull(source, nameof(source));
+            ArgumentNullException.ThrowIfNull(onNextAsync, nameof(onNextAsync));
+#else
             if (source is null)
             {
                 throw new ArgumentNullException(nameof(source));
@@ -186,6 +204,7 @@ public static partial class ObservableAsync
             {
                 throw new ArgumentNullException(nameof(onNextAsync), "Cannot subscribe with a null action for each element in the sequence.");
             }
+#endif
 
             var observer = new AnonymousObserverAsync<T>(onNextAsync);
             return source.SubscribeAsync(observer, cancellationToken);

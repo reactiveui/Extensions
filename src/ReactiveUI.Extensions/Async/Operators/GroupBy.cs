@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2019-2025 ReactiveUI Association Incorporated. All rights reserved.
+﻿// Copyright (c) 2019-2026 ReactiveUI Association Incorporated. All rights reserved.
 // ReactiveUI Association Incorporated licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
@@ -31,6 +31,10 @@ public static partial class ObservableAsync
     public static IObservableAsync<GroupedAsyncObservable<TKey, TValue>> GroupBy<TKey, TValue>(this IObservableAsync<TValue> source, Func<TValue, TKey> keySelector)
         where TKey : notnull
     {
+#if NET8_0_OR_GREATER
+        ArgumentNullException.ThrowIfNull(source, nameof(source));
+        ArgumentNullException.ThrowIfNull(keySelector, nameof(keySelector));
+#else
         if (source == null)
         {
             throw new ArgumentNullException(nameof(source));
@@ -40,6 +44,7 @@ public static partial class ObservableAsync
         {
             throw new ArgumentNullException(nameof(keySelector));
         }
+#endif
 
         return new GroupByAsyncObservable<TKey, TValue>(source, keySelector, static _ => SubjectAsync.Create<TValue>());
     }

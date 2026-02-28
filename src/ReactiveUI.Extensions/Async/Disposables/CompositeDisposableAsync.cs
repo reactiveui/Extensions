@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2019-2025 ReactiveUI Association Incorporated. All rights reserved.
+﻿// Copyright (c) 2019-2026 ReactiveUI Association Incorporated. All rights reserved.
 // ReactiveUI Association Incorporated licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
@@ -16,7 +16,11 @@ namespace ReactiveUI.Extensions.Async.Disposables;
 public sealed class CompositeDisposableAsync : IAsyncDisposable
 {
     private const int ShrinkThreshold = 64;
-    private readonly object _gate = new object();
+#if NET9_0_OR_GREATER
+    private readonly Lock _gate = new();
+#else
+    private readonly object _gate = new();
+#endif
     private List<IAsyncDisposable?> _list;
     private bool _isDisposed;
     private int _count;
@@ -33,10 +37,14 @@ public sealed class CompositeDisposableAsync : IAsyncDisposable
     /// <exception cref="ArgumentOutOfRangeException">Thrown when capacity is less than 0.</exception>
     public CompositeDisposableAsync(int capacity)
     {
+#if NET8_0_OR_GREATER
+        ArgumentOutOfRangeException.ThrowIfLessThan(capacity, 0, nameof(capacity));
+#else
         if (capacity < 0)
         {
             throw new ArgumentOutOfRangeException(nameof(capacity));
         }
+#endif
 
         _list = new(capacity);
     }
@@ -51,7 +59,7 @@ public sealed class CompositeDisposableAsync : IAsyncDisposable
     /// empty.</param>
     public CompositeDisposableAsync(params IAsyncDisposable[] disposables)
     {
-        _list = new(disposables);
+        _list = [.. disposables];
         _count = _list.Count;
     }
 
@@ -65,7 +73,7 @@ public sealed class CompositeDisposableAsync : IAsyncDisposable
     /// <param name="disposables">The collection of IAsyncDisposable instances to include in the composite. Cannot be null.</param>
     public CompositeDisposableAsync(IEnumerable<IAsyncDisposable> disposables)
     {
-        _list = new(disposables);
+        _list = [.. disposables];
         _count = _list.Count;
     }
 
@@ -98,10 +106,14 @@ public sealed class CompositeDisposableAsync : IAsyncDisposable
     /// was added; otherwise, it represents the asynchronous disposal of the item.</returns>
     public ValueTask AddAsync(IAsyncDisposable item)
     {
+#if NET8_0_OR_GREATER
+        ArgumentNullException.ThrowIfNull(item, nameof(item));
+#else
         if (item is null)
         {
             throw new ArgumentNullException(nameof(item));
         }
+#endif
 
         lock (_gate)
         {
@@ -126,10 +138,14 @@ public sealed class CompositeDisposableAsync : IAsyncDisposable
     /// was found and removed; otherwise, <see langword="false"/>.</returns>
     public async ValueTask<bool> Remove(IAsyncDisposable item)
     {
+#if NET8_0_OR_GREATER
+        ArgumentNullException.ThrowIfNull(item, nameof(item));
+#else
         if (item is null)
         {
             throw new ArgumentNullException(nameof(item));
         }
+#endif
 
         lock (_gate)
         {
