@@ -25,14 +25,7 @@ public readonly record struct Result
     /// <exception cref="ArgumentNullException">Thrown if <paramref name="exception"/> is null.</exception>
     public Result(Exception exception)
     {
-#if NET8_0_OR_GREATER
-        ArgumentNullException.ThrowIfNull(exception, nameof(exception));
-#else
-        if (exception == null)
-        {
-            throw new ArgumentNullException(nameof(exception));
-        }
-#endif
+        ArgumentExceptionHelper.ThrowIfNull(exception, nameof(exception));
 
         Exception = exception;
     }

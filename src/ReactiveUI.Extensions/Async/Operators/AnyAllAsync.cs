@@ -53,14 +53,7 @@ public static partial class ObservableAsync
         /// <exception cref="ArgumentNullException">Thrown if <paramref name="predicate"/> is <see langword="null"/>.</exception>
         public async ValueTask<bool> AllAsync(Func<T, bool> predicate, CancellationToken cancellationToken = default)
         {
-#if NET8_0_OR_GREATER
-            ArgumentNullException.ThrowIfNull(predicate);
-#else
-            if (predicate is null)
-            {
-                throw new ArgumentNullException(nameof(predicate));
-            }
-#endif
+            ArgumentExceptionHelper.ThrowIfNull(predicate);
 
             var observer = new AllAsyncObserver<T>(predicate, cancellationToken);
             _ = await @this.SubscribeAsync(observer, cancellationToken);

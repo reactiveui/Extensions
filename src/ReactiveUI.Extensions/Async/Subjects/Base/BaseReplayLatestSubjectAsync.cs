@@ -159,14 +159,7 @@ public abstract class BaseReplayLatestSubjectAsync<T>(Optional<T> startValue) : 
     /// completed, returns an empty disposable.</returns>
     protected override async ValueTask<IAsyncDisposable> SubscribeAsyncCore(IObserverAsync<T> observer, CancellationToken cancellationToken)
     {
-#if NET8_0_OR_GREATER
-        ArgumentNullException.ThrowIfNull(observer);
-#else
-        if (observer == null)
-        {
-            throw new ArgumentNullException(nameof(observer));
-        }
-#endif
+        ArgumentExceptionHelper.ThrowIfNull(observer);
 
         cancellationToken.ThrowIfCancellationRequested();
         Result? result;

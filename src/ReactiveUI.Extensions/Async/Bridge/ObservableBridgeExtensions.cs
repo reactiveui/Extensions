@@ -35,14 +35,7 @@ public static class ObservableBridgeExtensions
     /// <exception cref="ArgumentNullException">Thrown if <paramref name="source"/> is null.</exception>
     public static IObservableAsync<T> ToObservableAsync<T>(this IObservable<T> source)
     {
-#if NET8_0_OR_GREATER
-        ArgumentNullException.ThrowIfNull(source, nameof(source));
-#else
-        if (source is null)
-        {
-            throw new ArgumentNullException(nameof(source));
-        }
-#endif
+        ArgumentExceptionHelper.ThrowIfNull(source, nameof(source));
 
         return new ObservableToObservableAsync<T>(source);
     }
@@ -64,14 +57,7 @@ public static class ObservableBridgeExtensions
     /// <exception cref="ArgumentNullException">Thrown if <paramref name="source"/> is null.</exception>
     public static IObservable<T> ToObservable<T>(this IObservableAsync<T> source)
     {
-#if NET8_0_OR_GREATER
-        ArgumentNullException.ThrowIfNull(source, nameof(source));
-#else
-        if (source is null)
-        {
-            throw new ArgumentNullException(nameof(source));
-        }
-#endif
+        ArgumentExceptionHelper.ThrowIfNull(source, nameof(source));
 
         return new ObservableAsyncToObservable<T>(source);
     }
@@ -179,14 +165,7 @@ public static class ObservableBridgeExtensions
     {
         public IDisposable Subscribe(IObserver<T> observer)
         {
-#if NET8_0_OR_GREATER
-            ArgumentNullException.ThrowIfNull(observer, nameof(observer));
-#else
-            if (observer is null)
-            {
-                throw new ArgumentNullException(nameof(observer));
-            }
-#endif
+            ArgumentExceptionHelper.ThrowIfNull(observer, nameof(observer));
 
             var cts = new CancellationTokenSource();
             var asyncObserver = new BridgeAsyncObserver(observer);

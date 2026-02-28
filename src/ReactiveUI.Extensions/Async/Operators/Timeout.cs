@@ -54,18 +54,13 @@ public static partial class ObservableAsync
         /// <exception cref="ArgumentNullException">Thrown if <paramref name="fallback"/> is null.</exception>
         public IObservableAsync<T> Timeout(TimeSpan timeout, IObservableAsync<T> fallback, TimeProvider? timeProvider = null)
         {
+            ArgumentExceptionHelper.ThrowIfNull(fallback, nameof(fallback));
 #if NET8_0_OR_GREATER
             ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(timeout, TimeSpan.Zero, nameof(timeout));
-            ArgumentNullException.ThrowIfNull(fallback, nameof(fallback));
 #else
             if (timeout <= TimeSpan.Zero)
             {
                 throw new ArgumentOutOfRangeException(nameof(timeout));
-            }
-
-            if (fallback is null)
-            {
-                throw new ArgumentNullException(nameof(fallback));
             }
 #endif
 

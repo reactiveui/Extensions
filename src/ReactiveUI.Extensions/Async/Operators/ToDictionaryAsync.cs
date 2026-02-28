@@ -32,14 +32,7 @@ public static partial class ObservableAsync
         public async ValueTask<Dictionary<TKey, T>> ToDictionaryAsync<TKey>(Func<T, TKey> keySelector, IEqualityComparer<TKey>? comparer = null, CancellationToken cancellationToken = default)
             where TKey : notnull
         {
-#if NET8_0_OR_GREATER
-            ArgumentNullException.ThrowIfNull(keySelector, nameof(keySelector));
-#else
-            if (keySelector is null)
-            {
-                throw new ArgumentNullException(nameof(keySelector));
-            }
-#endif
+            ArgumentExceptionHelper.ThrowIfNull(keySelector, nameof(keySelector));
 
             var observer = new ToDictionaryAsyncObserver<T, TKey, T>(keySelector, x => x, comparer, cancellationToken);
             _ = await @this.SubscribeAsync(observer, cancellationToken);
@@ -65,20 +58,8 @@ public static partial class ObservableAsync
         public async ValueTask<Dictionary<TKey, TValue>> ToDictionaryAsync<TKey, TValue>(Func<T, TKey> keySelector, Func<T, TValue> elementSelector, IEqualityComparer<TKey>? comparer = null, CancellationToken cancellationToken = default)
             where TKey : notnull
         {
-#if NET8_0_OR_GREATER
-            ArgumentNullException.ThrowIfNull(keySelector, nameof(keySelector));
-            ArgumentNullException.ThrowIfNull(elementSelector, nameof(elementSelector));
-#else
-            if (keySelector is null)
-            {
-                throw new ArgumentNullException(nameof(keySelector));
-            }
-
-            if (elementSelector is null)
-            {
-                throw new ArgumentNullException(nameof(elementSelector));
-            }
-#endif
+            ArgumentExceptionHelper.ThrowIfNull(keySelector, nameof(keySelector));
+            ArgumentExceptionHelper.ThrowIfNull(elementSelector, nameof(elementSelector));
 
             var observer = new ToDictionaryAsyncObserver<T, TKey, TValue>(keySelector, elementSelector, comparer, cancellationToken);
             _ = await @this.SubscribeAsync(observer, cancellationToken);

@@ -29,14 +29,7 @@ public static partial class ObservableAsync
     /// <exception cref="ArgumentNullException">Thrown if <paramref name="factory"/> is null.</exception>
     public static IObservableAsync<T> FromAsync<T>(Func<CancellationToken, ValueTask<T>> factory)
     {
-#if NET8_0_OR_GREATER
-        ArgumentNullException.ThrowIfNull(factory);
-#else
-        if (factory is null)
-        {
-            throw new ArgumentNullException(nameof(factory));
-        }
-#endif
+        ArgumentExceptionHelper.ThrowIfNull(factory);
 
         return CreateAsBackgroundJob<T>(
             async (obs, token) =>

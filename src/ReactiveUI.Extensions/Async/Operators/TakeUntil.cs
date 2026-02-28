@@ -33,20 +33,8 @@ public static partial class ObservableAsync
         /// <exception cref="ArgumentNullException">Thrown if either the source sequence or the other observable is null.</exception>
         public IObservableAsync<T> TakeUntil<TOther>(IObservableAsync<TOther> other, TakeUntilOptions? options = null)
         {
-#if NET8_0_OR_GREATER
-            ArgumentNullException.ThrowIfNull(source, nameof(source));
-            ArgumentNullException.ThrowIfNull(other, nameof(other));
-#else
-            if (source is null)
-            {
-                throw new ArgumentNullException(nameof(source));
-            }
-
-            if (other is null)
-            {
-                throw new ArgumentNullException(nameof(other));
-            }
-#endif
+            ArgumentExceptionHelper.ThrowIfNull(source, nameof(source));
+            ArgumentExceptionHelper.ThrowIfNull(other, nameof(other));
 
             return new TakeUntilAsyncObservable<T, TOther>(source, other, options ?? TakeUntilOptions.Default);
         }
@@ -62,14 +50,7 @@ public static partial class ObservableAsync
         /// <exception cref="ArgumentNullException">Thrown if the source observable is null.</exception>
         public IObservableAsync<T> TakeUntil(Task task, TakeUntilOptions? options = null)
         {
-#if NET8_0_OR_GREATER
-            ArgumentNullException.ThrowIfNull(source, nameof(source));
-#else
-            if (source is null)
-            {
-                throw new ArgumentNullException(nameof(source));
-            }
-#endif
+            ArgumentExceptionHelper.ThrowIfNull(source, nameof(source));
 
             return new TakeUntilTask<T>(source, task, options ?? TakeUntilOptions.Default);
         }
@@ -99,14 +80,7 @@ public static partial class ObservableAsync
         /// <exception cref="ArgumentNullException">Thrown if <paramref name="predicate"/> is null.</exception>
         public IObservableAsync<T> TakeUntil(Func<T, bool> predicate)
         {
-#if NET8_0_OR_GREATER
-            ArgumentNullException.ThrowIfNull(predicate, nameof(predicate));
-#else
-            if (predicate is null)
-            {
-                throw new ArgumentNullException(nameof(predicate));
-            }
-#endif
+            ArgumentExceptionHelper.ThrowIfNull(predicate, nameof(predicate));
 
             return new TakeUntilPredicate<T>(source, predicate);
         }
@@ -122,14 +96,7 @@ public static partial class ObservableAsync
         /// <exception cref="ArgumentNullException">Thrown if <paramref name="asyncPredicate"/> is null.</exception>
         public IObservableAsync<T> TakeUntil(Func<T, CancellationToken, ValueTask<bool>> asyncPredicate)
         {
-#if NET8_0_OR_GREATER
-            ArgumentNullException.ThrowIfNull(asyncPredicate, nameof(asyncPredicate));
-#else
-            if (asyncPredicate is null)
-            {
-                throw new ArgumentNullException(nameof(asyncPredicate));
-            }
-#endif
+            ArgumentExceptionHelper.ThrowIfNull(asyncPredicate, nameof(asyncPredicate));
 
             return new TakeUntilAsyncPredicate<T>(source, asyncPredicate);
         }
@@ -146,14 +113,7 @@ public static partial class ObservableAsync
         /// <exception cref="ArgumentNullException">Thrown if <paramref name="stopSignalSignal"/> is null.</exception>
         public IObservableAsync<T> TakeUntil(CompletionObservableDelegate stopSignalSignal, TakeUntilOptions? options = null)
         {
-#if NET8_0_OR_GREATER
-            ArgumentNullException.ThrowIfNull(stopSignalSignal, nameof(stopSignalSignal));
-#else
-            if (stopSignalSignal is null)
-            {
-                throw new ArgumentNullException(nameof(stopSignalSignal));
-            }
-#endif
+            ArgumentExceptionHelper.ThrowIfNull(stopSignalSignal, nameof(stopSignalSignal));
 
             return new TakeUntilFromRawSignal<T>(source, stopSignalSignal, options ?? TakeUntilOptions.Default);
         }

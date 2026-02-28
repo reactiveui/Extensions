@@ -24,14 +24,7 @@ public static partial class ObservableAsync
     /// each emission.</returns>
     public static IObservableAsync<T> Yield<T>(this IObservableAsync<T> @this)
     {
-#if NET8_0_OR_GREATER
-        ArgumentNullException.ThrowIfNull(@this, nameof(@this));
-#else
-        if (@this is null)
-        {
-            throw new ArgumentNullException(nameof(@this));
-        }
-#endif
+        ArgumentExceptionHelper.ThrowIfNull(@this, nameof(@this));
 
         return new YieldObservable<T>(@this);
     }

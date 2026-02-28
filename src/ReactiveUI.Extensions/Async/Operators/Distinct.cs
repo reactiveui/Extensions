@@ -78,20 +78,8 @@ public static partial class ObservableAsync
         /// <exception cref="ArgumentNullException">Thrown if <paramref name="keySelector"/> or <paramref name="equalityComparer"/> is null.</exception>
         public IObservableAsync<T> DistinctBy<TKey>(Func<T, TKey> keySelector, IEqualityComparer<TKey> equalityComparer)
         {
-#if NET8_0_OR_GREATER
-            ArgumentNullException.ThrowIfNull(keySelector, nameof(keySelector));
-            ArgumentNullException.ThrowIfNull(equalityComparer, nameof(equalityComparer));
-#else
-            if (keySelector is null)
-            {
-                throw new ArgumentNullException(nameof(keySelector));
-            }
-
-            if (equalityComparer is null)
-            {
-                throw new ArgumentNullException(nameof(equalityComparer));
-            }
-#endif
+            ArgumentExceptionHelper.ThrowIfNull(keySelector, nameof(keySelector));
+            ArgumentExceptionHelper.ThrowIfNull(equalityComparer, nameof(equalityComparer));
 
             return Create<T>(async (observer, subscribeToken) =>
             {

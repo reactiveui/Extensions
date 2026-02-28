@@ -34,20 +34,8 @@ public static partial class ObservableAsync
         /// <exception cref="ArgumentNullException">Thrown if the source sequence or <paramref name="handler"/> is null.</exception>
         public IObservableAsync<T> Catch(Func<Exception, IObservableAsync<T>> handler, Func<Exception, CancellationToken, ValueTask>? onErrorResume = null)
         {
-#if NET8_0_OR_GREATER
-            ArgumentNullException.ThrowIfNull(source, nameof(source));
-            ArgumentNullException.ThrowIfNull(handler, nameof(handler));
-#else
-            if (source is null)
-            {
-                throw new ArgumentNullException(nameof(source));
-            }
-
-            if (handler is null)
-            {
-                throw new ArgumentNullException(nameof(handler));
-            }
-#endif
+            ArgumentExceptionHelper.ThrowIfNull(source, nameof(source));
+            ArgumentExceptionHelper.ThrowIfNull(handler, nameof(handler));
 
             return Create<T>(async (observer, cancellationToken) =>
             {

@@ -23,14 +23,7 @@ public static class SubjectMixins
     /// <returns>An asynchronous observer that forwards notifications to the specified subject.</returns>
     public static IObserverAsync<T> AsObserverAsync<T>(this ISubjectAsync<T> subject)
     {
-#if NET8_0_OR_GREATER
-        ArgumentNullException.ThrowIfNull(subject, nameof(subject));
-#else
-        if (subject == null)
-        {
-            throw new ArgumentNullException(nameof(subject));
-        }
-#endif
+        ArgumentExceptionHelper.ThrowIfNull(subject, nameof(subject));
 
         return new SubjectAsyncObserver<T>(subject);
     }
@@ -49,20 +42,8 @@ public static class SubjectMixins
     /// <returns>A subject that emits values transformed by the specified mapping function.</returns>
     public static ISubjectAsync<T> MapValues<T>(this ISubjectAsync<T> @this, Func<IObservableAsync<T>, IObservableAsync<T>> mapper)
     {
-#if NET8_0_OR_GREATER
-        ArgumentNullException.ThrowIfNull(@this, nameof(@this));
-        ArgumentNullException.ThrowIfNull(mapper, nameof(mapper));
-#else
-        if (@this == null)
-        {
-            throw new ArgumentNullException(nameof(@this));
-        }
-
-        if (mapper == null)
-        {
-            throw new ArgumentNullException(nameof(mapper));
-        }
-#endif
+        ArgumentExceptionHelper.ThrowIfNull(@this, nameof(@this));
+        ArgumentExceptionHelper.ThrowIfNull(mapper, nameof(mapper));
 
         return new MappedSubject<T>(@this, mapper);
     }

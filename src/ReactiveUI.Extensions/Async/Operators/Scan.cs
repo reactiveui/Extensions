@@ -28,14 +28,7 @@ public static partial class ObservableAsync
         /// <exception cref="ArgumentNullException">Thrown if <paramref name="accumulator"/> is null.</exception>
         public IObservableAsync<TAcc> Scan<TAcc>(TAcc seed, Func<TAcc, T, CancellationToken, ValueTask<TAcc>> accumulator)
         {
-#if NET8_0_OR_GREATER
-            ArgumentNullException.ThrowIfNull(accumulator);
-#else
-            if (accumulator is null)
-            {
-                throw new ArgumentNullException(nameof(accumulator));
-            }
-#endif
+            ArgumentExceptionHelper.ThrowIfNull(accumulator);
 
             return Create<TAcc>(async (observer, subscribeToken) =>
             {
@@ -63,14 +56,7 @@ public static partial class ObservableAsync
         /// <exception cref="ArgumentNullException">Thrown if <paramref name="accumulator"/> is null.</exception>
         public IObservableAsync<TAcc> Scan<TAcc>(TAcc seed, Func<TAcc, T, TAcc> accumulator)
         {
-#if NET8_0_OR_GREATER
-            ArgumentNullException.ThrowIfNull(accumulator);
-#else
-            if (accumulator is null)
-            {
-                throw new ArgumentNullException(nameof(accumulator));
-            }
-#endif
+            ArgumentExceptionHelper.ThrowIfNull(accumulator);
 
             return Create<TAcc>(async (observer, subscribeToken) =>
             {

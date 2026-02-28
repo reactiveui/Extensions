@@ -58,14 +58,7 @@ public static partial class ObservableAsync
 
     private static IObservableAsync<T> CreateAsBackgroundJob<T>(Func<IObserverAsync<T>, CancellationToken, ValueTask> job, bool startSynchronously, TaskScheduler? taskScheduler)
     {
-#if NET8_0_OR_GREATER
-        ArgumentNullException.ThrowIfNull(job, nameof(job));
-#else
-        if (job is null)
-        {
-            throw new ArgumentNullException(nameof(job));
-        }
-#endif
+        ArgumentExceptionHelper.ThrowIfNull(job, nameof(job));
 
         if (startSynchronously)
         {

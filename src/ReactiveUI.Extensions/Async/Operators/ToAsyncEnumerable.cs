@@ -35,20 +35,8 @@ public static partial class ObservableAsync
         Func<Channel<T>> channelFactory,
         Func<Exception, CancellationToken, ValueTask>? onErrorResume = null)
     {
-#if NET8_0_OR_GREATER
-        ArgumentNullException.ThrowIfNull(@this, nameof(@this));
-        ArgumentNullException.ThrowIfNull(channelFactory, nameof(channelFactory));
-#else
-        if (@this is null)
-        {
-            throw new ArgumentNullException(nameof(@this));
-        }
-
-        if (channelFactory is null)
-        {
-            throw new ArgumentNullException(nameof(channelFactory));
-        }
-#endif
+        ArgumentExceptionHelper.ThrowIfNull(@this, nameof(@this));
+        ArgumentExceptionHelper.ThrowIfNull(channelFactory, nameof(channelFactory));
 
         return Impl(@this, channelFactory, onErrorResume);
 

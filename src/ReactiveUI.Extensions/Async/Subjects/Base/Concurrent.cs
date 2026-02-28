@@ -31,14 +31,7 @@ public static class Concurrent
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static ValueTask ForwardOnNextConcurrently<T>(IReadOnlyList<IObserverAsync<T>> observers, T value, CancellationToken cancellationToken)
     {
-#if NET8_0_OR_GREATER
-        ArgumentNullException.ThrowIfNull(observers, nameof(observers));
-#else
-        if (observers is null)
-        {
-            throw new ArgumentNullException(nameof(observers));
-        }
-#endif
+        ArgumentExceptionHelper.ThrowIfNull(observers, nameof(observers));
 
         if (observers.Count == 0)
         {
@@ -64,14 +57,7 @@ public static class Concurrent
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static ValueTask ForwardOnErrorResumeConcurrently<T>(IReadOnlyList<IObserverAsync<T>> observers, Exception error, CancellationToken cancellationToken)
     {
-#if NET8_0_OR_GREATER
-        ArgumentNullException.ThrowIfNull(observers, nameof(observers));
-#else
-        if (observers is null)
-        {
-            throw new ArgumentNullException(nameof(observers));
-        }
-#endif
+        ArgumentExceptionHelper.ThrowIfNull(observers, nameof(observers));
 
         if (observers.Count == 0)
         {
@@ -97,14 +83,7 @@ public static class Concurrent
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static ValueTask ForwardOnCompletedConcurrently<T>(IReadOnlyList<IObserverAsync<T>> observers, Result result)
     {
-#if NET8_0_OR_GREATER
-        ArgumentNullException.ThrowIfNull(observers, nameof(observers));
-#else
-        if (observers is null)
-        {
-            throw new ArgumentNullException(nameof(observers));
-        }
-#endif
+        ArgumentExceptionHelper.ThrowIfNull(observers, nameof(observers));
 
         if (observers.Count == 0)
         {

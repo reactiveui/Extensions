@@ -133,14 +133,7 @@ public abstract class BaseSubjectAsync<T> : ObservableAsync<T>, ISubjectAsync<T>
     protected override async ValueTask<IAsyncDisposable> SubscribeAsyncCore(IObserverAsync<T> observer, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-#if NET8_0_OR_GREATER
-        ArgumentNullException.ThrowIfNull(observer, nameof(observer));
-#else
-        if (observer is null)
-        {
-            throw new ArgumentNullException(nameof(observer));
-        }
-#endif
+        ArgumentExceptionHelper.ThrowIfNull(observer, nameof(observer));
 
         Result? result;
 

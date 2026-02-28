@@ -60,14 +60,7 @@ public record AsyncContext
     /// <exception cref="ArgumentNullException">Thrown if synchronizationContext is null.</exception>
     public static AsyncContext From(SynchronizationContext synchronizationContext)
     {
-#if NET8_0_OR_GREATER
-        ArgumentNullException.ThrowIfNull(synchronizationContext, nameof(synchronizationContext));
-#else
-        if (synchronizationContext is null)
-        {
-            throw new ArgumentNullException(nameof(synchronizationContext));
-        }
-#endif
+        ArgumentExceptionHelper.ThrowIfNull(synchronizationContext, nameof(synchronizationContext));
 
         return new()
         {
@@ -85,14 +78,7 @@ public record AsyncContext
     /// <exception cref="ArgumentNullException">Thrown if taskScheduler is null.</exception>
     public static AsyncContext From(TaskScheduler taskScheduler)
     {
-#if NET8_0_OR_GREATER
-        ArgumentNullException.ThrowIfNull(taskScheduler, nameof(taskScheduler));
-#else
-        if (taskScheduler is null)
-        {
-            throw new ArgumentNullException(nameof(taskScheduler));
-        }
-#endif
+        ArgumentExceptionHelper.ThrowIfNull(taskScheduler, nameof(taskScheduler));
 
         return new()
         {
@@ -112,14 +98,7 @@ public record AsyncContext
     /// <exception cref="ArgumentNullException">Thrown if scheduler is null.</exception>
     public static AsyncContext From(IScheduler scheduler)
     {
-#if NET8_0_OR_GREATER
-        ArgumentNullException.ThrowIfNull(scheduler, nameof(scheduler));
-#else
-        if (scheduler is null)
-        {
-            throw new ArgumentNullException(nameof(scheduler));
-        }
-#endif
+        ArgumentExceptionHelper.ThrowIfNull(scheduler, nameof(scheduler));
 
         if (scheduler is SynchronizationContext sc)
         {
@@ -203,14 +182,7 @@ public record AsyncContext
         /// <param name="continuation">The action to execute when the operation is complete. Cannot be null.</param>
         public void OnCompleted(Action continuation)
         {
-#if NET8_0_OR_GREATER
-            ArgumentNullException.ThrowIfNull(continuation, nameof(continuation));
-#else
-            if (continuation is null)
-            {
-                throw new ArgumentNullException(nameof(continuation));
-            }
-#endif
+            ArgumentExceptionHelper.ThrowIfNull(continuation, nameof(continuation));
 
             if (CancellationToken.IsCancellationRequested)
             {

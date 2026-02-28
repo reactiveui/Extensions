@@ -24,14 +24,7 @@ public static partial class ObservableAsync
         /// <exception cref="ArgumentNullException">Thrown if <paramref name="predicate"/> is null.</exception>
         public IObservableAsync<T> SkipWhile(Func<T, CancellationToken, ValueTask<bool>> predicate)
         {
-#if NET8_0_OR_GREATER
-            ArgumentNullException.ThrowIfNull(predicate);
-#else
-            if (predicate is null)
-            {
-                throw new ArgumentNullException(nameof(predicate));
-            }
-#endif
+            ArgumentExceptionHelper.ThrowIfNull(predicate);
 
             return Create<T>(async (observer, subscribeToken) =>
             {
@@ -68,14 +61,7 @@ public static partial class ObservableAsync
         /// <exception cref="ArgumentNullException">Thrown if <paramref name="predicate"/> is null.</exception>
         public IObservableAsync<T> SkipWhile(Func<T, bool> predicate)
         {
-#if NET8_0_OR_GREATER
-            ArgumentNullException.ThrowIfNull(predicate);
-#else
-            if (predicate is null)
-            {
-                throw new ArgumentNullException(nameof(predicate));
-            }
-#endif
+            ArgumentExceptionHelper.ThrowIfNull(predicate);
 
             return Create<T>(async (observer, subscribeToken) =>
             {

@@ -26,14 +26,7 @@ public static partial class ObservableAsync
         /// <exception cref="ArgumentNullException">Thrown if <paramref name="predicate"/> is null.</exception>
         public IObservableAsync<T> TakeWhile(Func<T, CancellationToken, ValueTask<bool>> predicate)
         {
-#if NET8_0_OR_GREATER
-            ArgumentNullException.ThrowIfNull(predicate, nameof(predicate));
-#else
-            if (predicate is null)
-            {
-                throw new ArgumentNullException(nameof(predicate));
-            }
-#endif
+            ArgumentExceptionHelper.ThrowIfNull(predicate, nameof(predicate));
 
             return Create<T>(async (observer, subscribeToken) =>
                 await @this.SubscribeAsync(
@@ -63,14 +56,7 @@ public static partial class ObservableAsync
         /// <exception cref="ArgumentNullException">Thrown if <paramref name="predicate"/> is null.</exception>
         public IObservableAsync<T> TakeWhile(Func<T, bool> predicate)
         {
-#if NET8_0_OR_GREATER
-            ArgumentNullException.ThrowIfNull(predicate, nameof(predicate));
-#else
-            if (predicate is null)
-            {
-                throw new ArgumentNullException(nameof(predicate));
-            }
-#endif
+            ArgumentExceptionHelper.ThrowIfNull(predicate, nameof(predicate));
 
             return Create<T>(async (observer, subscribeToken) =>
                 await @this.SubscribeAsync(

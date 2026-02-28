@@ -70,10 +70,7 @@ internal static class AsyncTestHelpers
         TimeSpan? pollInterval = null)
     {
         ArgumentNullException.ThrowIfNull(condition);
-        if (timeout < TimeSpan.Zero)
-        {
-            throw new ArgumentOutOfRangeException(nameof(timeout));
-        }
+        ArgumentOutOfRangeException.ThrowIfLessThan(timeout, TimeSpan.Zero);
 
         var interval = pollInterval ?? TimeSpan.FromMilliseconds(10);
         var deadline = DateTime.UtcNow.Add(timeout);

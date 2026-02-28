@@ -31,26 +31,9 @@ public static partial class ObservableAsync
         IObservableAsync<T2> second,
         Func<T1, T2, TResult> resultSelector)
     {
-#if NET8_0_OR_GREATER
-        ArgumentNullException.ThrowIfNull(first, nameof(first));
-        ArgumentNullException.ThrowIfNull(second, nameof(second));
-        ArgumentNullException.ThrowIfNull(resultSelector, nameof(resultSelector));
-#else
-        if (first is null)
-        {
-            throw new ArgumentNullException(nameof(first));
-        }
-
-        if (second is null)
-        {
-            throw new ArgumentNullException(nameof(second));
-        }
-
-        if (resultSelector is null)
-        {
-            throw new ArgumentNullException(nameof(resultSelector));
-        }
-#endif
+        ArgumentExceptionHelper.ThrowIfNull(first, nameof(first));
+        ArgumentExceptionHelper.ThrowIfNull(second, nameof(second));
+        ArgumentExceptionHelper.ThrowIfNull(resultSelector, nameof(resultSelector));
 
         return new ZipObservable<T1, T2, TResult>(first, second, resultSelector);
     }

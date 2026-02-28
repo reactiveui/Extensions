@@ -106,14 +106,7 @@ public sealed class CompositeDisposableAsync : IAsyncDisposable
     /// was added; otherwise, it represents the asynchronous disposal of the item.</returns>
     public ValueTask AddAsync(IAsyncDisposable item)
     {
-#if NET8_0_OR_GREATER
-        ArgumentNullException.ThrowIfNull(item, nameof(item));
-#else
-        if (item is null)
-        {
-            throw new ArgumentNullException(nameof(item));
-        }
-#endif
+        ArgumentExceptionHelper.ThrowIfNull(item, nameof(item));
 
         lock (_gate)
         {
@@ -138,14 +131,7 @@ public sealed class CompositeDisposableAsync : IAsyncDisposable
     /// was found and removed; otherwise, <see langword="false"/>.</returns>
     public async ValueTask<bool> Remove(IAsyncDisposable item)
     {
-#if NET8_0_OR_GREATER
-        ArgumentNullException.ThrowIfNull(item, nameof(item));
-#else
-        if (item is null)
-        {
-            throw new ArgumentNullException(nameof(item));
-        }
-#endif
+        ArgumentExceptionHelper.ThrowIfNull(item, nameof(item));
 
         lock (_gate)
         {

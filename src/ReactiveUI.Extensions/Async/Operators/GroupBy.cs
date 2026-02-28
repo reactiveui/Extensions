@@ -31,20 +31,8 @@ public static partial class ObservableAsync
     public static IObservableAsync<GroupedAsyncObservable<TKey, TValue>> GroupBy<TKey, TValue>(this IObservableAsync<TValue> source, Func<TValue, TKey> keySelector)
         where TKey : notnull
     {
-#if NET8_0_OR_GREATER
-        ArgumentNullException.ThrowIfNull(source, nameof(source));
-        ArgumentNullException.ThrowIfNull(keySelector, nameof(keySelector));
-#else
-        if (source == null)
-        {
-            throw new ArgumentNullException(nameof(source));
-        }
-
-        if (keySelector == null)
-        {
-            throw new ArgumentNullException(nameof(keySelector));
-        }
-#endif
+        ArgumentExceptionHelper.ThrowIfNull(source, nameof(source));
+        ArgumentExceptionHelper.ThrowIfNull(keySelector, nameof(keySelector));
 
         return new GroupByAsyncObservable<TKey, TValue>(source, keySelector, static _ => SubjectAsync.Create<TValue>());
     }

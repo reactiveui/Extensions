@@ -116,14 +116,7 @@ public abstract class BaseStatelessReplayLastSubjectAsync<T>(Optional<T> startVa
     {
         cancellationToken.ThrowIfCancellationRequested();
 
-#if NET8_0_OR_GREATER
-        ArgumentNullException.ThrowIfNull(observer);
-#else
-        if (observer is null)
-        {
-            throw new ArgumentNullException(nameof(observer));
-        }
-#endif
+        ArgumentExceptionHelper.ThrowIfNull(observer);
 
         var disposable = DisposableAsync.Create(async () =>
         {

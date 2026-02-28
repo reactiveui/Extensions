@@ -26,14 +26,7 @@ public static partial class ObservableAsync
     /// <exception cref="ArgumentNullException">Thrown if <paramref name="error"/> is null.</exception>
     public static IObservableAsync<T> Throw<T>(Exception error)
     {
-#if NET8_0_OR_GREATER
-        ArgumentNullException.ThrowIfNull(error, nameof(error));
-#else
-        if (error == null)
-        {
-            throw new ArgumentNullException(nameof(error));
-        }
-#endif
+        ArgumentExceptionHelper.ThrowIfNull(error, nameof(error));
 
         return new ObservableAsyncThrow<T>(error);
     }

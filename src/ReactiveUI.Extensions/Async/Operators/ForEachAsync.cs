@@ -50,14 +50,7 @@ public static partial class ObservableAsync
         /// <exception cref="ArgumentNullException">Thrown if <paramref name="onNext"/> is null.</exception>
         public async ValueTask ForEachAsync(Action<T> onNext, CancellationToken cancellationToken = default)
         {
-#if NET8_0_OR_GREATER
-            ArgumentNullException.ThrowIfNull(onNext, nameof(onNext));
-#else
-            if (onNext is null)
-            {
-                throw new ArgumentNullException(nameof(onNext));
-            }
-#endif
+            ArgumentExceptionHelper.ThrowIfNull(onNext, nameof(onNext));
 
             var observer = new ForEachObserverSync<T>(onNext, cancellationToken);
             await @this.SubscribeAsync(observer, cancellationToken);

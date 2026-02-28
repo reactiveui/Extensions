@@ -48,14 +48,7 @@ public static class ReactiveExtensions
     /// <returns>An observable sequence producing the shared DateTime ticks.</returns>
     public static IObservable<DateTime> SyncTimer(TimeSpan timeSpan, IScheduler scheduler)
     {
-#if NET8_0_OR_GREATER
-        ArgumentNullException.ThrowIfNull(scheduler, nameof(scheduler));
-#else
-        if (scheduler == null)
-        {
-            throw new ArgumentNullException(nameof(scheduler));
-        }
-#endif
+        ArgumentExceptionHelper.ThrowIfNull(scheduler, nameof(scheduler));
 
         var lazy = _timerList.GetOrAdd(
             (timeSpan, scheduler),
@@ -464,14 +457,7 @@ public static class ReactiveExtensions
     /// <returns>A sequence of task results.</returns>
     public static IObservable<T> WithLimitedConcurrency<T>(this IEnumerable<Task<T>> taskFunctions, int maxConcurrency)
     {
-#if NET8_0_OR_GREATER
-        ArgumentNullException.ThrowIfNull(taskFunctions, nameof(taskFunctions));
-#else
-        if (taskFunctions == null)
-        {
-            throw new ArgumentNullException(nameof(taskFunctions));
-        }
-#endif
+        ArgumentExceptionHelper.ThrowIfNull(taskFunctions, nameof(taskFunctions));
 
         return new ConcurrencyLimiter<T>(taskFunctions, maxConcurrency).IObservable;
     }
@@ -617,14 +603,7 @@ public static class ReactiveExtensions
     /// <returns>Disposable for the scheduled action.</returns>
     public static IDisposable ScheduleSafe(this IScheduler? scheduler, Action action)
     {
-#if NET8_0_OR_GREATER
-        ArgumentNullException.ThrowIfNull(action, nameof(action));
-#else
-        if (action == null)
-        {
-            throw new ArgumentNullException(nameof(action));
-        }
-#endif
+        ArgumentExceptionHelper.ThrowIfNull(action, nameof(action));
 
         if (scheduler == null)
         {
@@ -644,14 +623,7 @@ public static class ReactiveExtensions
     /// <returns>Disposable for the scheduled action.</returns>
     public static IDisposable ScheduleSafe(this IScheduler? scheduler, TimeSpan dueTime, Action action)
     {
-#if NET8_0_OR_GREATER
-        ArgumentNullException.ThrowIfNull(action, nameof(action));
-#else
-        if (action == null)
-        {
-            throw new ArgumentNullException(nameof(action));
-        }
-#endif
+        ArgumentExceptionHelper.ThrowIfNull(action, nameof(action));
 
         if (scheduler == null)
         {
@@ -1328,14 +1300,7 @@ public static class ReactiveExtensions
         this IObservable<T> source,
         T initialValue)
     {
-#if NET8_0_OR_GREATER
-        ArgumentNullException.ThrowIfNull(source, nameof(source));
-#else
-        if (source is null)
-        {
-            throw new ArgumentNullException(nameof(source));
-        }
-#endif
+        ArgumentExceptionHelper.ThrowIfNull(source, nameof(source));
 
         var subject = new BehaviorSubject<T>(initialValue);
         source.Subscribe(subject);
@@ -1449,14 +1414,7 @@ public static class ReactiveExtensions
         Expression<Func<T, TProperty>> propertyExpression)
         where T : INotifyPropertyChanged
     {
-#if NET8_0_OR_GREATER
-        ArgumentNullException.ThrowIfNull(propertyExpression, nameof(propertyExpression));
-#else
-        if (propertyExpression is null)
-        {
-            throw new ArgumentNullException(nameof(propertyExpression));
-        }
-#endif
+        ArgumentExceptionHelper.ThrowIfNull(propertyExpression, nameof(propertyExpression));
 
         var member = (propertyExpression.Body as MemberExpression)
             ?? throw new ArgumentException("Expression must be a property");
