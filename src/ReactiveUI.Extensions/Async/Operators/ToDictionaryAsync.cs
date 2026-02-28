@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2025 ReactiveUI Association Incorporated. All rights reserved.
+// Copyright (c) 2019-2026 ReactiveUI Association Incorporated. All rights reserved.
 // ReactiveUI Association Incorporated licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
@@ -32,10 +32,7 @@ public static partial class ObservableAsync
         public async ValueTask<Dictionary<TKey, T>> ToDictionaryAsync<TKey>(Func<T, TKey> keySelector, IEqualityComparer<TKey>? comparer = null, CancellationToken cancellationToken = default)
             where TKey : notnull
         {
-            if (keySelector is null)
-            {
-                throw new ArgumentNullException(nameof(keySelector));
-            }
+            ArgumentExceptionHelper.ThrowIfNull(keySelector, nameof(keySelector));
 
             var observer = new ToDictionaryAsyncObserver<T, TKey, T>(keySelector, x => x, comparer, cancellationToken);
             _ = await @this.SubscribeAsync(observer, cancellationToken);
@@ -61,15 +58,8 @@ public static partial class ObservableAsync
         public async ValueTask<Dictionary<TKey, TValue>> ToDictionaryAsync<TKey, TValue>(Func<T, TKey> keySelector, Func<T, TValue> elementSelector, IEqualityComparer<TKey>? comparer = null, CancellationToken cancellationToken = default)
             where TKey : notnull
         {
-            if (keySelector is null)
-            {
-                throw new ArgumentNullException(nameof(keySelector));
-            }
-
-            if (elementSelector is null)
-            {
-                throw new ArgumentNullException(nameof(elementSelector));
-            }
+            ArgumentExceptionHelper.ThrowIfNull(keySelector, nameof(keySelector));
+            ArgumentExceptionHelper.ThrowIfNull(elementSelector, nameof(elementSelector));
 
             var observer = new ToDictionaryAsyncObserver<T, TKey, TValue>(keySelector, elementSelector, comparer, cancellationToken);
             _ = await @this.SubscribeAsync(observer, cancellationToken);

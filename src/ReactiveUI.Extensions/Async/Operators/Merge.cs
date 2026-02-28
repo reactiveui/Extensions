@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2019-2025 ReactiveUI Association Incorporated. All rights reserved.
+﻿// Copyright (c) 2019-2026 ReactiveUI Association Incorporated. All rights reserved.
 // ReactiveUI Association Incorporated licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
@@ -472,10 +472,8 @@ public static partial class ObservableAsync
                 protected override ValueTask OnCompletedAsyncCore(Result result)
                     => parent.OnCompletedAsync(result);
 
-                protected override async ValueTask DisposeAsyncCore()
-                {
+                protected override async ValueTask DisposeAsyncCore() =>
                     await parent._innerDisposables.Remove(this);
-                }
             }
         }
     }

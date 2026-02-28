@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2025 ReactiveUI Association Incorporated. All rights reserved.
+// Copyright (c) 2019-2026 ReactiveUI Association Incorporated. All rights reserved.
 // ReactiveUI Association Incorporated licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
@@ -28,10 +28,14 @@ public static partial class ObservableAsync
         /// <exception cref="ArgumentOutOfRangeException">Thrown if <paramref name="timeout"/> is negative or zero.</exception>
         public IObservableAsync<T> Timeout(TimeSpan timeout, TimeProvider? timeProvider = null)
         {
+#if NET8_0_OR_GREATER
+            ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(timeout, TimeSpan.Zero, nameof(timeout));
+#else
             if (timeout <= TimeSpan.Zero)
             {
                 throw new ArgumentOutOfRangeException(nameof(timeout));
             }
+#endif
 
             return new TimeoutObservable<T>(@this, timeout, timeProvider ?? TimeProvider.System);
         }
@@ -50,15 +54,15 @@ public static partial class ObservableAsync
         /// <exception cref="ArgumentNullException">Thrown if <paramref name="fallback"/> is null.</exception>
         public IObservableAsync<T> Timeout(TimeSpan timeout, IObservableAsync<T> fallback, TimeProvider? timeProvider = null)
         {
+            ArgumentExceptionHelper.ThrowIfNull(fallback, nameof(fallback));
+#if NET8_0_OR_GREATER
+            ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(timeout, TimeSpan.Zero, nameof(timeout));
+#else
             if (timeout <= TimeSpan.Zero)
             {
                 throw new ArgumentOutOfRangeException(nameof(timeout));
             }
-
-            if (fallback is null)
-            {
-                throw new ArgumentNullException(nameof(fallback));
-            }
+#endif
 
             return new TimeoutWithFallbackObservable<T>(@this, timeout, fallback, timeProvider ?? TimeProvider.System);
         }
@@ -76,7 +80,11 @@ public static partial class ObservableAsync
 
         private sealed class TimeoutObserver(IObserverAsync<T> observer, TimeSpan timeout, TimeProvider timeProvider) : ObserverAsync<T>
         {
+#if NET9_0_OR_GREATER
+            private readonly Lock _gate = new();
+#else
             private readonly object _gate = new();
+#endif
             private CancellationTokenSource? _timerCts;
             private long _id;
             private bool _completed;

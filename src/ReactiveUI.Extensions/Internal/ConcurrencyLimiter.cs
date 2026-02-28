@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2019-2025 ReactiveUI Association Incorporated. All rights reserved.
+﻿// Copyright (c) 2019-2026 ReactiveUI Association Incorporated. All rights reserved.
 // ReactiveUI Association Incorporated licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
@@ -6,7 +6,11 @@ namespace ReactiveUI.Extensions.Internal;
 
 internal class ConcurrencyLimiter<T>
 {
-    private readonly object _locker = new();
+#if NET9_0_OR_GREATER
+    private readonly Lock _gate = new();
+#else
+    private readonly object _gate = new();
+#endif
     private readonly object _disposalLocker = new();
     private bool _disposed;
     private int _outstanding;
@@ -75,7 +79,7 @@ internal class ConcurrencyLimiter<T>
     /// <param name="decendantTask">The decendant Task.</param>
     private void ProcessTaskCompletion(IObserver<T> observer, Task<T> decendantTask)
     {
-        lock (_locker)
+        lock (_gate)
         {
             if (Disposed || decendantTask.IsFaulted || decendantTask.IsCanceled)
             {
@@ -106,7 +110,7 @@ internal class ConcurrencyLimiter<T>
     /// <param name="observer">The observer.</param>
     private void PullNextTask(IObserver<T> observer)
     {
-        lock (_locker)
+        lock (_gate)
         {
             if (Disposed)
             {

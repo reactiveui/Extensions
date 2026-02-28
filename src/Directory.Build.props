@@ -20,7 +20,6 @@
     <Platform>AnyCPU</Platform>
     <IsTestProject>$(MSBuildProjectName.EndsWith('.Tests'))</IsTestProject>
     <DebugType>embedded</DebugType>
-    <NoWarn>$(NoWarn);SA1010</NoWarn>
     <WarningsAsErrors>Nullable</WarningsAsErrors>
     <!-- Enable building Windows-specific targets on non-Windows platforms -->
     <EnableWindowsTargeting>true</EnableWindowsTargeting>

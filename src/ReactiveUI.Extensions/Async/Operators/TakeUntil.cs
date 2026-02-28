@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2019-2025 ReactiveUI Association Incorporated. All rights reserved.
+﻿// Copyright (c) 2019-2026 ReactiveUI Association Incorporated. All rights reserved.
 // ReactiveUI Association Incorporated licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
@@ -33,15 +33,8 @@ public static partial class ObservableAsync
         /// <exception cref="ArgumentNullException">Thrown if either the source sequence or the other observable is null.</exception>
         public IObservableAsync<T> TakeUntil<TOther>(IObservableAsync<TOther> other, TakeUntilOptions? options = null)
         {
-            if (source is null)
-            {
-                throw new ArgumentNullException(nameof(source));
-            }
-
-            if (other is null)
-            {
-                throw new ArgumentNullException(nameof(other));
-            }
+            ArgumentExceptionHelper.ThrowIfNull(source, nameof(source));
+            ArgumentExceptionHelper.ThrowIfNull(other, nameof(other));
 
             return new TakeUntilAsyncObservable<T, TOther>(source, other, options ?? TakeUntilOptions.Default);
         }
@@ -57,10 +50,7 @@ public static partial class ObservableAsync
         /// <exception cref="ArgumentNullException">Thrown if the source observable is null.</exception>
         public IObservableAsync<T> TakeUntil(Task task, TakeUntilOptions? options = null)
         {
-            if (source is null)
-            {
-                throw new ArgumentNullException(nameof(source));
-            }
+            ArgumentExceptionHelper.ThrowIfNull(source, nameof(source));
 
             return new TakeUntilTask<T>(source, task, options ?? TakeUntilOptions.Default);
         }
@@ -74,10 +64,8 @@ public static partial class ObservableAsync
         /// <param name="cancellationToken">A cancellation token that, when canceled, will terminate the resulting observable sequence.</param>
         /// <returns>An observable sequence that completes when the provided cancellation token is canceled or when the source
         /// sequence completes.</returns>
-        public IObservableAsync<T> TakeUntil(CancellationToken cancellationToken)
-        {
-            return new TakeUntilCancellationToken<T>(source, cancellationToken);
-        }
+        public IObservableAsync<T> TakeUntil(CancellationToken cancellationToken) =>
+            new TakeUntilCancellationToken<T>(source, cancellationToken);
 
         /// <summary>
         /// Returns a sequence that emits elements from the source until the specified predicate returns true for an
@@ -92,10 +80,7 @@ public static partial class ObservableAsync
         /// <exception cref="ArgumentNullException">Thrown if <paramref name="predicate"/> is null.</exception>
         public IObservableAsync<T> TakeUntil(Func<T, bool> predicate)
         {
-            if (predicate is null)
-            {
-                throw new ArgumentNullException(nameof(predicate));
-            }
+            ArgumentExceptionHelper.ThrowIfNull(predicate, nameof(predicate));
 
             return new TakeUntilPredicate<T>(source, predicate);
         }
@@ -111,10 +96,7 @@ public static partial class ObservableAsync
         /// <exception cref="ArgumentNullException">Thrown if <paramref name="asyncPredicate"/> is null.</exception>
         public IObservableAsync<T> TakeUntil(Func<T, CancellationToken, ValueTask<bool>> asyncPredicate)
         {
-            if (asyncPredicate is null)
-            {
-                throw new ArgumentNullException(nameof(asyncPredicate));
-            }
+            ArgumentExceptionHelper.ThrowIfNull(asyncPredicate, nameof(asyncPredicate));
 
             return new TakeUntilAsyncPredicate<T>(source, asyncPredicate);
         }
@@ -131,10 +113,7 @@ public static partial class ObservableAsync
         /// <exception cref="ArgumentNullException">Thrown if <paramref name="stopSignalSignal"/> is null.</exception>
         public IObservableAsync<T> TakeUntil(CompletionObservableDelegate stopSignalSignal, TakeUntilOptions? options = null)
         {
-            if (stopSignalSignal is null)
-            {
-                throw new ArgumentNullException(nameof(stopSignalSignal));
-            }
+            ArgumentExceptionHelper.ThrowIfNull(stopSignalSignal, nameof(stopSignalSignal));
 
             return new TakeUntilFromRawSignal<T>(source, stopSignalSignal, options ?? TakeUntilOptions.Default);
         }

@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2019-2025 ReactiveUI Association Incorporated. All rights reserved.
+﻿// Copyright (c) 2019-2026 ReactiveUI Association Incorporated. All rights reserved.
 // ReactiveUI Association Incorporated licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
@@ -8,7 +8,11 @@ namespace ReactiveUI.Extensions.Async.Internals;
 
 internal class AsyncGate : IDisposable
 {
+#if NET9_0_OR_GREATER
+    private readonly Lock _gate = new();
+#else
     private readonly object _gate = new();
+#endif
     private readonly SemaphoreSlim _semaphore = new(1, 1);
     private readonly AsyncLocal<int> _recursionCount = new();
     private bool _disposedValue;

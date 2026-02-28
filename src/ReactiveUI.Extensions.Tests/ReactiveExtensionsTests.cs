@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2025 ReactiveUI Association Incorporated. All rights reserved.
+// Copyright (c) 2019-2026 ReactiveUI Association Incorporated. All rights reserved.
 // ReactiveUI Association Incorporated licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
@@ -1068,15 +1068,21 @@ public class ReactiveExtensionsTests
             ex => caughtException = ex);
 
         subject.OnNext(1);
+
+        var onNextProcessed = await AsyncTestHelpers.WaitForConditionAsync(
+            () => results.Count == 1,
+            TimeSpan.FromSeconds(5));
+
         subject.OnError(new InvalidOperationException());
 
-        var resultReceived = await AsyncTestHelpers.WaitForConditionAsync(
-            () => results.Count == 1 && caughtException != null,
+        var errorReceived = await AsyncTestHelpers.WaitForConditionAsync(
+            () => caughtException != null,
             TimeSpan.FromSeconds(5));
 
         using (Assert.Multiple())
         {
-            await Assert.That(resultReceived).IsTrue();
+            await Assert.That(onNextProcessed).IsTrue();
+            await Assert.That(errorReceived).IsTrue();
             await Assert.That(results).IsEquivalentTo([1]);
             await Assert.That(caughtException).IsNotNull();
         }

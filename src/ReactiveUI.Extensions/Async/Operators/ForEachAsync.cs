@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2025 ReactiveUI Association Incorporated. All rights reserved.
+// Copyright (c) 2019-2026 ReactiveUI Association Incorporated. All rights reserved.
 // ReactiveUI Association Incorporated licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
@@ -50,10 +50,7 @@ public static partial class ObservableAsync
         /// <exception cref="ArgumentNullException">Thrown if <paramref name="onNext"/> is null.</exception>
         public async ValueTask ForEachAsync(Action<T> onNext, CancellationToken cancellationToken = default)
         {
-            if (onNext is null)
-            {
-                throw new ArgumentNullException(nameof(onNext));
-            }
+            ArgumentExceptionHelper.ThrowIfNull(onNext, nameof(onNext));
 
             var observer = new ForEachObserverSync<T>(onNext, cancellationToken);
             await @this.SubscribeAsync(observer, cancellationToken);

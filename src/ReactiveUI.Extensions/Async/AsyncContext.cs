@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2019-2025 ReactiveUI Association Incorporated. All rights reserved.
+﻿// Copyright (c) 2019-2026 ReactiveUI Association Incorporated. All rights reserved.
 // ReactiveUI Association Incorporated licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
@@ -60,10 +60,7 @@ public record AsyncContext
     /// <exception cref="ArgumentNullException">Thrown if synchronizationContext is null.</exception>
     public static AsyncContext From(SynchronizationContext synchronizationContext)
     {
-        if (synchronizationContext is null)
-        {
-            throw new ArgumentNullException(nameof(synchronizationContext));
-        }
+        ArgumentExceptionHelper.ThrowIfNull(synchronizationContext, nameof(synchronizationContext));
 
         return new()
         {
@@ -81,10 +78,7 @@ public record AsyncContext
     /// <exception cref="ArgumentNullException">Thrown if taskScheduler is null.</exception>
     public static AsyncContext From(TaskScheduler taskScheduler)
     {
-        if (taskScheduler is null)
-        {
-            throw new ArgumentNullException(nameof(taskScheduler));
-        }
+        ArgumentExceptionHelper.ThrowIfNull(taskScheduler, nameof(taskScheduler));
 
         return new()
         {
@@ -104,10 +98,7 @@ public record AsyncContext
     /// <exception cref="ArgumentNullException">Thrown if scheduler is null.</exception>
     public static AsyncContext From(IScheduler scheduler)
     {
-        if (scheduler is null)
-        {
-            throw new ArgumentNullException(nameof(scheduler));
-        }
+        ArgumentExceptionHelper.ThrowIfNull(scheduler, nameof(scheduler));
 
         if (scheduler is SynchronizationContext sc)
         {
@@ -191,10 +182,7 @@ public record AsyncContext
         /// <param name="continuation">The action to execute when the operation is complete. Cannot be null.</param>
         public void OnCompleted(Action continuation)
         {
-            if (continuation is null)
-            {
-                throw new ArgumentNullException(nameof(continuation));
-            }
+            ArgumentExceptionHelper.ThrowIfNull(continuation, nameof(continuation));
 
             if (CancellationToken.IsCancellationRequested)
             {

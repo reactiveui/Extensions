@@ -83,7 +83,7 @@ dotnet test ReactiveUI.Extensions.sln
   - `ReactiveUI.Extensions.sln` - Solution file
 
 ## Important Notes
-- Target frameworks: .NET Standard 2.0, .NET 8, .NET 9, .NET 10
+- Target frameworks: net462, net472, net481, .NET 8, .NET 9, .NET 10
 - Uses StyleCop and Roslynator analyzers for code quality
 - Nullable reference types are enabled
 - Documentation XML files are generated

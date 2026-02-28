@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2025 ReactiveUI Association Incorporated. All rights reserved.
+// Copyright (c) 2019-2026 ReactiveUI Association Incorporated. All rights reserved.
 // ReactiveUI Association Incorporated licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
@@ -26,10 +26,7 @@ public static partial class ObservableAsync
         /// <exception cref="ArgumentNullException">Thrown if <paramref name="selector"/> is null.</exception>
         public IObservableAsync<TResult> SelectMany<TResult>(Func<T, IObservableAsync<TResult>> selector)
         {
-            if (selector is null)
-            {
-                throw new ArgumentNullException(nameof(selector));
-            }
+            ArgumentExceptionHelper.ThrowIfNull(selector, nameof(selector));
 
             return @this.Select((x, _) => new ValueTask<IObservableAsync<TResult>>(selector(x))).Merge();
         }
@@ -46,10 +43,7 @@ public static partial class ObservableAsync
         /// <exception cref="ArgumentNullException">Thrown if <paramref name="selector"/> is null.</exception>
         public IObservableAsync<TResult> SelectMany<TResult>(Func<T, CancellationToken, ValueTask<IObservableAsync<TResult>>> selector)
         {
-            if (selector is null)
-            {
-                throw new ArgumentNullException(nameof(selector));
-            }
+            ArgumentExceptionHelper.ThrowIfNull(selector, nameof(selector));
 
             return @this.Select(selector).Merge();
         }
@@ -74,15 +68,8 @@ public static partial class ObservableAsync
             Func<T, IObservableAsync<TCollection>> collectionSelector,
             Func<T, TCollection, TResult> resultSelector)
         {
-            if (collectionSelector is null)
-            {
-                throw new ArgumentNullException(nameof(collectionSelector));
-            }
-
-            if (resultSelector is null)
-            {
-                throw new ArgumentNullException(nameof(resultSelector));
-            }
+            ArgumentExceptionHelper.ThrowIfNull(collectionSelector, nameof(collectionSelector));
+            ArgumentExceptionHelper.ThrowIfNull(resultSelector, nameof(resultSelector));
 
             return @this.SelectMany(source =>
                 collectionSelector(source).Select(collection => resultSelector(source, collection)));

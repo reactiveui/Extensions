@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2025 ReactiveUI Association Incorporated. All rights reserved.
+// Copyright (c) 2019-2026 ReactiveUI Association Incorporated. All rights reserved.
 // ReactiveUI Association Incorporated licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
@@ -32,10 +32,14 @@ public static partial class ObservableAsync
         /// <exception cref="ArgumentOutOfRangeException">Thrown if <paramref name="count"/> is less than zero.</exception>
         public IObservableAsync<T> Take(int count)
         {
+#if NET8_0_OR_GREATER
+            ArgumentOutOfRangeException.ThrowIfNegative(count, nameof(count));
+#else
             if (count < 0)
             {
                 throw new ArgumentOutOfRangeException(nameof(count));
             }
+#endif
 
             return Create<T>(async (observer, subscribeToken) =>
             {

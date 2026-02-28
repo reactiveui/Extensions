@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2025 ReactiveUI Association Incorporated. All rights reserved.
+// Copyright (c) 2019-2026 ReactiveUI Association Incorporated. All rights reserved.
 // ReactiveUI Association Incorporated licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
@@ -35,10 +35,7 @@ public static class ObservableBridgeExtensions
     /// <exception cref="ArgumentNullException">Thrown if <paramref name="source"/> is null.</exception>
     public static IObservableAsync<T> ToObservableAsync<T>(this IObservable<T> source)
     {
-        if (source is null)
-        {
-            throw new ArgumentNullException(nameof(source));
-        }
+        ArgumentExceptionHelper.ThrowIfNull(source, nameof(source));
 
         return new ObservableToObservableAsync<T>(source);
     }
@@ -60,10 +57,7 @@ public static class ObservableBridgeExtensions
     /// <exception cref="ArgumentNullException">Thrown if <paramref name="source"/> is null.</exception>
     public static IObservable<T> ToObservable<T>(this IObservableAsync<T> source)
     {
-        if (source is null)
-        {
-            throw new ArgumentNullException(nameof(source));
-        }
+        ArgumentExceptionHelper.ThrowIfNull(source, nameof(source));
 
         return new ObservableAsyncToObservable<T>(source);
     }
@@ -73,6 +67,7 @@ public static class ObservableBridgeExtensions
     /// </summary>
     private sealed class ObservableToObservableAsync<T>(IObservable<T> source) : ObservableAsync<T>
     {
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Reliability", "CA2000:Dispose objects before losing scope", Justification = "Disposed by the async disposable returned to the caller")]
         protected override ValueTask<IAsyncDisposable> SubscribeAsyncCore(IObserverAsync<T> observer, CancellationToken cancellationToken)
         {
             if (cancellationToken.IsCancellationRequested)
@@ -95,7 +90,11 @@ public static class ObservableBridgeExtensions
         /// </summary>
         private sealed class BridgeObserver(IObserverAsync<T> observer, CancellationToken cancellationToken) : IObserver<T>
         {
+#if NET9_0_OR_GREATER
+            private readonly Lock _gate = new();
+#else
             private readonly object _gate = new();
+#endif
             private readonly Queue<Action> _queue = new();
             private bool _busy;
 
@@ -166,16 +165,13 @@ public static class ObservableBridgeExtensions
     {
         public IDisposable Subscribe(IObserver<T> observer)
         {
-            if (observer is null)
-            {
-                throw new ArgumentNullException(nameof(observer));
-            }
+            ArgumentExceptionHelper.ThrowIfNull(observer, nameof(observer));
 
             var cts = new CancellationTokenSource();
             var asyncObserver = new BridgeAsyncObserver(observer);
             var subscriptionTask = SubscribeAndCaptureAsync(asyncObserver, cts.Token);
 
-            return System.Reactive.Disposables.Disposable.Create(() =>
+            return Disposable.Create(() =>
             {
                 cts.Cancel();
 
@@ -192,10 +188,7 @@ public static class ObservableBridgeExtensions
                     else
                     {
                         var subscription = task.GetAwaiter().GetResult();
-                        if (subscription is not null)
-                        {
-                            subscription.DisposeAsync().AsTask().GetAwaiter().GetResult();
-                        }
+                        subscription?.DisposeAsync().AsTask().GetAwaiter().GetResult();
                     }
                 }
                 catch (OperationCanceledException)

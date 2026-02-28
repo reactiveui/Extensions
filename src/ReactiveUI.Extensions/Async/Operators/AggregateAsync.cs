@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2025 ReactiveUI Association Incorporated. All rights reserved.
+// Copyright (c) 2019-2026 ReactiveUI Association Incorporated. All rights reserved.
 // ReactiveUI Association Incorporated licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
@@ -29,10 +29,7 @@ public static partial class ObservableAsync
         /// <exception cref="ArgumentNullException">Thrown if <paramref name="accumulator"/> is null.</exception>
         public async ValueTask<TAcc> AggregateAsync<TAcc>(TAcc seed, Func<TAcc, T, CancellationToken, ValueTask<TAcc>> accumulator, CancellationToken cancellationToken = default)
         {
-            if (accumulator is null)
-            {
-                throw new ArgumentNullException(nameof(accumulator));
-            }
+            ArgumentExceptionHelper.ThrowIfNull(accumulator);
 
             var observer = new AggregateAsyncObserver<T, TAcc>(seed, accumulator, cancellationToken);
             _ = await @this.SubscribeAsync(observer, cancellationToken);
@@ -52,10 +49,7 @@ public static partial class ObservableAsync
         /// <exception cref="ArgumentNullException">Thrown if <paramref name="accumulator"/> is null.</exception>
         public ValueTask<TAcc> AggregateAsync<TAcc>(TAcc seed, Func<TAcc, T, TAcc> accumulator, CancellationToken cancellationToken = default)
         {
-            if (accumulator is null)
-            {
-                throw new ArgumentNullException(nameof(accumulator));
-            }
+            ArgumentExceptionHelper.ThrowIfNull(accumulator);
 
             return @this.AggregateAsync(seed, (acc, x, _) => new ValueTask<TAcc>(accumulator(acc, x)), cancellationToken);
         }
@@ -75,15 +69,8 @@ public static partial class ObservableAsync
         /// <paramref name="resultSelector"/> is null.</exception>
         public async ValueTask<TResult> AggregateAsync<TAcc, TResult>(TAcc seed, Func<TAcc, T, TAcc> accumulator, Func<TAcc, TResult> resultSelector, CancellationToken cancellationToken = default)
         {
-            if (accumulator is null)
-            {
-                throw new ArgumentNullException(nameof(accumulator));
-            }
-
-            if (resultSelector is null)
-            {
-                throw new ArgumentNullException(nameof(resultSelector));
-            }
+            ArgumentExceptionHelper.ThrowIfNull(accumulator);
+            ArgumentExceptionHelper.ThrowIfNull(resultSelector);
 
             var acc = await @this.AggregateAsync(seed, accumulator, cancellationToken);
             return resultSelector(acc);
@@ -94,9 +81,9 @@ public static partial class ObservableAsync
     {
         private TAcc _acc = seed;
 
-        protected override async ValueTask OnNextAsyncCore(T value, CancellationToken ct) => _acc = await accumulator(_acc, value, ct);
+        protected override async ValueTask OnNextAsyncCore(T value, CancellationToken cancellationToken) => _acc = await accumulator(_acc, value, cancellationToken);
 
-        protected override ValueTask OnErrorResumeAsyncCore(Exception error, CancellationToken ct) => TrySetException(error);
+        protected override ValueTask OnErrorResumeAsyncCore(Exception error, CancellationToken cancellationToken) => TrySetException(error);
 
         protected override ValueTask OnCompletedAsyncCore(Result result) =>
             result.IsSuccess ? TrySetCompleted(_acc) : TrySetException(result.Exception);
