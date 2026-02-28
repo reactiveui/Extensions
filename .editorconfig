@@ -438,6 +438,7 @@ dotnet_diagnostic.RCS1264.severity = error # Use 'var' or explicit type (replace
 ###################
 dotnet_diagnostic.RCS1018.severity = error # Add/remove accessibility modifiers
 dotnet_diagnostic.RCS1037.severity = error # Remove trailing white-space
+dotnet_diagnostic.RCS1047.severity = none 
 dotnet_diagnostic.RCS1055.severity = error # Unnecessary semicolon at the end of declaration
 dotnet_diagnostic.RCS1078.severity = error # Use "" or 'string.Empty'
 dotnet_diagnostic.RCS1085.severity = error # Use auto-implemented property
