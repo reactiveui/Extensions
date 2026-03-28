@@ -281,6 +281,31 @@ public class ReactiveExtensionsTests
     }
 
     /// <summary>
+    /// Tests BufferUntil emits remaining buffered content when the source completes before the end delimiter.
+    /// </summary>
+    [Test]
+    public async Task BufferUntil_WhenSourceCompletesWithPartialBuffer_EmitsRemainingContent()
+    {
+        using var subject = new Subject<char>();
+        var results = new List<string>();
+        var completed = false;
+        using var sub = subject.BufferUntil('<', '>').Subscribe(results.Add, () => completed = true);
+
+        subject.OnNext('x');
+        subject.OnNext('<');
+        subject.OnNext('a');
+        subject.OnNext('b');
+        subject.OnCompleted();
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(results).Count().IsEqualTo(1);
+            await Assert.That(results[0]).IsEqualTo("<ab");
+            await Assert.That(completed).IsTrue();
+        }
+    }
+
+    /// <summary>
     /// Tests CatchIgnore without error action.
     /// </summary>
     [Test]
@@ -437,6 +462,34 @@ public class ReactiveExtensionsTests
     }
 
     /// <summary>
+    /// Tests Conflate completes after a pending delayed update has been emitted.
+    /// </summary>
+    [Test]
+    public async Task Conflate_WithPendingDelayedUpdate_CompletesAfterFlush()
+    {
+        var scheduler = new TestScheduler();
+        var subject = new Subject<int>();
+        var results = new List<int>();
+        var completed = false;
+        using var sub = subject.Conflate(TimeSpan.FromTicks(100), scheduler)
+            .Subscribe(results.Add, () => completed = true);
+
+        subject.OnNext(1);
+        subject.OnNext(2);
+        subject.OnCompleted();
+
+        await Assert.That(completed).IsFalse();
+
+        scheduler.AdvanceBy(100);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(results).IsEquivalentTo([2]);
+            await Assert.That(completed).IsTrue();
+        }
+    }
+
+    /// <summary>
     /// Tests Heartbeat injects heartbeats.
     /// </summary>
     [Test]
@@ -565,6 +618,28 @@ public class ReactiveExtensionsTests
         using var sub = ReactiveExtensions.Start(action, Scheduler.Immediate).Subscribe();
 
         await Assert.That(executed).IsTrue();
+    }
+
+    /// <summary>
+    /// Tests Start with function and null scheduler executes immediately.
+    /// </summary>
+    [Test]
+    public async Task Start_WithFunctionAndNullScheduler_ReturnsComputedValue()
+    {
+        var result = 0;
+
+        using var sub = ReactiveExtensions.Start(() => 21 * 2, scheduler: null)
+            .Subscribe(value => result = value);
+
+        var completed = await AsyncTestHelpers.WaitForConditionAsync(
+            () => result == 42,
+            TimeSpan.FromSeconds(5));
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(completed).IsTrue();
+            await Assert.That(result).IsEqualTo(42);
+        }
     }
 
     /// <summary>
@@ -1423,6 +1498,28 @@ public class ReactiveExtensionsTests
     }
 
     /// <summary>
+    /// Tests Using with action and null scheduler executes immediately.
+    /// </summary>
+    [Test]
+    public async Task Using_WithActionAndNullScheduler_ExecutesActionImmediately()
+    {
+        var executed = false;
+        using var disposable = System.Reactive.Disposables.Disposable.Create(() => { });
+
+        disposable.Using(d => executed = true, scheduler: null).Subscribe();
+
+        var completed = await AsyncTestHelpers.WaitForConditionAsync(
+            () => executed,
+            TimeSpan.FromSeconds(5));
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(completed).IsTrue();
+            await Assert.That(executed).IsTrue();
+        }
+    }
+
+    /// <summary>
     /// Tests Using with function transforms the value.
     /// </summary>
     [Test]
@@ -1449,6 +1546,38 @@ public class ReactiveExtensionsTests
             .Subscribe();
 
         await Assert.That(executed).IsTrue();
+    }
+
+    /// <summary>
+    /// Tests Schedule with observable, DateTimeOffset and action delays emission until the scheduler advances.
+    /// </summary>
+    [Test]
+    public async Task Schedule_WithObservableDateTimeOffsetAndAction_DelaysAndExecutesAction()
+    {
+        var scheduler = new TestScheduler();
+        var dueTime = scheduler.Now.AddTicks(100);
+        var subject = new Subject<int>();
+        var executed = false;
+        var results = new List<int>();
+
+        using var sub = subject.Schedule(dueTime, scheduler, value => executed = value == 42)
+            .Subscribe(results.Add);
+
+        subject.OnNext(42);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(executed).IsFalse();
+            await Assert.That(results).IsEmpty();
+        }
+
+        scheduler.AdvanceBy(100);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(executed).IsTrue();
+            await Assert.That(results).IsEquivalentTo([42]);
+        }
     }
 
     /// <summary>
@@ -2182,6 +2311,105 @@ public class ReactiveExtensionsTests
 
         falseScheduler.AdvanceBy(1);
         await Assert.That(results).IsEquivalentTo([1]);
+    }
+
+    /// <summary>
+    /// Tests ObserveOnIf with reactive condition routes notifications to both schedulers as the condition changes.
+    /// </summary>
+    [Test]
+    public async Task ObserveOnIf_WithReactiveCondition_ObservesOnMatchingScheduler()
+    {
+        var trueScheduler = new TestScheduler();
+        var falseScheduler = new TestScheduler();
+        var source = new Subject<int>();
+        var condition = new BehaviorSubject<bool>(false);
+        var results = new List<int>();
+
+        using var sub = source.ObserveOnIf(condition, trueScheduler, falseScheduler).Subscribe(results.Add);
+
+        source.OnNext(1);
+        await Assert.That(results).IsEmpty();
+
+        falseScheduler.AdvanceBy(1);
+        await Assert.That(results).IsEquivalentTo([1]);
+
+        condition.OnNext(true);
+        source.OnNext(2);
+
+        await Assert.That(results).IsEquivalentTo([1]);
+
+        trueScheduler.AdvanceBy(1);
+        await Assert.That(results).IsEquivalentTo([1, 2]);
+    }
+
+    /// <summary>
+    /// Tests ObserveOnIf with reactive condition and single scheduler observes only when condition is true.
+    /// </summary>
+    [Test]
+    public async Task ObserveOnIf_WithReactiveConditionAndSingleScheduler_ObservesOnlyWhenEnabled()
+    {
+        var scheduler = new TestScheduler();
+        var source = new Subject<int>();
+        var condition = new BehaviorSubject<bool>(false);
+        var results = new List<int>();
+
+        using var sub = source.ObserveOnIf(condition, scheduler).Subscribe(results.Add);
+
+        source.OnNext(1);
+        await Assert.That(results).IsEquivalentTo([1]);
+
+        condition.OnNext(true);
+        source.OnNext(2);
+
+        await Assert.That(results).IsEquivalentTo([1]);
+
+        scheduler.AdvanceBy(1);
+        await Assert.That(results).IsEquivalentTo([1, 2]);
+    }
+
+    /// <summary>
+    /// Tests SkipWhileNull emits values after the first non-null value, including later nulls.
+    /// </summary>
+    [Test]
+    public async Task SkipWhileNull_WhenFirstValueArrives_EmitsRemainingValues()
+    {
+        IObservable<string> source = Observable.Create<string>(observer =>
+        {
+            observer.OnNext(null!);
+            observer.OnNext(null!);
+            observer.OnNext("first");
+            observer.OnNext(null!);
+            observer.OnNext("second");
+            observer.OnCompleted();
+            return Disposable.Empty;
+        });
+        var results = new List<string>();
+
+        using var sub = source.SkipWhileNull().Subscribe(results.Add);
+
+        await Assert.That(results).IsEquivalentTo(new[] { "first", null, "second" });
+    }
+
+    /// <summary>
+    /// Tests LogErrors invokes the logger when the source faults.
+    /// </summary>
+    [Test]
+    public async Task LogErrors_WhenSourceErrors_InvokesLogger()
+    {
+        Exception? logged = null;
+        Exception? observed = null;
+        using var subject = new Subject<int>();
+        using var sub = subject.LogErrors(ex => logged = ex)
+            .Subscribe(_ => { }, ex => observed = ex);
+
+        var exception = new InvalidOperationException("boom");
+        subject.OnError(exception);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(logged).IsSameReferenceAs(exception);
+            await Assert.That(observed).IsSameReferenceAs(exception);
+        }
     }
 
     /// <summary>
