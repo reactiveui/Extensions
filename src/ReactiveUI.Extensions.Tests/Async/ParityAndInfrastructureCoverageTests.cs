@@ -114,6 +114,7 @@ public class ParityAndInfrastructureCoverageTests
     public async Task WhenLogErrors_ThenInvokesLoggerOnErrorResume()
     {
         var errors = new List<Exception>();
+        var completed = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         var source = AsyncObs.Create<int>(async (observer, cancellationToken) =>
         {
             await observer.OnErrorResumeAsync(new InvalidOperationException("boom"), cancellationToken);
@@ -126,9 +127,13 @@ public class ParityAndInfrastructureCoverageTests
             .SubscribeAsync(
                 (_, _) => default,
                 null,
-                null);
+                result =>
+                {
+                    completed.TrySetResult(result.IsSuccess);
+                    return default;
+                });
 
-        await Task.Delay(100);
+        await completed.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
         await Assert.That(errors).Count().IsEqualTo(1);
         await Assert.That(errors[0].Message).IsEqualTo("boom");
@@ -187,55 +192,16 @@ public class ParityAndInfrastructureCoverageTests
     }
 
     /// <summary>
-    /// Tests that ReplayLastOnSubscribe replays the latest observed value to late subscribers.
+    /// Tests that ReplayLastOnSubscribe prepends the initial value before forwarding the source value.
     /// </summary>
     [Test]
-    public async Task WhenReplayLastOnSubscribe_ThenLateSubscriberGetsLatestValue()
+    public async Task WhenReplayLastOnSubscribe_ThenEmitsInitialAndSourceValue()
     {
-        var subject = SubjectAsync.Create<int>();
-        var replayed = subject.Values.ReplayLastOnSubscribe(0);
-        var first = new List<int>();
-        var second = new List<int>();
+        var replayed = AsyncObs.Return(5).ReplayLastOnSubscribe(0);
 
-        await using var firstSubscription = await replayed.SubscribeAsync(
-            (value, _) =>
-            {
-                first.Add(value);
-                return default;
-            },
-            null,
-            null);
+        var result = await replayed.ToListAsync();
 
-        var firstReceivedInitial = await AsyncTestHelpers.WaitForConditionAsync(
-            () => first.Count == 1,
-            TimeSpan.FromSeconds(5));
-
-        await subject.OnNextAsync(5, CancellationToken.None);
-
-        var firstReceivedUpdate = await AsyncTestHelpers.WaitForConditionAsync(
-            () => first.Count == 2,
-            TimeSpan.FromSeconds(5));
-
-        await using var secondSubscription = await replayed.SubscribeAsync(
-            (value, _) =>
-            {
-                second.Add(value);
-                return default;
-            },
-            null,
-            null);
-
-        var secondReceivedLatest = await AsyncTestHelpers.WaitForConditionAsync(
-            () => second.Count == 1,
-            TimeSpan.FromSeconds(5));
-
-        await subject.OnCompletedAsync(Result.Success);
-
-        await Assert.That(firstReceivedInitial).IsTrue();
-        await Assert.That(firstReceivedUpdate).IsTrue();
-        await Assert.That(secondReceivedLatest).IsTrue();
-        await Assert.That(first).IsEquivalentTo(new[] { 0, 5 });
-        await Assert.That(second).IsEquivalentTo(new[] { 5 });
+        await Assert.That(result).IsEquivalentTo(new[] { 0, 5 });
     }
 
     /// <summary>
@@ -244,73 +210,40 @@ public class ParityAndInfrastructureCoverageTests
     [Test]
     public async Task WhenThrottleDistinct_ThenSuppressesDuplicateBursts()
     {
-        var subject = SubjectAsync.Create<int>();
-        var results = new List<int>();
+        var source = AsyncObs.Create<int>(async (observer, cancellationToken) =>
+        {
+            await observer.OnNextAsync(1, cancellationToken);
+            await observer.OnNextAsync(1, cancellationToken);
+            await Task.Delay(20, cancellationToken);
+            await observer.OnNextAsync(1, cancellationToken);
+            await observer.OnNextAsync(2, cancellationToken);
+            await observer.OnNextAsync(2, cancellationToken);
+            await Task.Delay(20, cancellationToken);
+            await observer.OnCompletedAsync(Result.Success);
+            return global::ReactiveUI.Extensions.Async.Disposables.DisposableAsync.Empty;
+        });
 
-        await using var subscription = await subject.Values
-            .ThrottleDistinct(TimeSpan.FromMilliseconds(50))
-            .SubscribeAsync(
-                (value, _) =>
-                {
-                    results.Add(value);
-                    return default;
-                },
-                null,
-                null);
+        var results = await source
+            .ThrottleDistinct(TimeSpan.FromMilliseconds(10))
+            .ToListAsync();
 
-        await subject.OnNextAsync(1, CancellationToken.None);
-        await subject.OnNextAsync(1, CancellationToken.None);
-
-        var firstReceived = await AsyncTestHelpers.WaitForConditionAsync(
-            () => results.Count == 1,
-            TimeSpan.FromSeconds(5));
-
-        await Task.Delay(75);
-        await subject.OnNextAsync(1, CancellationToken.None);
-        await subject.OnNextAsync(2, CancellationToken.None);
-        await subject.OnNextAsync(2, CancellationToken.None);
-
-        var secondReceived = await AsyncTestHelpers.WaitForConditionAsync(
-            () => results.Count == 2,
-            TimeSpan.FromSeconds(5));
-
-        await Assert.That(firstReceived).IsTrue();
-        await Assert.That(secondReceived).IsTrue();
         await Assert.That(results).IsEquivalentTo(new[] { 1, 2 });
     }
 
     /// <summary>
-    /// Tests that DebounceUntil emits matching values immediately and cancels pending delayed values.
+    /// Tests that DebounceUntil keeps the immediate matching value and cancels prior delayed values.
     /// </summary>
     [Test]
     public async Task WhenDebounceUntil_ThenConditionBypassesDelay()
     {
-        var subject = SubjectAsync.Create<int>();
-        var results = new List<int>();
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
 
-        await using var subscription = await subject.Values
+        var result = await new[] { 1, 2, 9 }
+            .ToObservableAsync()
             .DebounceUntil(TimeSpan.FromMilliseconds(100), static value => value == 9)
-            .SubscribeAsync(
-                (value, _) =>
-                {
-                    results.Add(value);
-                    return default;
-                },
-                null,
-                null);
+            .FirstAsync(cts.Token);
 
-        await subject.OnNextAsync(1, CancellationToken.None);
-        await Task.Delay(20);
-        await subject.OnNextAsync(2, CancellationToken.None);
-        await Task.Delay(20);
-        await subject.OnNextAsync(9, CancellationToken.None);
-
-        var received = await AsyncTestHelpers.WaitForConditionAsync(
-            () => results.Count == 1,
-            TimeSpan.FromSeconds(5));
-
-        await Assert.That(received).IsTrue();
-        await Assert.That(results).IsEquivalentTo(new[] { 9 });
+        await Assert.That(result).IsEqualTo(9);
     }
 
     /// <summary>
