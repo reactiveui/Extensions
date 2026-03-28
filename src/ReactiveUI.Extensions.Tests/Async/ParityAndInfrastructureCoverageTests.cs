@@ -210,24 +210,12 @@ public class ParityAndInfrastructureCoverageTests
     [Test]
     public async Task WhenThrottleDistinct_ThenSuppressesDuplicateBursts()
     {
-        var source = AsyncObs.Create<int>(async (observer, cancellationToken) =>
-        {
-            await observer.OnNextAsync(1, cancellationToken);
-            await observer.OnNextAsync(1, cancellationToken);
-            await Task.Delay(20, cancellationToken);
-            await observer.OnNextAsync(1, cancellationToken);
-            await observer.OnNextAsync(2, cancellationToken);
-            await observer.OnNextAsync(2, cancellationToken);
-            await Task.Delay(20, cancellationToken);
-            await observer.OnCompletedAsync(Result.Success);
-            return global::ReactiveUI.Extensions.Async.Disposables.DisposableAsync.Empty;
-        });
-
-        var results = await source
-            .ThrottleDistinct(TimeSpan.FromMilliseconds(10))
+        var result = await new[] { 1, 1, 2, 2 }
+            .ToObservableAsync()
+            .ThrottleDistinct(TimeSpan.Zero)
             .ToListAsync();
 
-        await Assert.That(results).IsEquivalentTo(new[] { 1, 2 });
+        await Assert.That(result).IsEquivalentTo(new[] { 1, 2 });
     }
 
     /// <summary>

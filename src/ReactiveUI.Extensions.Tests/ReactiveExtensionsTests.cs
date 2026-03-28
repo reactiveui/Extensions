@@ -1967,7 +1967,7 @@ public class ReactiveExtensionsTests
         var completed = false;
         var completionSource = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        subject.SubscribeAsync(
+        using var subscription = subject.SubscribeAsync(
             async v =>
             {
                 await Task.Delay(1);
@@ -1983,13 +1983,10 @@ public class ReactiveExtensionsTests
         subject.OnNext(2);
         subject.OnCompleted();
 
-        var completionReceived = await AsyncTestHelpers.WaitForConditionAsync(
-            () => completed && results.Count == 2,
-            TimeSpan.FromSeconds(5));
+        await completionSource.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
         using (Assert.Multiple())
         {
-            await Assert.That(completionReceived).IsTrue();
             await Assert.That(results).IsEquivalentTo([1, 2]);
             await Assert.That(completed).IsTrue();
         }
