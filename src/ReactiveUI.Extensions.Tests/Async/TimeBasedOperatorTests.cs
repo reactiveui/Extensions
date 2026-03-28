@@ -52,6 +52,8 @@ public class TimeBasedOperatorTests
     {
         var subject = SubjectAsync.Create<int>();
         var results = new List<int>();
+        var firstReceived = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var secondReceived = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 
         await using var sub = await subject.Values
             .Throttle(TimeSpan.FromMilliseconds(50))
@@ -59,22 +61,29 @@ public class TimeBasedOperatorTests
                 (x, _) =>
                 {
                     results.Add(x);
+
+                    if (results.Count == 1)
+                    {
+                        firstReceived.TrySetResult(true);
+                    }
+                    else if (results.Count == 2)
+                    {
+                        secondReceived.TrySetResult(true);
+                    }
+
                     return default;
                 },
                 null,
                 null);
 
         await subject.OnNextAsync(1, CancellationToken.None);
-        var firstReceived = await AsyncTestHelpers.WaitForConditionAsync(
-            () => results.Count == 1,
-            TimeSpan.FromSeconds(10));
-        await subject.OnNextAsync(2, CancellationToken.None);
-        var secondReceived = await AsyncTestHelpers.WaitForConditionAsync(
-            () => results.Count == 2,
-            TimeSpan.FromSeconds(10));
+        await firstReceived.Task.WaitAsync(TimeSpan.FromSeconds(10));
 
-        await Assert.That(firstReceived).IsTrue();
-        await Assert.That(secondReceived).IsTrue();
+        await Task.Delay(75);
+
+        await subject.OnNextAsync(2, CancellationToken.None);
+        await secondReceived.Task.WaitAsync(TimeSpan.FromSeconds(10));
+
         await Assert.That(results).IsEquivalentTo(new[] { 1, 2 });
     }
 

@@ -626,20 +626,9 @@ public class ReactiveExtensionsTests
     [Test]
     public async Task Start_WithFunctionAndNullScheduler_ReturnsComputedValue()
     {
-        var result = 0;
+        var result = await ReactiveExtensions.Start(() => 21 * 2, scheduler: null).ToTask();
 
-        using var sub = ReactiveExtensions.Start(() => 21 * 2, scheduler: null)
-            .Subscribe(value => result = value);
-
-        var completed = await AsyncTestHelpers.WaitForConditionAsync(
-            () => result == 42,
-            TimeSpan.FromSeconds(5));
-
-        using (Assert.Multiple())
-        {
-            await Assert.That(completed).IsTrue();
-            await Assert.That(result).IsEqualTo(42);
-        }
+        await Assert.That(result).IsEqualTo(42);
     }
 
     /// <summary>
@@ -1506,17 +1495,9 @@ public class ReactiveExtensionsTests
         var executed = false;
         using var disposable = System.Reactive.Disposables.Disposable.Create(() => { });
 
-        disposable.Using(d => executed = true, scheduler: null).Subscribe();
+        await disposable.Using(d => executed = true, scheduler: null).ToTask();
 
-        var completed = await AsyncTestHelpers.WaitForConditionAsync(
-            () => executed,
-            TimeSpan.FromSeconds(5));
-
-        using (Assert.Multiple())
-        {
-            await Assert.That(completed).IsTrue();
-            await Assert.That(executed).IsTrue();
-        }
+        await Assert.That(executed).IsTrue();
     }
 
     /// <summary>
