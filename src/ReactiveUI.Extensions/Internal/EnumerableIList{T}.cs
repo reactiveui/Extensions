@@ -4,8 +4,16 @@
 
 namespace ReactiveUI.Extensions.Internal;
 
+/// <summary>
+/// A lightweight struct wrapper around an <see cref="IList{T}"/> that provides index-based enumeration.
+/// </summary>
+/// <typeparam name="T">The type of elements in the list.</typeparam>
+/// <param name="list">The underlying list to wrap.</param>
 internal readonly struct EnumerableIList<T>(IList<T> list) : IEnumerableIList<T>, IList<T>
 {
+    /// <summary>
+    /// Gets an empty <see cref="EnumerableIList{T}"/> instance.
+    /// </summary>
     public static EnumerableIList<T> Empty { get; }
 
     /// <inheritdoc />
@@ -21,10 +29,22 @@ internal readonly struct EnumerableIList<T>(IList<T> list) : IEnumerableIList<T>
         set => list[index] = value;
     }
 
+    /// <summary>
+    /// Implicitly converts a <see cref="List{T}"/> to an <see cref="EnumerableIList{T}"/>.
+    /// </summary>
+    /// <param name="list">The list to convert.</param>
     public static implicit operator EnumerableIList<T>(List<T> list) => new(list);
 
+    /// <summary>
+    /// Implicitly converts an array to an <see cref="EnumerableIList{T}"/>.
+    /// </summary>
+    /// <param name="array">The array to convert.</param>
     public static implicit operator EnumerableIList<T>(T[] array) => new(array);
 
+    /// <summary>
+    /// Returns an index-based enumerator for the list.
+    /// </summary>
+    /// <returns>An <see cref="EnumeratorIList{T}"/> that iterates over the list.</returns>
     public EnumeratorIList<T> GetEnumerator() => new(list);
 
     /// <inheritdoc />
@@ -51,7 +71,9 @@ internal readonly struct EnumerableIList<T>(IList<T> list) : IEnumerableIList<T>
     /// <inheritdoc />
     public void RemoveAt(int index) => list.RemoveAt(index);
 
+    /// <inheritdoc />
     IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
 
+    /// <inheritdoc />
     IEnumerator<T> IEnumerable<T>.GetEnumerator() => GetEnumerator();
 }

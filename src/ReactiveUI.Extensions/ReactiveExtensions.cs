@@ -9,7 +9,9 @@ namespace ReactiveUI.Extensions;
 /// </summary>
 public static class ReactiveExtensions
 {
-    // Thread-safe cache of timers keyed by TimeSpan and scheduler. Ensures single shared timer per period.
+    /// <summary>
+    /// Thread-safe cache of timers keyed by TimeSpan and scheduler. Ensures a single shared timer per period.
+    /// </summary>
     private static readonly ConcurrentDictionary<(TimeSpan TimeSpan, IScheduler Scheduler), Lazy<IConnectableObservable<DateTime>>> _timerList = new();
 
     /// <summary>
@@ -1790,7 +1792,13 @@ public static class ReactiveExtensions
             });
         });
 
-    private static void FastForEach<T>(IObserver<T> observer, IEnumerable<T> source)
+    /// <summary>
+    /// Emits each element from the source collection to the observer using optimized iteration for known collection types.
+    /// </summary>
+    /// <typeparam name="T">The type of elements in the source collection.</typeparam>
+    /// <param name="observer">The observer to emit elements to.</param>
+    /// <param name="source">The source collection to iterate.</param>
+    internal static void FastForEach<T>(IObserver<T> observer, IEnumerable<T> source)
     {
         if (source is List<T> fullList)
         {

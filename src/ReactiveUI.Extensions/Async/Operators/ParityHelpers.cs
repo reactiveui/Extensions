@@ -160,6 +160,8 @@ public static partial class ObservableAsync
 
         /// <summary>
         /// Emits the latest value or the provided default value before the source produces its first value.
+        /// If the first source value equals <paramref name="defaultValue"/>, it will be suppressed by the
+        /// distinct-until-changed filter.
         /// </summary>
         /// <param name="defaultValue">The default value to emit first.</param>
         /// <returns>A sequence that starts with the provided default value and then emits distinct source updates.</returns>
@@ -205,7 +207,7 @@ public static partial class ObservableAsync
         }
 
         /// <summary>
-        /// Uses <see cref="ObserveOn(AsyncContext, bool)"/> only when a context is provided.
+        /// Uses ObserveOn only when a context is provided.
         /// </summary>
         /// <param name="asyncContext">The target async context, or <see langword="null"/> to leave the sequence unchanged.</param>
         /// <param name="forceYielding">Whether to force yielding when switching context.</param>
@@ -218,7 +220,7 @@ public static partial class ObservableAsync
         }
 
         /// <summary>
-        /// Uses <see cref="ObserveOn(TaskScheduler, bool)"/> only when a scheduler is provided.
+        /// Uses ObserveOn only when a scheduler is provided.
         /// </summary>
         /// <param name="taskScheduler">The target scheduler, or <see langword="null"/> to leave the sequence unchanged.</param>
         /// <param name="forceYielding">Whether to force yielding when switching context.</param>
@@ -295,6 +297,7 @@ public static partial class ObservableAsync
 
         /// <summary>
         /// Partitions the source sequence into values that satisfy the predicate and values that do not.
+        /// The predicate is evaluated exactly once per element.
         /// </summary>
         /// <param name="predicate">The partition predicate.</param>
         /// <returns>A tuple of true and false partitions.</returns>
@@ -303,8 +306,10 @@ public static partial class ObservableAsync
             ArgumentExceptionHelper.ThrowIfNull(source, nameof(source));
             ArgumentExceptionHelper.ThrowIfNull(predicate, nameof(predicate));
 
-            var shared = source.Publish().RefCount();
-            return (shared.Where(predicate), shared.Where(value => !predicate(value)));
+            var shared = source.Select(value => (value, matches: predicate(value))).Publish().RefCount();
+            return (
+                shared.Where(static pair => pair.matches).Select(static pair => pair.value),
+                shared.Where(static pair => !pair.matches).Select(static pair => pair.value));
         }
 
         /// <summary>
@@ -399,8 +404,22 @@ public static partial class ObservableAsync
         ArgumentExceptionHelper.ThrowIfNull(source, nameof(source));
         ArgumentExceptionHelper.ThrowIfNull(sources, nameof(sources));
 
-        List<IObservableAsync<T>> allSources = [source, .. sources];
-        return allSources.CombineLatest(static values => values.Min());
+        var allSources = new IObservableAsync<T>[sources.Length + 1];
+        allSources[0] = source;
+        sources.CopyTo(allSources, 1);
+        return allSources.CombineLatest(static values =>
+        {
+            var min = values[0];
+            for (var i = 1; i < values.Count; i++)
+            {
+                if (Comparer<T>.Default.Compare(values[i], min) < 0)
+                {
+                    min = values[i];
+                }
+            }
+
+            return min;
+        });
     }
 
     /// <summary>
@@ -416,8 +435,22 @@ public static partial class ObservableAsync
         ArgumentExceptionHelper.ThrowIfNull(source, nameof(source));
         ArgumentExceptionHelper.ThrowIfNull(sources, nameof(sources));
 
-        List<IObservableAsync<T>> allSources = [source, .. sources];
-        return allSources.CombineLatest(static values => values.Max());
+        var allSources = new IObservableAsync<T>[sources.Length + 1];
+        allSources[0] = source;
+        sources.CopyTo(allSources, 1);
+        return allSources.CombineLatest(static values =>
+        {
+            var max = values[0];
+            for (var i = 1; i < values.Count; i++)
+            {
+                if (Comparer<T>.Default.Compare(values[i], max) > 0)
+                {
+                    max = values[i];
+                }
+            }
+
+            return max;
+        });
     }
 
     /// <summary>
@@ -429,10 +462,21 @@ public static partial class ObservableAsync
     {
         ArgumentExceptionHelper.ThrowIfNull(sources, nameof(sources));
 
-        var materializedSources = sources as IList<IObservableAsync<bool>> ?? sources.ToList();
+        var materializedSources = sources as IReadOnlyCollection<IObservableAsync<bool>> ?? sources.ToList();
         return materializedSources.Count == 0
             ? Return(true)
-            : materializedSources.CombineLatest(static values => values.All(static value => !value));
+            : materializedSources.CombineLatest(static values =>
+            {
+                for (var i = 0; i < values.Count; i++)
+                {
+                    if (values[i])
+                    {
+                        return false;
+                    }
+                }
+
+                return true;
+            });
     }
 
     /// <summary>
@@ -444,10 +488,21 @@ public static partial class ObservableAsync
     {
         ArgumentExceptionHelper.ThrowIfNull(sources, nameof(sources));
 
-        var materializedSources = sources as IList<IObservableAsync<bool>> ?? sources.ToList();
+        var materializedSources = sources as IReadOnlyCollection<IObservableAsync<bool>> ?? sources.ToList();
         return materializedSources.Count == 0
             ? Return(true)
-            : materializedSources.CombineLatest(static values => values.All(static value => value));
+            : materializedSources.CombineLatest(static values =>
+            {
+                for (var i = 0; i < values.Count; i++)
+                {
+                    if (!values[i])
+                    {
+                        return false;
+                    }
+                }
+
+                return true;
+            });
     }
 
     /// <summary>

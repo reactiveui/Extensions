@@ -26,6 +26,7 @@ public static partial class ObservableAsync
         /// the predicate.</returns>
         public async ValueTask<T> FirstAsync(Func<T, bool> predicate, CancellationToken cancellationToken = default)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             var observer = new FirstAsyncObserver<T>(predicate, cancellationToken);
             _ = await @this.SubscribeAsync(observer, cancellationToken);
             return await observer.WaitValueAsync();
@@ -41,14 +42,22 @@ public static partial class ObservableAsync
         /// sequence.</returns>
         public async ValueTask<T> FirstAsync(CancellationToken cancellationToken = default)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             var observer = new FirstAsyncObserver<T>(null, cancellationToken);
             _ = await @this.SubscribeAsync(observer, cancellationToken);
             return await observer.WaitValueAsync();
         }
     }
 
-    private sealed class FirstAsyncObserver<T>(Func<T, bool>? predicate, CancellationToken cancellationToken) : TaskObserverAsyncBase<T, T>(cancellationToken)
+    /// <summary>
+    /// Observer that captures the first element matching an optional predicate.
+    /// </summary>
+    /// <typeparam name="T">The type of elements in the source sequence.</typeparam>
+    /// <param name="predicate">An optional predicate to filter elements.</param>
+    /// <param name="cancellationToken">A cancellation token for the operation.</param>
+    internal sealed class FirstAsyncObserver<T>(Func<T, bool>? predicate, CancellationToken cancellationToken) : TaskObserverAsyncBase<T, T>(cancellationToken)
     {
+        /// <inheritdoc/>
         protected override async ValueTask OnNextAsyncCore(T value, CancellationToken cancellationToken)
         {
             if (predicate is null || predicate(value))
@@ -57,8 +66,10 @@ public static partial class ObservableAsync
             }
         }
 
+        /// <inheritdoc/>
         protected override ValueTask OnErrorResumeAsyncCore(Exception error, CancellationToken cancellationToken) => TrySetException(error);
 
+        /// <inheritdoc/>
         protected override ValueTask OnCompletedAsyncCore(Result result)
         {
             var exception = result.IsSuccess

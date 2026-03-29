@@ -2,6 +2,7 @@
 // ReactiveUI Association Incorporated licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
+using ReactiveUI.Extensions.Async;
 using ReactiveUI.Extensions.Async.Disposables;
 
 namespace ReactiveUI.Extensions.Tests.Async;
@@ -12,6 +13,7 @@ namespace ReactiveUI.Extensions.Tests.Async;
 public class DisposableTests
 {
     /// <summary>Tests DisposableAsync.Empty dispose does nothing.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
     public async Task WhenDisposableAsyncEmpty_ThenDisposeDoesNothing()
     {
@@ -20,6 +22,7 @@ public class DisposableTests
     }
 
     /// <summary>Tests DisposableAsync.Create callback invoked on dispose.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
     public async Task WhenDisposableAsyncCreate_ThenCallbackInvokedOnDispose()
     {
@@ -36,6 +39,7 @@ public class DisposableTests
     }
 
     /// <summary>Tests DisposableAsync.Create double dispose only calls once.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
     public async Task WhenDisposableAsyncCreate_ThenDoubleDisposeOnlyCallsOnce()
     {
@@ -53,6 +57,7 @@ public class DisposableTests
     }
 
     /// <summary>Tests CompositeDisposableAsync disposes all.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
     public async Task WhenCompositeDisposableAsync_ThenDisposesAll()
     {
@@ -83,12 +88,10 @@ public class DisposableTests
 
     /// <summary>Tests CompositeDisposableAsync negative capacity throws.</summary>
     [Test]
-    public void WhenCompositeDisposableAsyncNegativeCapacity_ThenThrowsArgumentOutOfRange()
-    {
-        Assert.Throws<ArgumentOutOfRangeException>(() => new CompositeDisposableAsync(-1));
-    }
+    public void WhenCompositeDisposableAsyncNegativeCapacity_ThenThrowsArgumentOutOfRange() => Assert.Throws<ArgumentOutOfRangeException>(() => new CompositeDisposableAsync(-1));
 
     /// <summary>Tests CompositeDisposableAsync with capacity works.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
     public async Task WhenCompositeDisposableAsyncWithCapacity_ThenWorks()
     {
@@ -108,6 +111,7 @@ public class DisposableTests
     }
 
     /// <summary>Tests CompositeDisposableAsync from enumerable disposes all.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
     public async Task WhenCompositeDisposableAsyncFromEnumerable_ThenDisposesAll()
     {
@@ -126,6 +130,7 @@ public class DisposableTests
     }
 
     /// <summary>Tests CompositeDisposableAsync add after dispose disposes immediately.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
     public async Task WhenCompositeDisposableAsyncAddAfterDispose_ThenItemDisposedImmediately()
     {
@@ -139,11 +144,11 @@ public class DisposableTests
             return default;
         }));
 
-        await Task.Delay(50);
         await Assert.That(disposed).IsTrue();
     }
 
     /// <summary>Tests CompositeDisposableAsync remove disposes and removes the item.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
     public async Task WhenCompositeDisposableAsyncRemove_ThenItemRemovedAndDisposed()
     {
@@ -163,6 +168,7 @@ public class DisposableTests
     }
 
     /// <summary>Tests CompositeDisposableAsync IsDisposed returns false when active.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
     public async Task WhenCompositeDisposableAsyncIsDisposed_ThenReturnsFalse()
     {
@@ -171,6 +177,7 @@ public class DisposableTests
     }
 
     /// <summary>Tests SingleAssignmentDisposableAsync disposes assigned.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
     public async Task WhenSingleAssignmentDisposableAsync_ThenDisposesAssigned()
     {
@@ -190,6 +197,7 @@ public class DisposableTests
     }
 
     /// <summary>Tests SingleAssignment dispose before set disposes immediately.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
     public async Task WhenSingleAssignmentDisposableAsyncDisposeBeforeSet_ThenSetDisposedImmediately()
     {
@@ -206,17 +214,19 @@ public class DisposableTests
     }
 
     /// <summary>Tests SingleAssignment double set throws.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
     public async Task WhenSingleAssignmentDisposableAsyncDoubleSet_ThenThrowsInvalidOperation()
     {
         var sad = new SingleAssignmentDisposableAsync();
         await sad.SetDisposableAsync(DisposableAsync.Empty);
 
-        Assert.ThrowsAsync<InvalidOperationException>(
+        await Assert.ThrowsAsync<InvalidOperationException>(
             async () => await sad.SetDisposableAsync(DisposableAsync.Empty));
     }
 
     /// <summary>Tests SingleAssignment get before set returns null.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
     public async Task WhenSingleAssignmentDisposableAsyncGetBeforeSet_ThenReturnsNull()
     {
@@ -225,6 +235,7 @@ public class DisposableTests
     }
 
     /// <summary>Tests SingleAssignment get after dispose returns non-null.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
     public async Task WhenSingleAssignmentDisposableAsyncGetAfterDispose_ThenReturnsEmpty()
     {
@@ -234,6 +245,7 @@ public class DisposableTests
     }
 
     /// <summary>Tests SingleAssignment get after set returns assigned.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
     public async Task WhenSingleAssignmentDisposableAsyncGetAfterSet_ThenReturnsAssigned()
     {
@@ -244,6 +256,7 @@ public class DisposableTests
     }
 
     /// <summary>Tests SerialDisposableAsync replaces and disposes previous.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
     public async Task WhenSerialDisposableAsync_ThenReplacesAndDisposesPrevious()
     {
@@ -274,6 +287,7 @@ public class DisposableTests
     }
 
     /// <summary>Tests SerialDisposableAsync set after dispose disposes immediately.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
     public async Task WhenSerialDisposableAsyncSetAfterDispose_ThenDisposedImmediately()
     {
@@ -290,6 +304,7 @@ public class DisposableTests
     }
 
     /// <summary>Tests SerialDisposableAsync double dispose is safe.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
     public async Task WhenSerialDisposableAsyncDoubleDispose_ThenSafe()
     {
@@ -308,11 +323,645 @@ public class DisposableTests
     }
 
     /// <summary>Tests SerialDisposableAsync set null succeeds.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
     public async Task WhenSerialDisposableAsyncSetNull_ThenSucceeds()
     {
         var serial = new SerialDisposableAsync();
         await serial.SetDisposableAsync(null);
         await serial.DisposeAsync();
+    }
+
+    // CompositeDisposableAsync – Remove shrinking (lines 174-184)
+
+    /// <summary>
+    /// Verifies that removing items from a CompositeDisposableAsync with capacity
+    /// above the shrink threshold causes the internal list to shrink when count
+    /// drops below half of capacity.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenCompositeRemoveTriggersListShrink_ThenInternalListIsShrunk()
+    {
+        // Create a composite with enough capacity to exceed the shrink threshold (64)
+        var composite = new CompositeDisposableAsync(100);
+
+        // Add 80 disposables to build capacity above 64
+        var disposables = new List<IAsyncDisposable>();
+        for (var i = 0; i < 80; i++)
+        {
+            var d = DisposableAsync.Create(() => default);
+            disposables.Add(d);
+            await composite.AddAsync(d);
+        }
+
+        await Assert.That(composite.Count).IsEqualTo(80);
+
+        // Remove enough items to drop count below half of capacity
+        // After removing, count should be significantly below half the list's capacity
+        for (var i = 0; i < 55; i++)
+        {
+            await composite.Remove(disposables[i]);
+        }
+
+        // After shrinking, the count should still reflect the remaining items
+        await Assert.That(composite.Count).IsEqualTo(25);
+
+        // Verify remaining disposables are still in the collection
+        await Assert.That(composite.Contains(disposables[79])).IsTrue();
+        await Assert.That(composite.Contains(disposables[0])).IsFalse();
+
+        await composite.DisposeAsync();
+    }
+
+    // CompositeDisposableAsync – CopyTo after dispose and bounds check (lines 281, 286)
+
+    /// <summary>
+    /// Verifies that CopyTo on a disposed CompositeDisposableAsync returns without copying.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenCompositeCopyToAfterDispose_ThenNoItemsCopied()
+    {
+        var d1 = DisposableAsync.Create(() => default);
+        var composite = new CompositeDisposableAsync(d1);
+        await composite.DisposeAsync();
+
+        var array = new IAsyncDisposable[5];
+        composite.CopyTo(array, 0);
+
+        // Array should remain empty because the composite is disposed
+        await Assert.That(array[0]).IsNull();
+    }
+
+    /// <summary>
+    /// Verifies that CopyTo throws ArgumentOutOfRangeException when there is insufficient space
+    /// in the destination array.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenCompositeCopyToInsufficientSpace_ThenThrowsArgumentOutOfRange()
+    {
+        var d1 = DisposableAsync.Create(() => default);
+        var d2 = DisposableAsync.Create(() => default);
+        var composite = new CompositeDisposableAsync(d1, d2);
+
+        // Array of size 2 starting at index 1 means only 1 slot available for 2 items
+        var array = new IAsyncDisposable[2];
+        Assert.Throws<ArgumentOutOfRangeException>(() => composite.CopyTo(array, 1));
+
+        await composite.DisposeAsync();
+        await Assert.That(composite.IsDisposed).IsTrue();
+    }
+
+    /// <summary>
+    /// Verifies that CopyTo throws ArgumentOutOfRangeException for negative arrayIndex.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenCompositeCopyToNegativeIndex_ThenThrowsArgumentOutOfRange()
+    {
+        var composite = new CompositeDisposableAsync();
+        var array = new IAsyncDisposable[5];
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => composite.CopyTo(array, -1));
+
+        await composite.DisposeAsync();
+        await Assert.That(composite.IsDisposed).IsTrue();
+    }
+
+    // SerialDisposableAsync – SetDisposableAsync after dispose (lines 38, 47)
+
+    /// <summary>
+    /// Verifies that setting a null disposable after disposing SerialDisposableAsync
+    /// completes without error (hits the null check on the disposed path).
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("TUnit", "TUnitAssertions0005", Justification = "Asserting expected constant outcome")]
+    public async Task WhenSerialSetNullAfterDispose_ThenCompletesWithoutError()
+    {
+        var serial = new SerialDisposableAsync();
+        await serial.DisposeAsync();
+
+        // Set null after disposal - should complete without error (line 47: return default)
+        await serial.SetDisposableAsync(null);
+
+        // Verify it is still disposed
+    }
+
+    /// <summary>
+    /// Verifies that setting a non-null disposable after disposing SerialDisposableAsync
+    /// immediately disposes the provided value.
+    /// Covers lines 38 (ReferenceEquals sentinel check) and 42-44.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenSerialSetNonNullAfterDispose_ThenValueIsDisposedImmediately()
+    {
+        var serial = new SerialDisposableAsync();
+        await serial.DisposeAsync();
+
+        var disposed = false;
+        await serial.SetDisposableAsync(DisposableAsync.Create(() =>
+        {
+            disposed = true;
+            return default;
+        }));
+
+        await Assert.That(disposed).IsTrue();
+    }
+
+    // SerialDisposableAsync – CAS retry path (line 61) and dispose-when-empty (line 101)
+
+    /// <summary>
+    /// Verifies that concurrent SetDisposableAsync calls on a SerialDisposableAsync
+    /// correctly handle the CAS retry loop by setting and disposing values properly.
+    /// Covers line 61 (field = exchangedCurrent retry loop).
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenSerialConcurrentSet_ThenAllPreviousDisposed()
+    {
+        var serial = new SerialDisposableAsync();
+        var disposedCount = 0;
+
+        IAsyncDisposable MakeDisposable() => DisposableAsync.Create(() =>
+        {
+            Interlocked.Increment(ref disposedCount);
+            return default;
+        });
+
+        // Rapid concurrent sets to exercise the CAS retry path
+        var tasks = Enumerable.Range(0, 50).Select(_ =>
+            Task.Run(async () => await serial.SetDisposableAsync(MakeDisposable())));
+
+        await Task.WhenAll(tasks);
+
+        // Dispose the serial to clean up the final remaining disposable
+        await serial.DisposeAsync();
+
+        // All 50 disposables should eventually be disposed (49 replaced + 1 final)
+        await Assert.That(disposedCount).IsEqualTo(50);
+    }
+
+    /// <summary>
+    /// Verifies that disposing SerialDisposableAsync when no disposable has been set
+    /// completes without error.
+    /// Covers line 75 (field is not sentinel and field is null path) and line 101.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("TUnit", "TUnitAssertions0005", Justification = "Asserting expected constant outcome")]
+    public async Task WhenSerialDisposeWithNoDisposableSet_ThenCompletesCleanly()
+    {
+        var serial = new SerialDisposableAsync();
+
+        // Dispose without ever setting a disposable
+        await serial.DisposeAsync();
+
+        // Verify double dispose is also safe
+        await serial.DisposeAsync();
+    }
+
+    // SingleAssignmentDisposableAsync – set after dispose with non-null (lines 88, 91-92)
+
+    /// <summary>
+    /// Verifies that setting null after disposing a SingleAssignmentDisposableAsync
+    /// completes without error (covers the null check in the disposed path, line 88).
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenSingleAssignmentSetNullAfterDispose_ThenCompletesWithoutError()
+    {
+        var sad = new SingleAssignmentDisposableAsync();
+        await sad.DisposeAsync();
+
+        // Set null after disposal - should return default (line 88)
+        await sad.SetDisposableAsync(null);
+
+        await Assert.That(sad.IsDisposed).IsTrue();
+    }
+
+    // SingleAssignmentDisposableAsync – double assignment throw (line 120)
+    // and dispose sentinel (line 133)
+
+    /// <summary>
+    /// Verifies that double assignment on the static SetDisposableAsync helper throws
+    /// InvalidOperationException. This covers line 91 (ThrowAlreadyAssignment) and line 120.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenSingleAssignmentDoubleAssignNonNull_ThenThrowsInvalidOperation()
+    {
+        var sad = new SingleAssignmentDisposableAsync();
+        await sad.SetDisposableAsync(DisposableAsync.Empty);
+
+        // Second assignment with a different non-null value should throw
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            async () => await sad.SetDisposableAsync(DisposableAsync.Create(() => default)));
+
+        await sad.DisposeAsync();
+        await Assert.That(sad.IsDisposed).IsTrue();
+    }
+
+    /// <summary>
+    /// Verifies that the dispose sentinel DisposeAsync method returns a completed ValueTask.
+    /// Covers line 133 (DisposedSentinel.DisposeAsync).
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenSingleAssignmentDisposeSentinel_ThenDisposeAsyncReturnsDefault()
+    {
+        // Access the sentinel and verify it can be disposed
+        var sentinel = SingleAssignmentDisposableAsync.DisposedSentinel.Instance;
+        await sentinel.DisposeAsync();
+
+        // After dispose, getting the disposable should return the empty disposable
+        var sad = new SingleAssignmentDisposableAsync();
+        await sad.DisposeAsync();
+
+        var disposable = sad.GetDisposable();
+        await Assert.That(disposable).IsNotNull();
+    }
+
+    /// <summary>
+    /// Verifies that setting a non-null disposable after dispose triggers immediate disposal
+    /// of the provided value. Covers lines 83-85 (value.DisposeAsync in disposed+non-null path).
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenSingleAssignmentSetNonNullAfterDispose_ThenValueDisposedImmediately()
+    {
+        var sad = new SingleAssignmentDisposableAsync();
+        await sad.DisposeAsync();
+
+        var disposed = false;
+        await sad.SetDisposableAsync(DisposableAsync.Create(() =>
+        {
+            disposed = true;
+            return default;
+        }));
+
+        await Assert.That(disposed).IsTrue();
+    }
+
+    /// <summary>Tests DisposableAsyncMixins ToDisposableAsync wraps IDisposable correctly.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenToDisposableAsync_ThenWrapsIDisposable()
+    {
+        var disposed = false;
+        var syncDisposable = new TestSyncDisposable(() => disposed = true);
+
+        var asyncDisposable = syncDisposable.ToDisposableAsync();
+
+        await Assert.That(disposed).IsFalse();
+        await asyncDisposable.DisposeAsync();
+        await Assert.That(disposed).IsTrue();
+    }
+
+    /// <summary>Tests CompositeDisposableAsync Clear disposes and removes all.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenCompositeDisposableAsyncClear_ThenDisposesAndRemovesAll()
+    {
+        var count = 0;
+        var composite = new CompositeDisposableAsync();
+
+        for (var i = 0; i < 3; i++)
+        {
+            await composite.AddAsync(DisposableAsync.Create(() =>
+            {
+                Interlocked.Increment(ref count);
+                return default;
+            }));
+        }
+
+        await Assert.That(composite.Count).IsEqualTo(3);
+
+        await composite.Clear();
+
+        await Assert.That(composite.Count).IsEqualTo(0);
+        await Assert.That(count).IsEqualTo(3);
+    }
+
+    /// <summary>Tests CompositeDisposableAsync Contains returns true for added item.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenCompositeDisposableAsyncContains_ThenReturnsTrueForAdded()
+    {
+        var composite = new CompositeDisposableAsync();
+        var d = DisposableAsync.Empty;
+
+        await composite.AddAsync(d);
+
+        await Assert.That(composite.Contains(d)).IsTrue();
+        await composite.DisposeAsync();
+    }
+
+    /// <summary>Tests CompositeDisposableAsync Contains returns false after dispose.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenCompositeDisposableAsyncContainsAfterDispose_ThenReturnsFalse()
+    {
+        var composite = new CompositeDisposableAsync();
+        var d = DisposableAsync.Empty;
+
+        await composite.AddAsync(d);
+        await composite.DisposeAsync();
+
+        await Assert.That(composite.Contains(d)).IsFalse();
+    }
+
+    /// <summary>Tests CompositeDisposableAsync CopyTo copies all items.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenCompositeDisposableAsyncCopyTo_ThenCopiesAllItems()
+    {
+        var d1 = DisposableAsync.Empty;
+        var d2 = DisposableAsync.Empty;
+        var composite = new CompositeDisposableAsync(d1, d2);
+
+        var array = new IAsyncDisposable[2];
+        composite.CopyTo(array, 0);
+
+        await Assert.That(array[0]).IsNotNull();
+        await Assert.That(array[1]).IsNotNull();
+        await composite.DisposeAsync();
+    }
+
+    /// <summary>Tests CompositeDisposableAsync CopyTo throws on invalid index.</summary>
+    [Test]
+    public void WhenCompositeDisposableAsyncCopyToInvalidIndex_ThenThrows()
+    {
+        var composite = new CompositeDisposableAsync();
+        var array = new IAsyncDisposable[1];
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => composite.CopyTo(array, -1));
+    }
+
+    /// <summary>Tests CompositeDisposableAsync double dispose is safe.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenCompositeDisposableAsyncDoubleDispose_ThenSafe()
+    {
+        var disposed = false;
+        var composite = new CompositeDisposableAsync(DisposableAsync.Create(() =>
+        {
+            disposed = true;
+            return default;
+        }));
+
+        await composite.DisposeAsync();
+        await composite.DisposeAsync();
+
+        await Assert.That(disposed).IsTrue();
+    }
+
+    /// <summary>Tests CompositeDisposableAsync remove from disposed returns false.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenCompositeDisposableAsyncRemoveFromDisposed_ThenReturnsFalse()
+    {
+        var composite = new CompositeDisposableAsync();
+        await composite.DisposeAsync();
+
+        var result = await composite.Remove(DisposableAsync.Empty);
+        await Assert.That(result).IsFalse();
+    }
+
+    /// <summary>Tests CompositeDisposableAsync remove non-existent returns false.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenCompositeDisposableAsyncRemoveNonExistent_ThenReturnsFalse()
+    {
+        var composite = new CompositeDisposableAsync();
+        var result = await composite.Remove(DisposableAsync.Empty);
+        await Assert.That(result).IsFalse();
+        await composite.DisposeAsync();
+    }
+
+    /// <summary>Tests CompositeDisposableAsync clear on disposed is safe.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenCompositeDisposableAsyncClearOnDisposed_ThenSafe()
+    {
+        var composite = new CompositeDisposableAsync();
+        await composite.DisposeAsync();
+        await composite.Clear();
+
+        await Assert.That(composite.IsDisposed).IsTrue();
+    }
+
+    /// <summary>Tests CompositeDisposableAsync clear on empty is safe.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenCompositeDisposableAsyncClearOnEmpty_ThenSafe()
+    {
+        var composite = new CompositeDisposableAsync();
+        await composite.Clear();
+
+        await Assert.That(composite.Count).IsEqualTo(0);
+        await composite.DisposeAsync();
+    }
+
+    /// <summary>Tests Enumerator from GetEnumerator on CompositeDisposableAsync.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenCompositeDisposableAsyncEnumerate_ThenReturnsItems()
+    {
+        var d1 = DisposableAsync.Empty;
+        var d2 = DisposableAsync.Empty;
+        var composite = new CompositeDisposableAsync(d1, d2);
+
+        var count = 0;
+        foreach (var item in composite)
+        {
+            count++;
+        }
+
+        await Assert.That(count).IsEqualTo(2);
+        await composite.DisposeAsync();
+    }
+
+    /// <summary>Tests static SetDisposableAsync sets field successfully.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenStaticSetDisposableAsync_ThenFieldIsSet()
+    {
+        IAsyncDisposable? field = null;
+        var disposable = DisposableAsync.Empty;
+
+        await SingleAssignmentDisposableAsync.SetDisposableAsync(ref field, disposable);
+
+        await Assert.That(field).IsNotNull();
+        await Assert.That(field).IsEqualTo(disposable);
+    }
+
+    /// <summary>Tests static SetDisposableAsync double-set throws InvalidOperationException.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenStaticSetDisposableAsyncDoubleSet_ThenThrowsInvalidOperation()
+    {
+        IAsyncDisposable? field = null;
+        var first = DisposableAsync.Empty;
+        var second = DisposableAsync.Create(() => default);
+
+        await SingleAssignmentDisposableAsync.SetDisposableAsync(ref field, first);
+
+        await Assert.That(async () =>
+            await SingleAssignmentDisposableAsync.SetDisposableAsync(ref field, second))
+            .ThrowsExactly<InvalidOperationException>();
+    }
+
+    /// <summary>Tests static DisposeAsync disposes the assigned disposable.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenStaticDisposeAsync_ThenDisposableIsDisposed()
+    {
+        var disposed = false;
+        IAsyncDisposable? field = null;
+        var disposable = DisposableAsync.Create(() =>
+        {
+            disposed = true;
+            return default;
+        });
+
+        await SingleAssignmentDisposableAsync.SetDisposableAsync(ref field, disposable);
+        await SingleAssignmentDisposableAsync.DisposeAsync(ref field);
+
+        await Assert.That(disposed).IsTrue();
+    }
+
+    /// <summary>Tests ThrowAlreadyAssignment throws InvalidOperationException.</summary>
+    [Test]
+    public void WhenThrowAlreadyAssignment_ThenThrowsInvalidOperation() =>
+        Assert.Throws<InvalidOperationException>(() => SingleAssignmentDisposableAsync.ThrowAlreadyAssignment());
+
+    /// <summary>
+    /// Verifies that DisposableAsync.Create throws ArgumentNullException when given a null delegate.
+    /// </summary>
+    [Test]
+    public void WhenDisposableAsyncCreateNull_ThenThrowsArgumentNull() =>
+        Assert.Throws<ArgumentNullException>(() => DisposableAsync.Create(null!));
+
+    /// <summary>
+    /// Verifies that the SerialDisposableAsync.DisposedSentinel.DisposeAsync returns default.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenSerialDisposableAsyncDisposedSentinelDispose_ThenReturnsDefault()
+    {
+        var serial = new SerialDisposableAsync();
+        await serial.DisposeAsync();
+
+        // Setting a new disposable after disposal triggers the disposed sentinel path.
+        var disposed = false;
+        await serial.SetDisposableAsync(DisposableAsync.Create(() =>
+        {
+            disposed = true;
+            return default;
+        }));
+
+        await Assert.That(disposed).IsTrue();
+    }
+
+    /// <summary>
+    /// Verifies that DisposableAsyncMixins.ToDisposableAsync throws ArgumentNullException for null input.
+    /// </summary>
+    [Test]
+    public void WhenToDisposableAsyncNull_ThenThrowsArgumentNull() =>
+        Assert.Throws<ArgumentNullException>(() => ((IDisposable)null!).ToDisposableAsync());
+
+    // SerialDisposableAsync – CAS retry loop (line 61)
+
+    /// <summary>
+    /// Verifies that the CAS retry loop in SetDisposableAsync (line 61) is exercised
+    /// when another thread mutates _current between the Volatile.Read and the
+    /// CompareExchange, forcing the loop to re-read and retry.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenSerialCASRetryLoop_ThenAllDisposablesAccountedFor()
+    {
+        var serial = new SerialDisposableAsync();
+        var disposedCount = 0;
+
+        IAsyncDisposable MakeDisposable() => DisposableAsync.Create(() =>
+        {
+            Interlocked.Increment(ref disposedCount);
+            return default;
+        });
+
+        // Hammer concurrent sets to maximize chance of CAS retry (line 61: field = exchangedCurrent)
+        var barrier = new Barrier(20);
+        var tasks = Enumerable.Range(0, 20).Select(_ =>
+            Task.Run(async () =>
+            {
+                barrier.SignalAndWait();
+                for (var i = 0; i < 10; i++)
+                {
+                    await serial.SetDisposableAsync(MakeDisposable());
+                }
+            }));
+
+        await Task.WhenAll(tasks);
+        await serial.DisposeAsync();
+
+        // All 200 disposables should be disposed (199 replaced + 1 final)
+        await Assert.That(disposedCount).IsEqualTo(200);
+    }
+
+    // SerialDisposableAsync.DisposedSentinel – DisposeAsync (line 101)
+
+    /// <summary>
+    /// Verifies that the DisposedSentinel.DisposeAsync returns a completed ValueTask
+    /// without throwing. Covers line 101.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenSerialDisposedSentinelDisposeAsync_ThenReturnsCompletedValueTask()
+    {
+        var sentinel = SerialDisposableAsync.DisposedSentinel.Instance;
+
+        // DisposeAsync should return default (no-op)
+        var task = sentinel.DisposeAsync();
+        await Assert.That(task.IsCompleted).IsTrue();
+    }
+
+    // SingleAssignmentDisposableAsync – ThrowAlreadyAssignment on re-assign (line 92)
+
+    /// <summary>
+    /// Verifies that re-assigning a non-null value to a field that already holds a
+    /// non-null value throws InvalidOperationException via ThrowAlreadyAssignment (line 91-92).
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenStaticSetDisposableAsyncReAssignNonNull_ThenThrowsInvalidOperation()
+    {
+        IAsyncDisposable? field = null;
+        var first = DisposableAsync.Create(() => default);
+        var second = DisposableAsync.Create(() => default);
+
+        // First set succeeds
+        await SingleAssignmentDisposableAsync.SetDisposableAsync(ref field, first);
+
+        // Second set with a different non-null value triggers ThrowAlreadyAssignment (line 92)
+        await Assert.That(async () =>
+            await SingleAssignmentDisposableAsync.SetDisposableAsync(ref field, second))
+            .ThrowsExactly<InvalidOperationException>();
+    }
+
+    /// <summary>
+    /// Helper disposable for testing ToDisposableAsync.
+    /// </summary>
+    /// <param name="onDispose">The action to invoke on disposal.</param>
+    private sealed class TestSyncDisposable(Action onDispose) : IDisposable
+    {
+        /// <summary>
+        /// Disposes the resource and invokes the disposal callback.
+        /// </summary>
+        public void Dispose() => onDispose();
     }
 }

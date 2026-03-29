@@ -39,8 +39,9 @@ public static partial class ObservableAsync
     /// asynchronous observable scenarios.</remarks>
     /// <typeparam name="T">The type of elements in the observable sequence.</typeparam>
     /// <param name="error">The exception that will be signaled to observers as the terminal error.</param>
-    private sealed class ObservableAsyncThrow<T>(Exception error) : ObservableAsync<T>
+    internal sealed class ObservableAsyncThrow<T>(Exception error) : ObservableAsync<T>
     {
+        /// <inheritdoc/>
         protected override async ValueTask<IAsyncDisposable> SubscribeAsyncCore(IObserverAsync<T> observer, CancellationToken cancellationToken)
         {
             await observer.OnCompletedAsync(Result.Failure(error));

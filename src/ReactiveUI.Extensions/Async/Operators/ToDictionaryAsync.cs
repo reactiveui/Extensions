@@ -33,6 +33,7 @@ public static partial class ObservableAsync
             where TKey : notnull
         {
             ArgumentExceptionHelper.ThrowIfNull(keySelector, nameof(keySelector));
+            cancellationToken.ThrowIfCancellationRequested();
 
             var observer = new ToDictionaryAsyncObserver<T, TKey, T>(keySelector, x => x, comparer, cancellationToken);
             _ = await @this.SubscribeAsync(observer, cancellationToken);
@@ -60,6 +61,7 @@ public static partial class ObservableAsync
         {
             ArgumentExceptionHelper.ThrowIfNull(keySelector, nameof(keySelector));
             ArgumentExceptionHelper.ThrowIfNull(elementSelector, nameof(elementSelector));
+            cancellationToken.ThrowIfCancellationRequested();
 
             var observer = new ToDictionaryAsyncObserver<T, TKey, TValue>(keySelector, elementSelector, comparer, cancellationToken);
             _ = await @this.SubscribeAsync(observer, cancellationToken);
@@ -67,11 +69,25 @@ public static partial class ObservableAsync
         }
     }
 
-    private sealed class ToDictionaryAsyncObserver<TSource, TKey, TValue>(Func<TSource, TKey> keySelector, Func<TSource, TValue> elementSelector, IEqualityComparer<TKey>? comparer, CancellationToken cancellationToken) : TaskObserverAsyncBase<TSource, Dictionary<TKey, TValue>>(cancellationToken)
+    /// <summary>
+    /// Observer that builds a dictionary from the elements of a sequence using key and element selectors.
+    /// </summary>
+    /// <typeparam name="TSource">The type of elements in the source sequence.</typeparam>
+    /// <typeparam name="TKey">The type of the dictionary keys.</typeparam>
+    /// <typeparam name="TValue">The type of the dictionary values.</typeparam>
+    /// <param name="keySelector">A function to extract a key from each element.</param>
+    /// <param name="elementSelector">A function to extract a value from each element.</param>
+    /// <param name="comparer">An optional equality comparer for keys.</param>
+    /// <param name="cancellationToken">A cancellation token for the operation.</param>
+    internal sealed class ToDictionaryAsyncObserver<TSource, TKey, TValue>(Func<TSource, TKey> keySelector, Func<TSource, TValue> elementSelector, IEqualityComparer<TKey>? comparer, CancellationToken cancellationToken) : TaskObserverAsyncBase<TSource, Dictionary<TKey, TValue>>(cancellationToken)
         where TKey : notnull
     {
+        /// <summary>
+        /// The dictionary that accumulates key-value pairs from the source sequence.
+        /// </summary>
         private readonly Dictionary<TKey, TValue> _map = comparer is null ? new() : new(comparer);
 
+        /// <inheritdoc/>
         protected override ValueTask OnNextAsyncCore(TSource value, CancellationToken cancellationToken)
         {
             var key = keySelector(value);
@@ -79,9 +95,11 @@ public static partial class ObservableAsync
             return default;
         }
 
+        /// <inheritdoc/>
         protected override ValueTask OnErrorResumeAsyncCore(Exception error, CancellationToken cancellationToken)
             => TrySetException(error);
 
+        /// <inheritdoc/>
         protected override ValueTask OnCompletedAsyncCore(Result result)
             => !result.IsSuccess ? TrySetException(result.Exception) : TrySetCompleted(_map);
     }

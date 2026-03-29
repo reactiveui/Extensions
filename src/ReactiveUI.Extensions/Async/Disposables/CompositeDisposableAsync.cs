@@ -15,14 +15,33 @@ namespace ReactiveUI.Extensions.Async.Disposables;
 /// items. This class is not read-only and is safe for concurrent access from multiple threads.</remarks>
 public sealed class CompositeDisposableAsync : IAsyncDisposable
 {
+    /// <summary>
+    /// The minimum list capacity before the list is eligible for shrinking on removal.
+    /// </summary>
     private const int ShrinkThreshold = 64;
+
+    /// <summary>
+    /// The synchronization gate protecting all mutable state in this collection.
+    /// </summary>
 #if NET9_0_OR_GREATER
     private readonly Lock _gate = new();
 #else
     private readonly object _gate = new();
 #endif
+
+    /// <summary>
+    /// The backing list of disposables. Entries may be null after removal to avoid shifting elements.
+    /// </summary>
     private List<IAsyncDisposable?> _list;
+
+    /// <summary>
+    /// Indicates whether the collection has been disposed.
+    /// </summary>
     private bool _isDisposed;
+
+    /// <summary>
+    /// The number of non-null disposables currently in the collection.
+    /// </summary>
     private int _count;
 
     /// <summary>
@@ -329,6 +348,11 @@ public sealed class CompositeDisposableAsync : IAsyncDisposable
         }
     }
 
+    /// <summary>
+    /// Enumerates the non-null disposables in the array and clears the array when enumeration completes.
+    /// </summary>
+    /// <param name="disposables">The snapshot array of disposables to enumerate and clear.</param>
+    /// <returns>An enumerable sequence of non-null disposables from the array.</returns>
     private static IEnumerable<IAsyncDisposable> EnumerateAndClear(IAsyncDisposable?[] disposables)
     {
         try

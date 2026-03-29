@@ -119,11 +119,19 @@ public static partial class ObservableAsync
         }
     }
 
-    private sealed class TakeUntilPredicate<T>(IObservableAsync<T> source, Func<T, bool> predicate) : ObservableAsync<T>
+    /// <summary>
+    /// Async observable that emits items from the source until the specified predicate returns true.
+    /// </summary>
+    /// <typeparam name="T">The type of the elements in the source sequence.</typeparam>
+    internal sealed class TakeUntilPredicate<T>(IObservableAsync<T> source, Func<T, bool> predicate) : ObservableAsync<T>
     {
+        /// <summary>The predicate that signals when to stop emitting items.</summary>
         private readonly Func<T, bool> _predicate = predicate;
+
+        /// <summary>The source observable sequence.</summary>
         private readonly IObservableAsync<T> _source = source;
 
+        /// <inheritdoc/>
         protected override async ValueTask<IAsyncDisposable> SubscribeAsyncCore(IObserverAsync<T> observer, CancellationToken cancellationToken)
         {
             var subscription = new TakeUntilPredicateSubscription(this, observer);
@@ -139,12 +147,22 @@ public static partial class ObservableAsync
             }
         }
 
-        private sealed class TakeUntilPredicateSubscription(TakeUntilPredicate<T> parent, IObserverAsync<T> observer) : ObserverAsync<T>
+        /// <summary>
+        /// Observer that forwards items from the source until the predicate returns true.
+        /// </summary>
+        internal sealed class TakeUntilPredicateSubscription(TakeUntilPredicate<T> parent, IObserverAsync<T> observer) : ObserverAsync<T>
         {
+            /// <summary>The inner subscription handle.</summary>
             private IAsyncDisposable? _subscription;
 
+            /// <summary>
+            /// Subscribes to the source observable.
+            /// </summary>
+            /// <param name="cancellationToken">A token to cancel the subscription.</param>
+            /// <returns>A task representing the asynchronous subscribe operation.</returns>
             public async ValueTask SubscribeAsync(CancellationToken cancellationToken) => _subscription = await parent._source.SubscribeAsync(this, cancellationToken);
 
+            /// <inheritdoc/>
             protected override ValueTask OnNextAsyncCore(T value, CancellationToken cancellationToken)
             {
                 if (parent._predicate(value))
@@ -155,10 +173,13 @@ public static partial class ObservableAsync
                 return observer.OnNextAsync(value, cancellationToken);
             }
 
+            /// <inheritdoc/>
             protected override ValueTask OnErrorResumeAsyncCore(Exception error, CancellationToken cancellationToken) => observer.OnErrorResumeAsync(error, cancellationToken);
 
+            /// <inheritdoc/>
             protected override ValueTask OnCompletedAsyncCore(Result result) => observer.OnCompletedAsync(result);
 
+            /// <inheritdoc/>
             protected override async ValueTask DisposeAsyncCore()
             {
                 if (_subscription is not null)
@@ -171,11 +192,19 @@ public static partial class ObservableAsync
         }
     }
 
-    private sealed class TakeUntilCancellationToken<T>(IObservableAsync<T> source, CancellationToken cancellationToken) : ObservableAsync<T>
+    /// <summary>
+    /// Async observable that emits items from the source until the specified cancellation token is canceled.
+    /// </summary>
+    /// <typeparam name="T">The type of the elements in the source sequence.</typeparam>
+    internal sealed class TakeUntilCancellationToken<T>(IObservableAsync<T> source, CancellationToken cancellationToken) : ObservableAsync<T>
     {
+        /// <summary>The source observable sequence.</summary>
         private readonly IObservableAsync<T> _source = source;
+
+        /// <summary>The cancellation token that triggers completion.</summary>
         private readonly CancellationToken _cancellationToken = cancellationToken;
 
+        /// <inheritdoc/>
         protected override async ValueTask<IAsyncDisposable> SubscribeAsyncCore(IObserverAsync<T> observer, CancellationToken cancellationToken)
         {
             var subscription = new Subscription(this, observer);
@@ -191,16 +220,37 @@ public static partial class ObservableAsync
             }
         }
 
-        private sealed class Subscription : IAsyncDisposable
+        /// <summary>
+        /// Manages the subscription lifetime and completes when the cancellation token is canceled.
+        /// </summary>
+        internal sealed class Subscription : IAsyncDisposable
         {
+            /// <summary>Cancellation source for disposal.</summary>
             private readonly CancellationTokenSource _cts = new();
+
+            /// <summary>The parent observable that owns this subscription.</summary>
             private readonly TakeUntilCancellationToken<T> _parent;
+
+            /// <summary>The downstream observer.</summary>
             private readonly IObserverAsync<T> _observer;
+
+            /// <summary>Serializes observer notifications.</summary>
             private readonly AsyncGate _gate = new();
+
+            /// <summary>A cached token from <see cref="_cts"/> used to link with per-emission tokens.</summary>
             private readonly CancellationToken _disposeCancellationToken;
+
+            /// <summary>The inner subscription handle.</summary>
             private IAsyncDisposable? _subscription;
+
+            /// <summary>The registration handle for the external cancellation token callback.</summary>
             private IDisposable? _tokenRegistration;
 
+            /// <summary>
+            /// Initializes a new instance of the <see cref="Subscription"/> class.
+            /// </summary>
+            /// <param name="parent">The parent observable that owns this subscription.</param>
+            /// <param name="observer">The downstream observer to forward items to.</param>
             public Subscription(TakeUntilCancellationToken<T> parent, IObserverAsync<T> observer)
             {
                 _parent = parent;
@@ -208,12 +258,21 @@ public static partial class ObservableAsync
                 _disposeCancellationToken = _cts.Token;
             }
 
+            /// <summary>
+            /// Subscribes to the source observable and registers the cancellation token callback.
+            /// </summary>
+            /// <param name="cancellationToken">A token to cancel the subscription.</param>
+            /// <returns>A task representing the asynchronous subscribe operation.</returns>
             public async ValueTask SubscribeAsync(CancellationToken cancellationToken)
             {
                 _tokenRegistration = _parent._cancellationToken.Register(OnTokenCanceled);
                 _subscription = await _parent._source.SubscribeAsync(new SourceObserver(this), cancellationToken);
             }
 
+            /// <summary>
+            /// Asynchronously releases resources used by this subscription.
+            /// </summary>
+            /// <returns>A task representing the asynchronous dispose operation.</returns>
             public async ValueTask DisposeAsync()
             {
                 _cts.Cancel();
@@ -227,7 +286,10 @@ public static partial class ObservableAsync
                 _gate.Dispose();
             }
 
-            private async void OnTokenCanceled()
+            /// <summary>
+            /// Callback invoked when the external cancellation token is canceled; forwards completion to the observer.
+            /// </summary>
+            internal async void OnTokenCanceled()
             {
                 try
                 {
@@ -240,7 +302,13 @@ public static partial class ObservableAsync
                 }
             }
 
-            private async ValueTask ForwardOnNextAsync(T value, CancellationToken cancellationToken)
+            /// <summary>
+            /// Forwards a value to the downstream observer under the serialization gate.
+            /// </summary>
+            /// <param name="value">The value to forward.</param>
+            /// <param name="cancellationToken">A token to cancel the operation.</param>
+            /// <returns>A task representing the asynchronous forward operation.</returns>
+            internal async ValueTask ForwardOnNextAsync(T value, CancellationToken cancellationToken)
             {
                 using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(_disposeCancellationToken, cancellationToken);
                 using (await _gate.LockAsync())
@@ -249,7 +317,13 @@ public static partial class ObservableAsync
                 }
             }
 
-            private async ValueTask ForwardOnErrorResumeAsync(Exception error, CancellationToken cancellationToken)
+            /// <summary>
+            /// Forwards a non-terminal error to the downstream observer under the serialization gate.
+            /// </summary>
+            /// <param name="error">The error to forward.</param>
+            /// <param name="cancellationToken">A token to cancel the operation.</param>
+            /// <returns>A task representing the asynchronous forward operation.</returns>
+            internal async ValueTask ForwardOnErrorResumeAsync(Exception error, CancellationToken cancellationToken)
             {
                 using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(_disposeCancellationToken, cancellationToken);
                 using (await _gate.LockAsync())
@@ -258,7 +332,12 @@ public static partial class ObservableAsync
                 }
             }
 
-            private async ValueTask ForwardOnCompletedAsync(Result result)
+            /// <summary>
+            /// Forwards the completion signal to the downstream observer under the serialization gate.
+            /// </summary>
+            /// <param name="result">The completion result.</param>
+            /// <returns>A task representing the asynchronous forward operation.</returns>
+            internal async ValueTask ForwardOnCompletedAsync(Result result)
             {
                 using (await _gate.LockAsync())
                 {
@@ -266,23 +345,39 @@ public static partial class ObservableAsync
                 }
             }
 
-            private sealed class SourceObserver(Subscription parent) : ObserverAsync<T>
+            /// <summary>
+            /// Observer that forwards source items to the parent subscription.
+            /// </summary>
+            internal sealed class SourceObserver(Subscription parent) : ObserverAsync<T>
             {
+                /// <inheritdoc/>
                 protected override ValueTask OnNextAsyncCore(T value, CancellationToken cancellationToken) => parent.ForwardOnNextAsync(value, cancellationToken);
 
+                /// <inheritdoc/>
                 protected override ValueTask OnErrorResumeAsyncCore(Exception error, CancellationToken cancellationToken) => parent.ForwardOnErrorResumeAsync(error, cancellationToken);
 
+                /// <inheritdoc/>
                 protected override ValueTask OnCompletedAsyncCore(Result result) => parent.ForwardOnCompletedAsync(result);
             }
         }
     }
 
-    private sealed class TakeUntilFromRawSignal<T>(IObservableAsync<T> source, CompletionObservableDelegate stopSignalSignal, TakeUntilOptions options) : ObservableAsync<T>
+    /// <summary>
+    /// Async observable that emits items from the source until a raw completion signal fires.
+    /// </summary>
+    /// <typeparam name="T">The type of the elements in the source sequence.</typeparam>
+    internal sealed class TakeUntilFromRawSignal<T>(IObservableAsync<T> source, CompletionObservableDelegate stopSignalSignal, TakeUntilOptions options) : ObservableAsync<T>
     {
+        /// <summary>The source observable sequence.</summary>
         private readonly IObservableAsync<T> _source = source;
+
+        /// <summary>The delegate that provides the stop signal.</summary>
         private readonly CompletionObservableDelegate _stopSignalSignal = stopSignalSignal;
+
+        /// <summary>Options controlling the take-until behavior.</summary>
         private readonly TakeUntilOptions _options = options;
 
+        /// <inheritdoc/>
         protected override async ValueTask<IAsyncDisposable> SubscribeAsyncCore(IObserverAsync<T> observer, CancellationToken cancellationToken)
         {
             var subscription = new Subscription(this, observer);
@@ -298,15 +393,34 @@ public static partial class ObservableAsync
             }
         }
 
-        private sealed class Subscription : IAsyncDisposable
+        /// <summary>
+        /// Manages the subscription lifetime and completes when the raw stop signal fires.
+        /// </summary>
+        internal sealed class Subscription : IAsyncDisposable
         {
+            /// <summary>Cancellation source for disposal.</summary>
             private readonly CancellationTokenSource _cts = new();
+
+            /// <summary>The parent observable that owns this subscription.</summary>
             private readonly TakeUntilFromRawSignal<T> _parent;
+
+            /// <summary>The downstream observer.</summary>
             private readonly IObserverAsync<T> _observer;
+
+            /// <summary>Serializes observer notifications.</summary>
             private readonly AsyncGate _gate = new();
+
+            /// <summary>A cached token from <see cref="_cts"/> used to link with per-emission tokens.</summary>
             private readonly CancellationToken _disposeCancellationToken;
+
+            /// <summary>The inner subscription handle.</summary>
             private IAsyncDisposable? _subscription;
 
+            /// <summary>
+            /// Initializes a new instance of the <see cref="Subscription"/> class.
+            /// </summary>
+            /// <param name="parent">The parent observable that owns this subscription.</param>
+            /// <param name="observer">The downstream observer to forward items to.</param>
             public Subscription(TakeUntilFromRawSignal<T> parent, IObserverAsync<T> observer)
             {
                 _parent = parent;
@@ -314,12 +428,21 @@ public static partial class ObservableAsync
                 _disposeCancellationToken = _cts.Token;
             }
 
+            /// <summary>
+            /// Subscribes to the source observable and begins waiting for the stop signal.
+            /// </summary>
+            /// <param name="cancellationToken">A token to cancel the subscription.</param>
+            /// <returns>A task representing the asynchronous subscribe operation.</returns>
             public async ValueTask SubscribeAsync(CancellationToken cancellationToken)
             {
                 WaitAndComplete();
                 _subscription = await _parent._source.SubscribeAsync(new SourceObserver(this), cancellationToken);
             }
 
+            /// <summary>
+            /// Asynchronously releases resources used by this subscription.
+            /// </summary>
+            /// <returns>A task representing the asynchronous dispose operation.</returns>
             public async ValueTask DisposeAsync()
             {
                 _cts.Cancel();
@@ -332,7 +455,10 @@ public static partial class ObservableAsync
                 _gate.Dispose();
             }
 
-            private async void WaitAndComplete()
+            /// <summary>
+            /// Waits for the stop signal to fire, then forwards completion or error to the downstream observer.
+            /// </summary>
+            internal async void WaitAndComplete()
             {
                 try
                 {
@@ -393,7 +519,13 @@ public static partial class ObservableAsync
                 }
             }
 
-            private async ValueTask ForwardOnNextAsync(T value, CancellationToken cancellationToken)
+            /// <summary>
+            /// Forwards a value to the downstream observer under the serialization gate.
+            /// </summary>
+            /// <param name="value">The value to forward.</param>
+            /// <param name="cancellationToken">A token to cancel the operation.</param>
+            /// <returns>A task representing the asynchronous forward operation.</returns>
+            internal async ValueTask ForwardOnNextAsync(T value, CancellationToken cancellationToken)
             {
                 using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(_disposeCancellationToken, cancellationToken);
                 using (await _gate.LockAsync())
@@ -402,7 +534,13 @@ public static partial class ObservableAsync
                 }
             }
 
-            private async ValueTask ForwardOnErrorResumeAsync(Exception error, CancellationToken cancellationToken)
+            /// <summary>
+            /// Forwards a non-terminal error to the downstream observer under the serialization gate.
+            /// </summary>
+            /// <param name="error">The error to forward.</param>
+            /// <param name="cancellationToken">A token to cancel the operation.</param>
+            /// <returns>A task representing the asynchronous forward operation.</returns>
+            internal async ValueTask ForwardOnErrorResumeAsync(Exception error, CancellationToken cancellationToken)
             {
                 using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(_disposeCancellationToken, cancellationToken);
                 using (await _gate.LockAsync())
@@ -411,7 +549,12 @@ public static partial class ObservableAsync
                 }
             }
 
-            private async ValueTask ForwardOnCompletedAsync(Result result)
+            /// <summary>
+            /// Forwards the completion signal to the downstream observer under the serialization gate.
+            /// </summary>
+            /// <param name="result">The completion result.</param>
+            /// <returns>A task representing the asynchronous forward operation.</returns>
+            internal async ValueTask ForwardOnCompletedAsync(Result result)
             {
                 using (await _gate.LockAsync())
                 {
@@ -419,26 +562,42 @@ public static partial class ObservableAsync
                 }
             }
 
-            private sealed class SourceObserver(Subscription parent) : ObserverAsync<T>
+            /// <summary>
+            /// Observer that forwards source items to the parent subscription.
+            /// </summary>
+            internal sealed class SourceObserver(Subscription parent) : ObserverAsync<T>
             {
+                /// <inheritdoc/>
                 protected override ValueTask OnNextAsyncCore(T value, CancellationToken cancellationToken) =>
                     parent.ForwardOnNextAsync(value, cancellationToken);
 
+                /// <inheritdoc/>
                 protected override ValueTask OnErrorResumeAsyncCore(Exception error, CancellationToken cancellationToken) =>
                     parent.ForwardOnErrorResumeAsync(error, cancellationToken);
 
+                /// <inheritdoc/>
                 protected override ValueTask OnCompletedAsyncCore(Result result) =>
                     parent.ForwardOnCompletedAsync(result);
             }
         }
     }
 
-    private sealed class TakeUntilTask<T>(IObservableAsync<T> source, Task task, TakeUntilOptions options) : ObservableAsync<T>
+    /// <summary>
+    /// Async observable that emits items from the source until the specified task completes.
+    /// </summary>
+    /// <typeparam name="T">The type of the elements in the source sequence.</typeparam>
+    internal sealed class TakeUntilTask<T>(IObservableAsync<T> source, Task task, TakeUntilOptions options) : ObservableAsync<T>
     {
+        /// <summary>The source observable sequence.</summary>
         private readonly IObservableAsync<T> _source = source;
+
+        /// <summary>The task whose completion triggers the end of the sequence.</summary>
         private readonly Task _task = task;
+
+        /// <summary>Options controlling the take-until behavior.</summary>
         private readonly TakeUntilOptions _options = options;
 
+        /// <inheritdoc/>
         protected override async ValueTask<IAsyncDisposable> SubscribeAsyncCore(IObserverAsync<T> observer, CancellationToken cancellationToken)
         {
             var subscription = new Subscription(this, observer);
@@ -454,15 +613,34 @@ public static partial class ObservableAsync
             }
         }
 
-        private sealed class Subscription : IAsyncDisposable
+        /// <summary>
+        /// Manages the subscription lifetime and completes when the task finishes.
+        /// </summary>
+        internal sealed class Subscription : IAsyncDisposable
         {
+            /// <summary>Cancellation source for disposal.</summary>
             private readonly CancellationTokenSource _cts = new();
+
+            /// <summary>The parent observable that owns this subscription.</summary>
             private readonly TakeUntilTask<T> _parent;
+
+            /// <summary>The downstream observer.</summary>
             private readonly IObserverAsync<T> _observer;
+
+            /// <summary>Serializes observer notifications.</summary>
             private readonly AsyncGate _gate = new();
+
+            /// <summary>A cached token from <see cref="_cts"/> used to link with per-emission tokens.</summary>
             private readonly CancellationToken _disposeCancellationToken;
+
+            /// <summary>The inner subscription handle.</summary>
             private IAsyncDisposable? _subscription;
 
+            /// <summary>
+            /// Initializes a new instance of the <see cref="Subscription"/> class.
+            /// </summary>
+            /// <param name="parent">The parent observable that owns this subscription.</param>
+            /// <param name="observer">The downstream observer to forward items to.</param>
             public Subscription(TakeUntilTask<T> parent, IObserverAsync<T> observer)
             {
                 _parent = parent;
@@ -470,6 +648,11 @@ public static partial class ObservableAsync
                 _disposeCancellationToken = _cts.Token;
             }
 
+            /// <summary>
+            /// Subscribes to the source observable and begins waiting for the task to complete.
+            /// </summary>
+            /// <param name="cancellationToken">A token to cancel the subscription.</param>
+            /// <returns>A task representing the asynchronous subscribe operation.</returns>
             public async ValueTask SubscribeAsync(CancellationToken cancellationToken)
             {
                 var task = _parent._task;
@@ -477,6 +660,10 @@ public static partial class ObservableAsync
                 _subscription = await _parent._source.SubscribeAsync(new SourceObserver(this), cancellationToken);
             }
 
+            /// <summary>
+            /// Asynchronously releases resources used by this subscription.
+            /// </summary>
+            /// <returns>A task representing the asynchronous dispose operation.</returns>
             public async ValueTask DisposeAsync()
             {
                 _cts.Cancel();
@@ -489,7 +676,11 @@ public static partial class ObservableAsync
                 _gate.Dispose();
             }
 
-            private async void WaitAndComplete(Task task)
+            /// <summary>
+            /// Waits for the task to complete, then forwards completion or error to the downstream observer.
+            /// </summary>
+            /// <param name="task">The task to await.</param>
+            internal async void WaitAndComplete(Task task)
             {
                 try
                 {
@@ -516,7 +707,13 @@ public static partial class ObservableAsync
                 }
             }
 
-            private async ValueTask ForwardOnNextAsync(T value, CancellationToken cancellationToken)
+            /// <summary>
+            /// Forwards a value to the downstream observer under the serialization gate.
+            /// </summary>
+            /// <param name="value">The value to forward.</param>
+            /// <param name="cancellationToken">A token to cancel the operation.</param>
+            /// <returns>A task representing the asynchronous forward operation.</returns>
+            internal async ValueTask ForwardOnNextAsync(T value, CancellationToken cancellationToken)
             {
                 using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(_disposeCancellationToken, cancellationToken);
                 using (await _gate.LockAsync())
@@ -525,7 +722,13 @@ public static partial class ObservableAsync
                 }
             }
 
-            private async ValueTask ForwardOnErrorResumeAsync(Exception error, CancellationToken cancellationToken)
+            /// <summary>
+            /// Forwards a non-terminal error to the downstream observer under the serialization gate.
+            /// </summary>
+            /// <param name="error">The error to forward.</param>
+            /// <param name="cancellationToken">A token to cancel the operation.</param>
+            /// <returns>A task representing the asynchronous forward operation.</returns>
+            internal async ValueTask ForwardOnErrorResumeAsync(Exception error, CancellationToken cancellationToken)
             {
                 using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(_disposeCancellationToken, cancellationToken);
                 using (await _gate.LockAsync())
@@ -534,7 +737,12 @@ public static partial class ObservableAsync
                 }
             }
 
-            private async ValueTask ForwardOnCompletedAsync(Result result)
+            /// <summary>
+            /// Forwards the completion signal to the downstream observer under the serialization gate.
+            /// </summary>
+            /// <param name="result">The completion result.</param>
+            /// <returns>A task representing the asynchronous forward operation.</returns>
+            internal async ValueTask ForwardOnCompletedAsync(Result result)
             {
                 using (await _gate.LockAsync())
                 {
@@ -542,25 +750,42 @@ public static partial class ObservableAsync
                 }
             }
 
-            private sealed class SourceObserver(Subscription parent) : ObserverAsync<T>
+            /// <summary>
+            /// Observer that forwards source items to the parent subscription.
+            /// </summary>
+            internal sealed class SourceObserver(Subscription parent) : ObserverAsync<T>
             {
+                /// <inheritdoc/>
                 protected override ValueTask OnNextAsyncCore(T value, CancellationToken cancellationToken) =>
                     parent.ForwardOnNextAsync(value, cancellationToken);
 
+                /// <inheritdoc/>
                 protected override ValueTask OnErrorResumeAsyncCore(Exception error, CancellationToken cancellationToken) =>
                     parent.ForwardOnErrorResumeAsync(error, cancellationToken);
 
+                /// <inheritdoc/>
                 protected override ValueTask OnCompletedAsyncCore(Result result) => parent.ForwardOnCompletedAsync(result);
             }
         }
     }
 
-    private sealed class TakeUntilAsyncObservable<T, TOther>(IObservableAsync<T> source, IObservableAsync<TOther> other, TakeUntilOptions options) : ObservableAsync<T>
+    /// <summary>
+    /// Async observable that emits items from the source until another async observable emits or completes.
+    /// </summary>
+    /// <typeparam name="T">The type of the elements in the source sequence.</typeparam>
+    /// <typeparam name="TOther">The type of the elements in the signal sequence.</typeparam>
+    internal sealed class TakeUntilAsyncObservable<T, TOther>(IObservableAsync<T> source, IObservableAsync<TOther> other, TakeUntilOptions options) : ObservableAsync<T>
     {
+        /// <summary>The source observable sequence.</summary>
         private readonly IObservableAsync<T> _source = source;
+
+        /// <summary>The signal observable whose emission triggers completion.</summary>
         private readonly IObservableAsync<TOther> _other = other;
+
+        /// <summary>Options controlling the take-until behavior.</summary>
         private readonly TakeUntilOptions _options = options;
 
+        /// <inheritdoc/>
         protected override async ValueTask<IAsyncDisposable> SubscribeAsyncCore(IObserverAsync<T> observer, CancellationToken cancellationToken)
         {
             var subscription = new Subscription(this, observer);
@@ -576,16 +801,37 @@ public static partial class ObservableAsync
             }
         }
 
-        private sealed class Subscription : IAsyncDisposable
+        /// <summary>
+        /// Manages subscriptions to both the source and signal observables, completing when the signal fires.
+        /// </summary>
+        internal sealed class Subscription : IAsyncDisposable
         {
+            /// <summary>The parent observable that owns this subscription.</summary>
             private readonly TakeUntilAsyncObservable<T, TOther> _parent;
+
+            /// <summary>The downstream observer.</summary>
             private readonly IObserverAsync<T> _observer;
+
+            /// <summary>Serializes observer notifications.</summary>
             private readonly AsyncGate _gate = new();
+
+            /// <summary>Holds the source subscription so it can be disposed on teardown.</summary>
             private readonly SingleAssignmentDisposableAsync _disposable = new();
+
+            /// <summary>Holds the signal subscription so it can be disposed on teardown.</summary>
             private readonly SingleAssignmentDisposableAsync _otherDisposable = new();
+
+            /// <summary>Cancellation source for disposal.</summary>
             private readonly CancellationTokenSource _cts = new();
+
+            /// <summary>A cached token from <see cref="_cts"/> used to link with per-emission tokens.</summary>
             private readonly CancellationToken _disposeCancellationToken;
 
+            /// <summary>
+            /// Initializes a new instance of the <see cref="Subscription"/> class.
+            /// </summary>
+            /// <param name="parent">The parent observable that owns this subscription.</param>
+            /// <param name="observer">The downstream observer to forward items to.</param>
             public Subscription(TakeUntilAsyncObservable<T, TOther> parent, IObserverAsync<T> observer)
             {
                 _parent = parent;
@@ -593,6 +839,11 @@ public static partial class ObservableAsync
                 _disposeCancellationToken = _cts.Token;
             }
 
+            /// <summary>
+            /// Subscribes to both the source and signal observables.
+            /// </summary>
+            /// <param name="cancellationToken">A token to cancel the subscription.</param>
+            /// <returns>This subscription as an async disposable.</returns>
             public async ValueTask<IAsyncDisposable> SubscribeAsync(CancellationToken cancellationToken)
             {
                 var otherSubscription = await _parent._other.SubscribeAsync(new OtherObserver(this), cancellationToken);
@@ -604,6 +855,10 @@ public static partial class ObservableAsync
                 return this;
             }
 
+            /// <summary>
+            /// Asynchronously releases resources used by this subscription.
+            /// </summary>
+            /// <returns>A task representing the asynchronous dispose operation.</returns>
             public async ValueTask DisposeAsync()
             {
                 _cts.Cancel();
@@ -613,7 +868,13 @@ public static partial class ObservableAsync
                 _gate.Dispose();
             }
 
-            private async ValueTask ForwardOnNextAsync(T value, CancellationToken cancellationToken)
+            /// <summary>
+            /// Forwards a value to the downstream observer under the serialization gate.
+            /// </summary>
+            /// <param name="value">The value to forward.</param>
+            /// <param name="cancellationToken">A token to cancel the operation.</param>
+            /// <returns>A task representing the asynchronous forward operation.</returns>
+            internal async ValueTask ForwardOnNextAsync(T value, CancellationToken cancellationToken)
             {
                 using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(_disposeCancellationToken, cancellationToken);
                 using (await _gate.LockAsync())
@@ -622,7 +883,13 @@ public static partial class ObservableAsync
                 }
             }
 
-            private async ValueTask ForwardOnErrorResumeAsync(Exception error, CancellationToken cancellationToken)
+            /// <summary>
+            /// Forwards a non-terminal error to the downstream observer under the serialization gate.
+            /// </summary>
+            /// <param name="error">The error to forward.</param>
+            /// <param name="cancellationToken">A token to cancel the operation.</param>
+            /// <returns>A task representing the asynchronous forward operation.</returns>
+            internal async ValueTask ForwardOnErrorResumeAsync(Exception error, CancellationToken cancellationToken)
             {
                 using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(_disposeCancellationToken, cancellationToken);
                 using (await _gate.LockAsync())
@@ -631,7 +898,12 @@ public static partial class ObservableAsync
                 }
             }
 
-            private async ValueTask ForwardOnCompletedAsync(Result result)
+            /// <summary>
+            /// Forwards the completion signal to the downstream observer under the serialization gate.
+            /// </summary>
+            /// <param name="result">The completion result.</param>
+            /// <returns>A task representing the asynchronous forward operation.</returns>
+            internal async ValueTask ForwardOnCompletedAsync(Result result)
             {
                 using (await _gate.LockAsync())
                 {
@@ -639,26 +911,38 @@ public static partial class ObservableAsync
                 }
             }
 
-            private sealed class FirstSubscription(Subscription parent) : ObserverAsync<T>
+            /// <summary>
+            /// Observer that forwards source items to the parent subscription.
+            /// </summary>
+            internal sealed class FirstSubscription(Subscription parent) : ObserverAsync<T>
             {
+                /// <inheritdoc/>
                 protected override ValueTask OnNextAsyncCore(T value, CancellationToken cancellationToken) => parent.ForwardOnNextAsync(value, cancellationToken);
 
+                /// <inheritdoc/>
                 protected override ValueTask OnErrorResumeAsyncCore(Exception error, CancellationToken cancellationToken) => parent.ForwardOnErrorResumeAsync(error, cancellationToken);
 
+                /// <inheritdoc/>
                 protected override ValueTask OnCompletedAsyncCore(Result result) => parent.ForwardOnCompletedAsync(result);
             }
 
-            private sealed class OtherObserver(Subscription parent) : ObserverAsync<TOther>
+            /// <summary>
+            /// Observer for the signal observable that triggers completion of the source subscription.
+            /// </summary>
+            internal sealed class OtherObserver(Subscription parent) : ObserverAsync<TOther>
             {
+                /// <inheritdoc/>
                 protected override async ValueTask OnNextAsyncCore(TOther value, CancellationToken cancellationToken)
                 {
                     await parent.ForwardOnCompletedAsync(Result.Success);
                     await DisposeAsync();
                 }
 
+                /// <inheritdoc/>
                 protected override ValueTask OnErrorResumeAsyncCore(Exception error, CancellationToken cancellationToken) =>
                     parent.ForwardOnErrorResumeAsync(error, cancellationToken);
 
+                /// <inheritdoc/>
                 protected override ValueTask OnCompletedAsyncCore(Result result)
                 {
                     if (result.IsFailure)
@@ -677,11 +961,19 @@ public static partial class ObservableAsync
         }
     }
 
-    private sealed class TakeUntilAsyncPredicate<T>(IObservableAsync<T> source, Func<T, CancellationToken, ValueTask<bool>> asyncPredicate) : ObservableAsync<T>
+    /// <summary>
+    /// Async observable that emits items from the source until the specified asynchronous predicate returns true.
+    /// </summary>
+    /// <typeparam name="T">The type of the elements in the source sequence.</typeparam>
+    internal sealed class TakeUntilAsyncPredicate<T>(IObservableAsync<T> source, Func<T, CancellationToken, ValueTask<bool>> asyncPredicate) : ObservableAsync<T>
     {
+        /// <summary>The async predicate that signals when to stop emitting items.</summary>
         private readonly Func<T, CancellationToken, ValueTask<bool>> _asyncPredicate = asyncPredicate;
+
+        /// <summary>The source observable sequence.</summary>
         private readonly IObservableAsync<T> _source = source;
 
+        /// <inheritdoc/>
         protected override async ValueTask<IAsyncDisposable> SubscribeAsyncCore(IObserverAsync<T> observer, CancellationToken cancellationToken)
         {
             var subscription = new TakeUntilAsyncPredicateSubscription(this, observer);
@@ -697,15 +989,22 @@ public static partial class ObservableAsync
             }
         }
 
-        private sealed class TakeUntilAsyncPredicateSubscription(TakeUntilAsyncPredicate<T> parent, IObserverAsync<T> observer) : ObserverAsync<T>
+        /// <summary>
+        /// Observer that forwards items from the source until the async predicate returns true.
+        /// </summary>
+        internal sealed class TakeUntilAsyncPredicateSubscription(TakeUntilAsyncPredicate<T> parent, IObserverAsync<T> observer) : ObserverAsync<T>
         {
+            /// <summary>The inner subscription handle.</summary>
             private IAsyncDisposable? _subscription;
 
-            public async ValueTask SubscribeAsync(CancellationToken cancellationToken)
-            {
-                _subscription = await parent._source.SubscribeAsync(this, cancellationToken);
-            }
+            /// <summary>
+            /// Subscribes to the source observable.
+            /// </summary>
+            /// <param name="cancellationToken">A token to cancel the subscription.</param>
+            /// <returns>A task representing the asynchronous subscribe operation.</returns>
+            public async ValueTask SubscribeAsync(CancellationToken cancellationToken) => _subscription = await parent._source.SubscribeAsync(this, cancellationToken);
 
+            /// <inheritdoc/>
             protected override async ValueTask OnNextAsyncCore(T value, CancellationToken cancellationToken)
             {
                 if (await parent._asyncPredicate(value, cancellationToken))
@@ -717,10 +1016,13 @@ public static partial class ObservableAsync
                 await observer.OnNextAsync(value, cancellationToken);
             }
 
+            /// <inheritdoc/>
             protected override ValueTask OnErrorResumeAsyncCore(Exception error, CancellationToken cancellationToken) => observer.OnErrorResumeAsync(error, cancellationToken);
 
+            /// <inheritdoc/>
             protected override ValueTask OnCompletedAsyncCore(Result result) => observer.OnCompletedAsync(result);
 
+            /// <inheritdoc/>
             protected override async ValueTask DisposeAsyncCore()
             {
                 if (_subscription is not null)

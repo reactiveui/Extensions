@@ -15,6 +15,9 @@ namespace ReactiveUI.Extensions.Async.Disposables;
 /// operations are safe to use concurrently from multiple threads.</remarks>
 public class SerialDisposableAsync : IAsyncDisposable
 {
+    /// <summary>
+    /// The currently tracked disposable resource, or the disposed sentinel if already disposed.
+    /// </summary>
     private IAsyncDisposable? _current;
 
     /// <summary>
@@ -84,10 +87,17 @@ public class SerialDisposableAsync : IAsyncDisposable
         return default;
     }
 
-    private sealed class DisposedSentinel : IAsyncDisposable
+    /// <summary>
+    /// A sentinel object used to indicate that the <see cref="SerialDisposableAsync"/> has been disposed.
+    /// </summary>
+    internal sealed class DisposedSentinel : IAsyncDisposable
     {
+        /// <summary>
+        /// Gets the singleton instance of <see cref="DisposedSentinel"/>.
+        /// </summary>
         public static readonly DisposedSentinel Instance = new();
 
+        /// <inheritdoc/>
         public ValueTask DisposeAsync() => default;
     }
 }

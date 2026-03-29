@@ -23,18 +23,27 @@ public static partial class ObservableAsync
     public static async ValueTask WaitCompletionAsync<T>(this IObservableAsync<T> @this, CancellationToken cancellationToken = default)
     {
         ArgumentExceptionHelper.ThrowIfNull(@this);
+        cancellationToken.ThrowIfCancellationRequested();
 
         var observer = new WaitCompletionAsyncObserver<T>(cancellationToken);
         _ = await @this.SubscribeAsync(observer, cancellationToken);
         await observer.WaitValueAsync();
     }
 
-    private sealed class WaitCompletionAsyncObserver<T>(CancellationToken cancellationToken) : TaskObserverAsyncBase<T, object?>(cancellationToken)
+    /// <summary>
+    /// Observer that waits for a sequence to complete, ignoring all emitted values.
+    /// </summary>
+    /// <typeparam name="T">The type of elements in the source sequence.</typeparam>
+    /// <param name="cancellationToken">A cancellation token for the operation.</param>
+    internal sealed class WaitCompletionAsyncObserver<T>(CancellationToken cancellationToken) : TaskObserverAsyncBase<T, object?>(cancellationToken)
     {
+        /// <inheritdoc/>
         protected override ValueTask OnNextAsyncCore(T value, CancellationToken cancellationToken) => default;
 
+        /// <inheritdoc/>
         protected override ValueTask OnErrorResumeAsyncCore(Exception error, CancellationToken cancellationToken) => TrySetException(error);
 
+        /// <inheritdoc/>
         protected override ValueTask OnCompletedAsyncCore(Result result) =>
             !result.IsSuccess ? TrySetException(result.Exception) : TrySetCompleted(null);
     }

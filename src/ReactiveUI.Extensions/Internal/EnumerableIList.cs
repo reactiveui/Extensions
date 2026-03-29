@@ -4,6 +4,9 @@
 
 namespace ReactiveUI.Extensions.Internal;
 
+/// <summary>
+/// Provides factory methods for creating <see cref="EnumerableIList{T}"/> instances.
+/// </summary>
 internal static class EnumerableIList
 {
     /// <summary>

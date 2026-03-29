@@ -11,6 +11,8 @@ namespace ReactiveUI.Extensions.Tests.Async;
 /// <summary>
 /// Tests for error handling operators: Catch, CatchAndIgnoreErrorResume, OnErrorResumeAsFailure, Retry.
 /// </summary>
+[NotInParallel(nameof(UnhandledExceptionHandler))]
+[TestExecutor<UnhandledExceptionTestExecutor>]
 public class ErrorHandlingOperatorTests
 {
     /// <summary>Tests Catch with fallback switches to fallback.</summary>
@@ -149,5 +151,95 @@ public class ErrorHandlingOperatorTests
             .ToListAsync();
 
         await Assert.That(result).Contains(99);
+    }
+
+    /// <summary>Tests Retry with count zero propagates error immediately without retrying.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenRetryWithCountZero_ThenPropagatesErrorImmediately()
+    {
+        var attempt = 0;
+        var completed = new TaskCompletionSource<Result>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        var source = ObservableAsync.CreateAsBackgroundJob<int>(async (obs, ct) =>
+        {
+            attempt++;
+            await obs.OnCompletedAsync(Result.Failure(new InvalidOperationException($"attempt {attempt}")));
+        });
+
+        await using var sub = await source
+            .Retry(0)
+            .SubscribeAsync(
+                (_, _) => default,
+                null,
+                result =>
+                {
+                    completed.TrySetResult(result);
+                    return default;
+                });
+
+        var completionResult = await completed.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await Assert.That(completionResult.IsFailure).IsTrue();
+        await Assert.That(attempt).IsEqualTo(1);
+    }
+
+    /// <summary>Tests Retry with count two exhausts all retries then propagates the last error.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenRetryCountExhausted_ThenPropagatesLastError()
+    {
+        var attempt = 0;
+        var completed = new TaskCompletionSource<Result>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        var source = ObservableAsync.CreateAsBackgroundJob<int>(async (obs, ct) =>
+        {
+            attempt++;
+            await obs.OnCompletedAsync(Result.Failure(new InvalidOperationException($"attempt {attempt}")));
+        });
+
+        await using var sub = await source
+            .Retry(2)
+            .SubscribeAsync(
+                (_, _) => default,
+                null,
+                result =>
+                {
+                    completed.TrySetResult(result);
+                    return default;
+                });
+
+        var completionResult = await completed.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await Assert.That(completionResult.IsFailure).IsTrue();
+        await Assert.That(attempt).IsEqualTo(3);
+    }
+
+    /// <summary>Tests Retry with count one retries exactly once then propagates the error.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenRetryWithCountOne_ThenRetriesOnceAndPropagates()
+    {
+        var attempt = 0;
+        var completed = new TaskCompletionSource<Result>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        var source = ObservableAsync.CreateAsBackgroundJob<int>(async (obs, ct) =>
+        {
+            attempt++;
+            await obs.OnCompletedAsync(Result.Failure(new InvalidOperationException($"attempt {attempt}")));
+        });
+
+        await using var sub = await source
+            .Retry(1)
+            .SubscribeAsync(
+                (_, _) => default,
+                null,
+                result =>
+                {
+                    completed.TrySetResult(result);
+                    return default;
+                });
+
+        var completionResult = await completed.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await Assert.That(completionResult.IsFailure).IsTrue();
+        await Assert.That(attempt).IsEqualTo(2);
     }
 }

@@ -3,6 +3,7 @@
 // See the LICENSE file in the project root for full license information.
 
 using ReactiveUI.Extensions.Async;
+using ReactiveUI.Extensions.Async.Disposables;
 using ReactiveUI.Extensions.Async.Internals;
 
 namespace ReactiveUI.Extensions.Tests.Async;
@@ -15,6 +16,10 @@ internal static class AsyncTestHelpers
     /// <summary>
     /// Collects all items and the completion result from an async observable.
     /// </summary>
+    /// <typeparam name="T">The type of elements in the observable sequence.</typeparam>
+    /// <param name="source">The async observable to collect from.</param>
+    /// <param name="cancellationToken">Optional cancellation token.</param>
+    /// <returns>A tuple containing the collected items and the completion result.</returns>
     internal static async Task<(List<T> Items, Result? Completion)> CollectAsync<T>(
         ObservableAsync<T> source,
         CancellationToken cancellationToken = default)
@@ -49,6 +54,10 @@ internal static class AsyncTestHelpers
     /// <summary>
     /// Collects all items from an async observable using ToListAsync.
     /// </summary>
+    /// <typeparam name="T">The type of elements in the observable sequence.</typeparam>
+    /// <param name="source">The async observable to collect from.</param>
+    /// <param name="timeoutMs">The timeout in milliseconds before the operation is cancelled.</param>
+    /// <returns>A list of all collected items.</returns>
     internal static async Task<List<T>> ToListWithTimeoutAsync<T>(
         ObservableAsync<T> source,
         int timeoutMs = 5000)
@@ -56,6 +65,14 @@ internal static class AsyncTestHelpers
         using var cts = new CancellationTokenSource(timeoutMs);
         return await source.ToListAsync(cts.Token);
     }
+
+    /// <summary>
+    /// Creates a <see cref="DirectSource{T}"/> for test scenarios that need to call observer
+    /// methods directly, bypassing subject teardown on disposal.
+    /// </summary>
+    /// <typeparam name="T">The element type.</typeparam>
+    /// <returns>A new <see cref="DirectSource{T}"/> instance.</returns>
+    internal static DirectSource<T> CreateDirectSource<T>() => new();
 
     /// <summary>
     /// Waits until the provided condition is met or the timeout expires.

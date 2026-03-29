@@ -16,9 +16,25 @@ namespace ReactiveUI.Extensions.Async.Internals;
 /// <param name="observer">The observer that receives notifications for the subscription. Cannot be null.</param>
 internal abstract class CancelableTaskSubscription<T>(IObserverAsync<T> observer) : IAsyncDisposable
 {
+    /// <summary>
+    /// The task completion source used to signal when the subscription's asynchronous operation has finished.
+    /// </summary>
     private readonly TaskCompletionSource<bool> _tcs = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    /// <summary>
+    /// The cancellation token source used to cancel the subscription's asynchronous operation upon disposal.
+    /// </summary>
     private readonly CancellationTokenSource _cts = new();
+
+    /// <summary>
+    /// An async-local flag that indicates whether the current call is reentrant, preventing deadlocks during disposal.
+    /// </summary>
     private readonly AsyncLocal<bool> _reentrant = new();
+
+    /// <summary>
+    /// Indicates whether disposal has already been initiated to prevent double-disposal.
+    /// </summary>
+    private int _disposed;
 
     /// <summary>
     /// Starts the operation synchronously using the current cancellation token.
@@ -38,6 +54,11 @@ internal abstract class CancelableTaskSubscription<T>(IObserverAsync<T> observer
     /// <returns>A ValueTask that represents the asynchronous dispose operation.</returns>
     public async ValueTask DisposeAsync()
     {
+        if (Interlocked.Exchange(ref _disposed, 1) != 0)
+        {
+            return;
+        }
+
         _cts.Cancel();
         if (!_reentrant.Value)
         {
@@ -47,9 +68,31 @@ internal abstract class CancelableTaskSubscription<T>(IObserverAsync<T> observer
         _cts.Dispose();
     }
 
-    protected abstract ValueTask RunAsyncCore(IObserverAsync<T> observer, CancellationToken cancellationToken);
+    /// <summary>
+    /// Attempts to complete the observer with a failure result. If the observer's completion handler
+    /// also throws, the exception is routed to <see cref="UnhandledExceptionHandler"/>.
+    /// </summary>
+    /// <param name="observer">The observer to complete.</param>
+    /// <param name="error">The original exception.</param>
+    /// <returns>A <see cref="ValueTask"/> representing the operation.</returns>
+    internal static async ValueTask CompleteWithFailureAsync(IObserverAsync<T> observer, Exception error)
+    {
+        try
+        {
+            await observer.OnCompletedAsync(Result.Failure(error));
+        }
+        catch (Exception exception)
+        {
+            UnhandledExceptionHandler.OnUnhandledException(exception);
+        }
+    }
 
-    private async ValueTask RunAsync(CancellationToken cancellationToken)
+    /// <summary>
+    /// Executes the subscription's core logic, handling exceptions by completing the observer with a failure result.
+    /// </summary>
+    /// <param name="cancellationToken">A cancellation token that can be used to cancel the operation.</param>
+    /// <returns>A <see cref="ValueTask"/> representing the asynchronous operation.</returns>
+    internal async ValueTask RunAsync(CancellationToken cancellationToken)
     {
         _reentrant.Value = true;
         try
@@ -58,18 +101,19 @@ internal abstract class CancelableTaskSubscription<T>(IObserverAsync<T> observer
         }
         catch (Exception e)
         {
-            try
-            {
-                await observer.OnCompletedAsync(Result.Failure(e));
-            }
-            catch (Exception exception)
-            {
-                UnhandledExceptionHandler.OnUnhandledException(exception);
-            }
+            await CompleteWithFailureAsync(observer, e);
         }
         finally
         {
             _tcs.SetResult(true);
         }
     }
+
+    /// <summary>
+    /// When overridden in a derived class, executes the core subscription logic asynchronously.
+    /// </summary>
+    /// <param name="observer">The observer that receives notifications.</param>
+    /// <param name="cancellationToken">A cancellation token that can be used to cancel the operation.</param>
+    /// <returns>A <see cref="ValueTask"/> representing the asynchronous operation.</returns>
+    protected abstract ValueTask RunAsyncCore(IObserverAsync<T> observer, CancellationToken cancellationToken);
 }

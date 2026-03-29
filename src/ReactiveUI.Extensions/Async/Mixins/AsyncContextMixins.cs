@@ -4,6 +4,9 @@
 
 namespace ReactiveUI.Extensions.Async;
 
+/// <summary>
+/// Provides extension methods for comparing <see cref="AsyncContext"/> instances with the current async context.
+/// </summary>
 internal static class AsyncContextMixins
 {
     /// <summary>

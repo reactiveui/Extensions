@@ -48,23 +48,38 @@ public static class SubjectMixins
         return new MappedSubject<T>(@this, mapper);
     }
 
-    private sealed class MappedSubject<T>(ISubjectAsync<T> original, Func<IObservableAsync<T>, IObservableAsync<T>> mapper) : ISubjectAsync<T>
+    /// <summary>
+    /// A subject that applies a transformation to the observable values of the source subject.
+    /// </summary>
+    /// <typeparam name="T">The type of elements processed by the subject.</typeparam>
+    internal sealed class MappedSubject<T>(ISubjectAsync<T> original, Func<IObservableAsync<T>, IObservableAsync<T>> mapper) : ISubjectAsync<T>
     {
+        /// <inheritdoc/>
         public IObservableAsync<T> Values { get; } = mapper(original.Values);
 
+        /// <inheritdoc/>
         public ValueTask<IAsyncDisposable> SubscribeAsync(IObserverAsync<T> observer, CancellationToken cancellationToken) =>
             Values.SubscribeAsync(observer, cancellationToken);
 
+        /// <inheritdoc/>
         public ValueTask OnNextAsync(T value, CancellationToken cancellationToken) => original.OnNextAsync(value, cancellationToken);
 
+        /// <inheritdoc/>
         public ValueTask OnErrorResumeAsync(Exception error, CancellationToken cancellationToken) => original.OnErrorResumeAsync(error, cancellationToken);
 
+        /// <inheritdoc/>
         public ValueTask OnCompletedAsync(Result result) => original.OnCompletedAsync(result);
 
+        /// <inheritdoc/>
         public ValueTask DisposeAsync() => original.DisposeAsync();
     }
 
-    private sealed class SubjectAsyncObserver<T>(ISubjectAsync<T> subject) : ObserverAsync<T>
+    /// <summary>
+    /// An asynchronous observer that forwards all notifications to the wrapped subject.
+    /// </summary>
+    /// <typeparam name="T">The type of elements processed by the observer.</typeparam>
+    /// <param name="subject">The subject to forward notifications to.</param>
+    internal sealed class SubjectAsyncObserver<T>(ISubjectAsync<T> subject) : ObserverAsync<T>
     {
         /// <summary>
         /// Asynchronously processes the next value in the sequence.

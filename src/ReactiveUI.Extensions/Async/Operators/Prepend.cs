@@ -78,9 +78,9 @@ public static partial class ObservableAsync
             var subcription = DisposableAsync.Create(async () =>
             {
                 await subscriptionDisposable.DisposeAsync();
+                cts.Cancel();
                 if (!reentrant.Value)
                 {
-                    cts.Cancel();
                     await task;
                 }
 

@@ -21,12 +21,34 @@ namespace ReactiveUI.Extensions.Async;
 /// <typeparam name="T">The type of the elements received by the observer.</typeparam>
 public abstract class ObserverAsync<T> : IObserverAsync<T>
 {
+    /// <summary>
+    /// Tracks the reentrant call depth per async flow to detect concurrent observer calls.
+    /// </summary>
     private readonly AsyncLocal<int> _reentrantCallsCount = new();
+
+    /// <summary>
+    /// Signals disposal to all in-flight operations via its cancellation token.
+    /// </summary>
     private readonly CancellationTokenSource _disposeCts = new();
+
+    /// <summary>
+    /// The total number of currently executing <c>OnNext</c>, <c>OnErrorResume</c>, or <c>OnCompleted</c> calls.
+    /// </summary>
     private int _callsCount;
+
+    /// <summary>
+    /// Completion source that is set when all in-flight calls finish after disposal has been requested.
+    /// </summary>
     private TaskCompletionSource<object?>? _allCallsCompletedTcs;
+
+    /// <summary>
+    /// The disposable representing the upstream source subscription, disposed when this observer is disposed.
+    /// </summary>
     private IAsyncDisposable? _sourceSubscription;
 
+    /// <summary>
+    /// Gets a value indicating whether this observer has been disposed.
+    /// </summary>
     internal bool IsDisposed => _disposeCts.IsCancellationRequested;
 
     /// <summary>
@@ -172,7 +194,98 @@ public abstract class ObserverAsync<T> : IObserverAsync<T>
         }
     }
 
+    /// <summary>
+    /// Sets the source subscription disposable for this observer.
+    /// </summary>
+    /// <param name="value">The source subscription to track, or <see langword="null"/> to clear it.</param>
+    /// <returns>A <see cref="ValueTask"/> representing the asynchronous operation.</returns>
     internal ValueTask SetSourceSubscriptionAsync(IAsyncDisposable? value) => SingleAssignmentDisposableAsync.SetDisposableAsync(ref _sourceSubscription, value);
+
+    /// <summary>
+    /// Attempts to enter a notification call, checking for disposal, cancellation, and concurrent access.
+    /// </summary>
+    /// <param name="cancellationToken">The caller-supplied cancellation token.</param>
+    /// <param name="linkedCts">When successful, a linked <see cref="CancellationTokenSource"/> combining the caller token and disposal token.</param>
+    /// <returns><see langword="true"/> if the call was entered successfully; otherwise, <see langword="false"/>.</returns>
+    [DebuggerStepThrough]
+    internal bool TryEnterOnSomethingCall(CancellationToken cancellationToken, [NotNullWhen(true)] out CancellationTokenSource? linkedCts)
+    {
+        lock (_reentrantCallsCount)
+        {
+            if (_disposeCts.IsCancellationRequested || cancellationToken.IsCancellationRequested)
+            {
+                linkedCts = null;
+                return false;
+            }
+
+            var reentrantCallsCount = _reentrantCallsCount.Value;
+            if (_callsCount != reentrantCallsCount)
+            {
+                UnhandledExceptionHandler.OnUnhandledException(new ConcurrentObserverCallsException());
+                linkedCts = null;
+                return false;
+            }
+
+            _callsCount++;
+            _reentrantCallsCount.Value = reentrantCallsCount + 1;
+
+            linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _disposeCts.Token);
+            return true;
+        }
+    }
+
+    /// <summary>
+    /// Exits a notification call, decrementing counters and signalling completion if disposal is pending.
+    /// </summary>
+    /// <returns><see langword="true"/> if the caller should proceed with disposal; <see langword="false"/> if
+    /// disposal was already signalled to a waiting <see cref="DisposeAsync"/> call.</returns>
+    [DebuggerStepThrough]
+    internal bool ExitOnSomethingCall()
+    {
+        lock (_reentrantCallsCount)
+        {
+            _callsCount--;
+            var reentrantCallsCount = --_reentrantCallsCount.Value;
+            Debug.Assert(reentrantCallsCount >= 0, "Reentrant calls count should never be negative.");
+            Debug.Assert(_callsCount == reentrantCallsCount, "Calls count and reentrant calls count should be equal when exiting a call.");
+            if (_allCallsCompletedTcs is not null)
+            {
+                _allCallsCompletedTcs.SetResult(null);
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// Internal error-resume handler that delegates to <see cref="OnErrorResumeAsyncCore"/> and routes
+    /// unhandled or cancelled errors to the <see cref="UnhandledExceptionHandler"/>.
+    /// </summary>
+    /// <param name="error">The exception that triggered error handling.</param>
+    /// <param name="cancellationToken">A cancellation token for the operation.</param>
+    /// <returns>A task representing the asynchronous operation.</returns>
+    internal async ValueTask OnErrorResumeAsync_Private(Exception error, CancellationToken cancellationToken)
+    {
+        try
+        {
+            if (cancellationToken.IsCancellationRequested)
+            {
+                UnhandledExceptionHandler.OnUnhandledException(error);
+                return;
+            }
+
+            await OnErrorResumeAsyncCore(error, cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            UnhandledExceptionHandler.OnUnhandledException(error);
+        }
+        catch (Exception e)
+        {
+            UnhandledExceptionHandler.OnUnhandledException(e);
+        }
+    }
 
     /// <summary>
     /// Performs asynchronous completion logic when the operation has finished processing the specified result.
@@ -209,72 +322,4 @@ public abstract class ObserverAsync<T> : IObserverAsync<T>
     /// <param name="cancellationToken">A cancellation token that can be used to cancel the asynchronous operation.</param>
     /// <returns>A ValueTask that represents the asynchronous operation.</returns>
     protected abstract ValueTask OnNextAsyncCore(T value, CancellationToken cancellationToken);
-
-    [DebuggerStepThrough]
-    private bool TryEnterOnSomethingCall(CancellationToken cancellationToken, [NotNullWhen(true)] out CancellationTokenSource? linkedCts)
-    {
-        lock (_reentrantCallsCount)
-        {
-            if (_disposeCts.IsCancellationRequested || cancellationToken.IsCancellationRequested)
-            {
-                linkedCts = null;
-                return false;
-            }
-
-            var reentrantCallsCount = _reentrantCallsCount.Value;
-            if (_callsCount != reentrantCallsCount)
-            {
-                UnhandledExceptionHandler.OnUnhandledException(new ConcurrentObserverCallsException());
-                linkedCts = null;
-                return false;
-            }
-
-            _callsCount++;
-            _reentrantCallsCount.Value = reentrantCallsCount + 1;
-
-            linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _disposeCts.Token);
-            return true;
-        }
-    }
-
-    [DebuggerStepThrough]
-    private bool ExitOnSomethingCall()
-    {
-        lock (_reentrantCallsCount)
-        {
-            _callsCount--;
-            var reentrantCallsCount = --_reentrantCallsCount.Value;
-            Debug.Assert(reentrantCallsCount >= 0, "Reentrant calls count should never be negative.");
-            Debug.Assert(_callsCount == reentrantCallsCount, "Calls count and reentrant calls count should be equal when exiting a call.");
-            if (_allCallsCompletedTcs is not null)
-            {
-                _allCallsCompletedTcs.SetResult(null);
-                return false;
-            }
-        }
-
-        return true;
-    }
-
-    private async ValueTask OnErrorResumeAsync_Private(Exception error, CancellationToken cancellationToken)
-    {
-        try
-        {
-            if (cancellationToken.IsCancellationRequested)
-            {
-                UnhandledExceptionHandler.OnUnhandledException(error);
-                return;
-            }
-
-            await OnErrorResumeAsyncCore(error, cancellationToken);
-        }
-        catch (OperationCanceledException)
-        {
-            UnhandledExceptionHandler.OnUnhandledException(error);
-        }
-        catch (Exception e)
-        {
-            UnhandledExceptionHandler.OnUnhandledException(e);
-        }
-    }
 }
