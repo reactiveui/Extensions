@@ -540,8 +540,13 @@ public class FactoryObservableTests
     [Test]
     public async Task WhenSubscribeAsyncSyncOverloadWithError_ThenInvokesOnErrorResume()
     {
-        var errorReceived = new TaskCompletionSource<Exception>();
-        var source = ObservableAsync.Throw<int>(new InvalidOperationException("sync error"));
+        var errorReceived = new TaskCompletionSource<Exception>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var source = ObservableAsync.Create<int>(async (observer, ct) =>
+        {
+            await observer.OnErrorResumeAsync(new InvalidOperationException("sync error"), ct);
+            await observer.OnCompletedAsync(Result.Success);
+            return DisposableAsync.Empty;
+        });
 
         await using var sub = await source.SubscribeAsync(
             _ => { },

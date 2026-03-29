@@ -35,9 +35,9 @@ public static partial class ObservableAsync
         /// <param name="values">The collection of values to emit before the original sequence. Cannot be null.</param>
         /// <returns>An observable sequence that emits the specified values first, followed by the items from the current
         /// sequence.</returns>
-        public IObservableAsync<T> Prepend(IEnumerable<T> values) => Create<T>((observer, _) =>
+        public IObservableAsync<T> Prepend(IEnumerable<T> values) => Create<T>((observer, subscriptionToken) =>
         {
-            var cts = new CancellationTokenSource();
+            var cts = CancellationTokenSource.CreateLinkedTokenSource(subscriptionToken);
             SingleAssignmentDisposableAsync subscriptionDisposable = new();
             AsyncLocal<bool> reentrant = new();
             var task = Core(cts.Token);

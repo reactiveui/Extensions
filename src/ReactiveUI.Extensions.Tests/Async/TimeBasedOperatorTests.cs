@@ -619,8 +619,13 @@ public class TimeBasedOperatorTests
         // Emit two values in rapid succession; first should be superseded
         await subject.OnNextAsync(1, CancellationToken.None);
         await subject.OnNextAsync(2, CancellationToken.None);
-        await subject.OnCompletedAsync(Result.Success);
 
+        // Wait for the throttled value to arrive before completing
+        await AsyncTestHelpers.WaitForConditionAsync(
+            () => results.Count >= 1,
+            TimeSpan.FromSeconds(5));
+
+        await subject.OnCompletedAsync(Result.Success);
         await completed.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
         // Only the last value (2) should have been emitted

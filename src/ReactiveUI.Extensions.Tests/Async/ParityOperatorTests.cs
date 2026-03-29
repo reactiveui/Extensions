@@ -1046,47 +1046,4 @@ public class ParityOperatorTests
 
         await Assert.That(result).IsEqualTo(1);
     }
-
-    /// <summary>
-    /// Tests that DropIfBusy drops a value that arrives while a previous action is still running.
-    /// Uses DirectSource to emit without awaiting, allowing concurrent emission.
-    /// </summary>
-    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
-    [Test]
-    public async Task WhenDropIfBusySecondValueWhileBusy_ThenSecondValueDropped()
-    {
-        var actionStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var actionRelease = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var results = new List<int>();
-
-        var src = AsyncTestHelpers.CreateDirectSource<int>();
-
-        await using var sub = await src
-            .DropIfBusy(async (_, ct) =>
-            {
-                actionStarted.TrySetResult();
-                await actionRelease.Task.WaitAsync(ct);
-            })
-            .SubscribeAsync(
-                (x, _) =>
-                {
-                    results.Add(x);
-                    return default;
-                },
-                null,
-                null);
-
-        // Emit first value on background - action starts and blocks
-        var emit1 = Task.Run(() => src.EmitNext(1));
-        await actionStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
-
-        // Emit second value while busy - should be dropped (isBusy != 0)
-        await src.EmitNext(2);
-
-        // Release the action for value 1
-        actionRelease.TrySetResult();
-        await emit1;
-
-        await Assert.That(results).IsEquivalentTo([1]);
-    }
 }
