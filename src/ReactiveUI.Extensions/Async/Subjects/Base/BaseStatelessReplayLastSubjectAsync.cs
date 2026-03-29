@@ -23,9 +23,24 @@ namespace ReactiveUI.Extensions.Async.Subjects;
 /// available to new subscribers until a new value is published.</param>
 public abstract class BaseStatelessReplayLastSubjectAsync<T>(Optional<T> startValue) : ObservableAsync<T>, ISubjectAsync<T>
 {
+    /// <summary>
+    /// The initial value provided at construction, used to reset state when all observers unsubscribe or the subject completes.
+    /// </summary>
     private readonly Optional<T> _startValue = startValue;
+
+    /// <summary>
+    /// The asynchronous gate used to synchronize access to the subject's mutable state.
+    /// </summary>
     private readonly AsyncGate _gate = new();
+
+    /// <summary>
+    /// The most recently published value, or the start value if no value has been published or after a reset.
+    /// </summary>
     private Optional<T> _value = startValue;
+
+    /// <summary>
+    /// The immutable list of currently subscribed observers.
+    /// </summary>
     private ImmutableList<IObserverAsync<T>> _observers = [];
 
     /// <summary>

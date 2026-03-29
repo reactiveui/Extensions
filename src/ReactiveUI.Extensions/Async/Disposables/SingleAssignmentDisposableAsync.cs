@@ -16,6 +16,9 @@ namespace ReactiveUI.Extensions.Async.Disposables;
 /// disposal; external synchronization is required if used from multiple threads.</remarks>
 public sealed class SingleAssignmentDisposableAsync : IAsyncDisposable
 {
+    /// <summary>
+    /// The currently assigned disposable resource, or the disposed sentinel if already disposed.
+    /// </summary>
     private IAsyncDisposable? _current;
 
     /// <summary>
@@ -85,8 +88,7 @@ public sealed class SingleAssignmentDisposableAsync : IAsyncDisposable
             return default;
         }
 
-        ThrowAlreadyAssignment();
-        return default;
+        throw CreateAlreadyAssignedException();
     }
 
     /// <summary>
@@ -111,12 +113,23 @@ public sealed class SingleAssignmentDisposableAsync : IAsyncDisposable
         return default;
     }
 
-    private static void ThrowAlreadyAssignment() => throw new InvalidOperationException("Disposable is already assigned.");
+    /// <summary>
+    /// Creates an exception indicating that the disposable has already been assigned.
+    /// </summary>
+    /// <returns>An <see cref="InvalidOperationException"/> with the already-assigned message.</returns>
+    internal static InvalidOperationException CreateAlreadyAssignedException() => new("Disposable is already assigned.");
 
-    private sealed class DisposedSentinel : IAsyncDisposable
+    /// <summary>
+    /// A sentinel object used to indicate that the <see cref="SingleAssignmentDisposableAsync"/> has been disposed.
+    /// </summary>
+    internal sealed class DisposedSentinel : IAsyncDisposable
     {
+        /// <summary>
+        /// Gets the singleton instance of <see cref="DisposedSentinel"/>.
+        /// </summary>
         public static readonly DisposedSentinel Instance = new();
 
+        /// <inheritdoc/>
         public ValueTask DisposeAsync() => default;
     }
 }

@@ -15,6 +15,9 @@ namespace ReactiveUI.Extensions.Async;
 /// <typeparam name="T">The type of the value that may be contained by the optional.</typeparam>
 public readonly record struct Optional<T>
 {
+    /// <summary>
+    /// The underlying value, or <see langword="default"/> when no value is present.
+    /// </summary>
     private readonly T? _value;
 
     /// <summary>

@@ -28,19 +28,68 @@ public static partial class ObservableAsync
     /// <returns>An observable sequence that stays connected to the source as long as there is at least one subscription.</returns>
     public static ObservableAsync<T> RefCount<T>(this ConnectableObservableAsync<T> source) => new RefCountObservable<T>(source);
 
-    private sealed class RefCountObservable<T>(ConnectableObservableAsync<T> source) : ObservableAsync<T>, IDisposable
+    /// <summary>
+    /// Async observable that automatically connects to the underlying connectable source when the first
+    /// observer subscribes and disconnects when the last observer unsubscribes.
+    /// </summary>
+    /// <typeparam name="T">The type of elements in the sequence.</typeparam>
+    /// <param name="source">The connectable observable to manage with reference counting.</param>
+    internal sealed class RefCountObservable<T>(ConnectableObservableAsync<T> source) : ObservableAsync<T>, IDisposable
     {
+        /// <summary>
+        /// The asynchronous gate used to serialize subscribe and dispose operations.
+        /// </summary>
         private readonly AsyncGate _gate = new();
+
+        /// <summary>
+        /// The current number of active subscribers.
+        /// </summary>
         private int _refCount;
+
+        /// <summary>
+        /// The single-assignment disposable holding the connection to the underlying connectable source.
+        /// </summary>
         private SingleAssignmentDisposableAsync? _connection;
+
+        /// <summary>
+        /// Indicates whether this instance has been disposed.
+        /// </summary>
         private bool _disposedValue;
 
+        /// <summary>
+        /// Disposes the ref-count observable, releasing the connection gate and any active connection.
+        /// </summary>
         public void Dispose()
         {
             Dispose(disposing: true);
             GC.SuppressFinalize(this);
         }
 
+        /// <summary>
+        /// Releases managed resources if <paramref name="disposing"/> is true.
+        /// </summary>
+        /// <param name="disposing">True to release managed resources; false when called from a finalizer.</param>
+        internal void Dispose(bool disposing)
+        {
+            if (!_disposedValue)
+            {
+                if (disposing)
+                {
+                    _gate.Dispose();
+                    _connection?.DisposeAsync().AsTask().GetAwaiter().GetResult();
+                }
+
+                _disposedValue = true;
+            }
+        }
+
+        /// <summary>
+        /// Subscribes the specified observer, incrementing the reference count and connecting to the source
+        /// if this is the first subscriber.
+        /// </summary>
+        /// <param name="observer">The observer to receive elements from the connectable source.</param>
+        /// <param name="cancellationToken">A token to cancel the subscription.</param>
+        /// <returns>An async disposable that decrements the reference count on disposal.</returns>
         [DebuggerStepThrough]
         protected override async ValueTask<IAsyncDisposable> SubscribeAsyncCore(IObserverAsync<T> observer, CancellationToken cancellationToken)
         {
@@ -62,28 +111,41 @@ public static partial class ObservableAsync
             }
         }
 
-        private void Dispose(bool disposing)
+        /// <summary>
+        /// Observer wrapper that forwards all notifications and decrements the parent's reference count on disposal,
+        /// disconnecting from the source when the count reaches zero.
+        /// </summary>
+        /// <param name="parent">The parent ref-count observable.</param>
+        /// <param name="observer">The downstream observer to forward notifications to.</param>
+        internal sealed class RefCountObsever(RefCountObservable<T> parent, IObserverAsync<T> observer) : ObserverAsync<T>
         {
-            if (!_disposedValue)
-            {
-                if (disposing)
-                {
-                    _gate.Dispose();
-                    _connection?.DisposeAsync().AsTask().GetAwaiter().GetResult();
-                }
-
-                _disposedValue = true;
-            }
-        }
-
-        private sealed class RefCountObsever(RefCountObservable<T> parent, IObserverAsync<T> observer) : ObserverAsync<T>
-        {
+            /// <summary>
+            /// Forwards an element to the downstream observer.
+            /// </summary>
+            /// <param name="value">The element to forward.</param>
+            /// <param name="cancellationToken">A token to cancel the operation.</param>
+            /// <returns>A task representing the asynchronous operation.</returns>
             protected override ValueTask OnNextAsyncCore(T value, CancellationToken cancellationToken) => observer.OnNextAsync(value, cancellationToken);
 
+            /// <summary>
+            /// Forwards a non-fatal error to the downstream observer.
+            /// </summary>
+            /// <param name="error">The error to forward.</param>
+            /// <param name="cancellationToken">A token to cancel the operation.</param>
+            /// <returns>A task representing the asynchronous operation.</returns>
             protected override ValueTask OnErrorResumeAsyncCore(Exception error, CancellationToken cancellationToken) => observer.OnErrorResumeAsync(error, cancellationToken);
 
+            /// <summary>
+            /// Forwards completion to the downstream observer.
+            /// </summary>
+            /// <param name="result">The completion result.</param>
+            /// <returns>A task representing the asynchronous operation.</returns>
             protected override ValueTask OnCompletedAsyncCore(Result result) => observer.OnCompletedAsync(result);
 
+            /// <summary>
+            /// Decrements the parent's reference count and disconnects from the source when it reaches zero.
+            /// </summary>
+            /// <returns>A task representing the asynchronous disposal operation.</returns>
             [DebuggerStepThrough]
             protected override async ValueTask DisposeAsyncCore()
             {

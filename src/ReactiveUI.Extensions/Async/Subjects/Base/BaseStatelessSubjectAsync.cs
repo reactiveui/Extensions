@@ -4,7 +4,6 @@
 
 using System.Collections.Immutable;
 using ReactiveUI.Extensions.Async.Disposables;
-using ReactiveUI.Extensions.Async.Internals;
 
 namespace ReactiveUI.Extensions.Async.Subjects;
 
@@ -21,6 +20,9 @@ namespace ReactiveUI.Extensions.Async.Subjects;
 /// <typeparam name="T">The type of the elements processed and broadcast by the subject.</typeparam>
 public abstract class BaseStatelessSubjectAsync<T> : ObservableAsync<T>, ISubjectAsync<T>
 {
+    /// <summary>
+    /// The immutable list of currently subscribed observers.
+    /// </summary>
     private ImmutableList<IObserverAsync<T>> _observers = [];
 
     /// <summary>

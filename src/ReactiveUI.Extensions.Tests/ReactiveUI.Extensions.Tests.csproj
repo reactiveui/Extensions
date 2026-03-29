@@ -5,8 +5,9 @@
       <IsPackable>false</IsPackable>
       <ImplicitUsings>enable</ImplicitUsings>
       <Nullable>enable</Nullable>
+      <ExcludeFromCodeCoverage>true</ExcludeFromCodeCoverage>
     </PropertyGroup>
-  
+
   <ItemGroup>
     <ProjectReference Include="..\ReactiveUI.Extensions\ReactiveUI.Extensions.csproj" />
   </ItemGroup>

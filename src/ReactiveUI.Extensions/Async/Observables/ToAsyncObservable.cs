@@ -2,8 +2,6 @@
 // ReactiveUI Association Incorporated licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using ReactiveUI.Extensions.Async.Internals;
-
 namespace ReactiveUI.Extensions.Async;
 
 /// <summary>
@@ -87,19 +85,29 @@ public static partial class ObservableAsync
     /// <returns>An asynchronous observable sequence that emits each element from the source enumerable and completes when all
     /// elements have been emitted.</returns>
     public static IObservableAsync<T> ToObservableAsync<T>(this IEnumerable<T> @this) => CreateAsBackgroundJob<T>(
-            async (obs, cancellationToken) =>
-        {
-            foreach (var value in @this)
-            {
-                if (cancellationToken.IsCancellationRequested)
-                {
-                    return;
-                }
+            (obs, cancellationToken) => EmitEnumerableAsync(@this, obs, cancellationToken),
+            true);
 
-                await obs.OnNextAsync(value, cancellationToken);
+    /// <summary>
+    /// Emits each element of the enumerable to the observer, checking for cancellation between elements.
+    /// </summary>
+    /// <typeparam name="T">The element type.</typeparam>
+    /// <param name="source">The enumerable source.</param>
+    /// <param name="observer">The observer to emit to.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>A ValueTask representing the operation.</returns>
+    internal static async ValueTask EmitEnumerableAsync<T>(IEnumerable<T> source, IObserverAsync<T> observer, CancellationToken cancellationToken)
+    {
+        foreach (var value in source)
+        {
+            if (cancellationToken.IsCancellationRequested)
+            {
+                return;
             }
 
-            await obs.OnCompletedAsync(Result.Success);
-        },
-            true);
+            await observer.OnNextAsync(value, cancellationToken);
+        }
+
+        await observer.OnCompletedAsync(Result.Success);
+    }
 }

@@ -392,15 +392,16 @@ var items = await source.ToListAsync(CancellationToken.None);
 | Factory Methods | `Create`, `CreateAsBackgroundJob`, `Return`, `Empty`, `Never`, `Throw`, `Range`, `Interval`, `Timer`, `Defer`, `FromAsync`, `ToObservableAsync` (Task / IAsyncEnumerable / IEnumerable) |
 | Transformation | `Select` (sync & async), `SelectMany`, `Scan` (sync & async), `Cast`, `OfType`, `GroupBy` |
 | Filtering | `Where` (sync & async), `Take`, `Skip`, `TakeWhile`, `SkipWhile`, `TakeUntil` (observable / task / token / predicate), `Distinct`, `DistinctBy`, `DistinctUntilChanged`, `DistinctUntilChangedBy` |
-| Combining | `Merge` (overloads), `Concat` (overloads), `Switch`, `CombineLatest` (2–8 sources), `Zip`, `Prepend`, `StartWith` |
-| Error Handling | `Catch`, `CatchAndIgnoreErrorResume`, `Retry` (infinite & count-limited), `OnErrorResumeAsFailure` |
-| Timing | `Throttle`, `Delay`, `Timeout` (with optional fallback) |
+| Combining | `Merge` (overloads), `Concat` (overloads), `Switch`, `CombineLatest` (2–8 sources + enumerable overloads), `Zip`, `Prepend`, `StartWith` |
+| Error Handling | `Catch`, `CatchAndIgnoreErrorResume`, `CatchIgnore`, `CatchAndReturn`, `Retry` (infinite & count-limited), `OnErrorResumeAsFailure` |
+| Timing | `Throttle`, `Delay`, `Timeout` (with optional fallback), `ThrottleDistinct`, `DebounceUntil` |
 | Aggregation | `AggregateAsync`, `CountAsync`, `LongCountAsync`, `AnyAsync`, `AllAsync`, `ContainsAsync`, `FirstAsync`, `FirstOrDefaultAsync`, `LastAsync`, `LastOrDefaultAsync`, `SingleAsync`, `SingleOrDefaultAsync`, `ToListAsync`, `ToDictionaryAsync` |
-| Side Effects | `Do` (sync & async), `OnDispose` (sync & async), `Using` |
+| Side Effects | `Do` (sync & async), `DoOnSubscribe` (sync & async), `LogErrors`, `DropIfBusy`, `OnDispose` (sync & async), `Using` |
 | Multicasting | `Publish`, `StatelessPublish`, `ReplayLatest`, `RefCount`, `Multicast` |
-| Scheduling | `ObserveOn` (AsyncContext / SynchronizationContext / TaskScheduler / IScheduler), `Yield` |
+| Scheduling | `ObserveOn` (AsyncContext / SynchronizationContext / TaskScheduler / IScheduler), `ObserveOnSafe`, `ObserveOnIf`, `Yield` |
 | Subscription | `SubscribeAsync` (multiple overloads), `ForEachAsync`, `WaitCompletionAsync` |
 | Conversion | `ToObservable` (async → classic), `ToObservableAsync` (classic → async), `ToAsyncEnumerable`, `Wrap` |
+| Helpers | `AsSignal`, `CombineLatestValuesAreAllTrue`, `CombineLatestValuesAreAllFalse`, `ForEach`, `GetMax`, `GetMin`, `LatestOrDefault`, `Not`, `Pairwise`, `Partition`, `ReplayLastOnSubscribe`, `ScanWithInitial` (sync & async), `SkipWhileNull`, `Start`, `WaitUntil`, `WhereFalse`, `WhereIsNotNull`, `WhereTrue` |
 | Subjects | `SubjectAsync.Create`, `SubjectAsync.CreateBehavior`, `SubjectAsync.CreateReplayLatest` |
 | Disposables | `DisposableAsync`, `CompositeDisposableAsync` |
 | Mixins | `AsObserverAsync`, `MapValues`, `ToDisposableAsync` |
@@ -708,6 +709,189 @@ await source.ForEachAsync(async (x, ct2) =>
 
 // Wait for completion without capturing values
 await source.WaitCompletionAsync(ct);
+```
+
+### Async Helpers & Operators
+
+These additions bring the async surface closer to the high-value helper operators already available in the synchronous `ReactiveExtensions` API, while staying fully async-native and composed from `IObservableAsync<T>`, `IObserverAsync<T>`, `ValueTask`, and `IAsyncDisposable`.
+
+| Method / Operator | Description |
+|-------------------|-------------|
+| `AsSignal()` | Converts any async observable into `IObservableAsync<Unit>` by replacing each value with `Unit.Default`. |
+| `CatchIgnore()` | Suppresses terminal failure and completes with an empty sequence instead. |
+| `CatchIgnore<T, TException>(onError)` | Suppresses a matching terminal exception, invokes the callback, then completes. |
+| `CatchAndReturn(fallback)` | Replaces terminal failure with a single fallback value. |
+| `CatchAndReturn<T, TException>(fallbackFactory)` | Maps a matching terminal exception to a fallback value and completes successfully. |
+| `CombineLatest(IEnumerable<IObservableAsync<T>>)` | Combines the latest value from every source in an enumerable collection and emits snapshots as `IList<T>`. |
+| `CombineLatest(IEnumerable<IObservableAsync<T>>, selector)` | Combines an enumerable collection of sources and projects the latest snapshot into a result. |
+| `CombineLatestValuesAreAllTrue()` | Emits `true` when the latest value from every boolean source is `true`. |
+| `CombineLatestValuesAreAllFalse()` | Emits `true` when the latest value from every boolean source is `false`. |
+| `DoOnSubscribe(action)` | Executes a synchronous action each time the sequence is subscribed. |
+| `DoOnSubscribe(asyncAction)` | Executes an async action each time the sequence is subscribed. |
+| `DropIfBusy(asyncAction)` | Ignores new values while the previous async action is still running, emitting only accepted values. |
+| `ForEach()` | Flattens `IObservableAsync<IEnumerable<T>>` into `IObservableAsync<T>`. |
+| `GetMax()` | Computes the maximum of the latest values across multiple async observable sources. |
+| `GetMin()` | Computes the minimum of the latest values across multiple async observable sources. |
+| `LatestOrDefault(defaultValue)` | Starts with a default value, then emits distinct latest source values. |
+| `LogErrors(logger)` | Invokes an error logger for `OnErrorResumeAsync` notifications without altering the sequence. |
+| `Not()` | Negates each boolean value in the sequence. |
+| `ObserveOnSafe(asyncContext)` | Applies `ObserveOn` only when a non-null `AsyncContext` is provided. |
+| `ObserveOnSafe(taskScheduler)` | Applies `ObserveOn` only when a non-null `TaskScheduler` is provided. |
+| `ObserveOnIf(condition, asyncContext)` | Conditionally observes on the provided `AsyncContext`. |
+| `ObserveOnIf(condition, taskScheduler)` | Conditionally observes on the provided `TaskScheduler`. |
+| `Pairwise()` | Emits adjacent `(Previous, Current)` pairs from a single source subscription. |
+| `Partition(predicate)` | Splits a source into two async observables: matching values and non-matching values. |
+| `ReplayLastOnSubscribe(initialValue)` | Shares the sequence and replays the latest observed value, beginning with an initial value. |
+| `ScanWithInitial(initial, accumulator)` | Emits the initial accumulator value first, then each intermediate accumulation. Sync and async overloads are available. |
+| `SkipWhileNull()` | Skips `null` values until the first non-null value arrives, then emits all remaining values. |
+| `Start(action)` | Executes an action as an async observable that emits `Unit.Default` when complete. |
+| `Start(function)` | Executes a function as an async observable that emits the computed result. |
+| `ThrottleDistinct()` | Applies `DistinctUntilChanged`, then `Throttle`, then `DistinctUntilChanged` again to reduce noisy duplicates. |
+| `DebounceUntil()` | Delays values unless the provided condition is immediately satisfied. |
+| `WaitUntil(predicate)` | Emits the first value that satisfies a predicate, then completes. |
+| `WhereFalse()` | Filters a boolean sequence to `false` values only. |
+| `WhereIsNotNull()` | Filters out `null` values and narrows the resulting type to non-nullable. |
+| `WhereTrue()` | Filters a boolean sequence to `true` values only. |
+
+```csharp
+// AsSignal: convert any payload stream into Unit notifications
+var saveClicks = ObservableAsync.Range(1, 3).AsSignal();
+
+// CatchIgnore: suppress terminal failure and complete silently
+var ignoredFailure = ObservableAsync.Throw<int>(new InvalidOperationException("boom"))
+    .CatchIgnore();
+
+// CatchIgnore<TException>: handle a specific exception type then complete
+var ignoredWithHandler = ObservableAsync.Throw<int>(new TimeoutException())
+    .CatchIgnore<TimeoutException>(ex => Console.WriteLine(ex.Message));
+
+// CatchAndReturn: replace failure with a fallback value
+var recovered = ObservableAsync.Throw<int>(new InvalidOperationException("boom"))
+    .CatchAndReturn(-1);
+
+// CatchAndReturn<TException>: map a matching exception to a fallback value
+var recoveredTyped = ObservableAsync.Throw<int>(new TimeoutException("late"))
+    .CatchAndReturn<TimeoutException>(ex => ex.Message.Length);
+
+// CombineLatest over IEnumerable<IObservableAsync<T>>
+IObservableAsync<int>[] numberSources =
+[
+    ObservableAsync.Return(1),
+    ObservableAsync.Return(10),
+    ObservableAsync.Return(100),
+];
+
+var latestSnapshots = numberSources.CombineLatest();
+var latestSum = numberSources.CombineLatest(values => values.Sum());
+
+// CombineLatestValuesAreAllTrue / CombineLatestValuesAreAllFalse
+IObservableAsync<bool>[] flags =
+[
+    ObservableAsync.Return(true),
+    ObservableAsync.Return(false),
+];
+
+var allTrue = flags.CombineLatestValuesAreAllTrue();
+var allFalse = flags.CombineLatestValuesAreAllFalse();
+
+// DoOnSubscribe: run logic when a subscription starts
+var withSubscribeLog = ObservableAsync.Range(1, 3)
+    .DoOnSubscribe(() => Console.WriteLine("Subscribed"));
+
+// DoOnSubscribe async overload
+var withAsyncSubscribeLog = ObservableAsync.Range(1, 3)
+    .DoOnSubscribe(async ct =>
+    {
+        await Task.Delay(10, ct);
+        Console.WriteLine("Subscribed asynchronously");
+    });
+
+// DropIfBusy: ignore new values while previous async work is still running
+var searchRequests = ObservableAsync.Range(1, 10)
+    .DropIfBusy(async (value, ct) =>
+    {
+        await Task.Delay(50, ct);
+        Console.WriteLine($"Processed {value}");
+    });
+
+// ForEach: flatten IEnumerable<T> batches into a single element stream
+IObservableAsync<IEnumerable<int>> batches = new[]
+{
+    new[] { 1, 2 },
+    new[] { 3, 4 },
+}.ToObservableAsync();
+var flattened = batches.ForEach();
+
+// GetMax / GetMin across latest values
+var maxValues = ObservableAsync.Return(2).GetMax(ObservableAsync.Return(5), ObservableAsync.Return(3));
+var minValues = ObservableAsync.Return(2).GetMin(ObservableAsync.Return(5), ObservableAsync.Return(3));
+
+// LatestOrDefault: emit an initial default before distinct latest source values
+var latestName = ObservableAsync.Return("Alice").LatestOrDefault("(unknown)");
+
+// LogErrors: inspect error notifications without changing the pipeline shape
+var loggedErrors = ObservableAsync.Throw<int>(new InvalidOperationException("boom"))
+    .LogErrors(ex => Console.WriteLine($"Logged: {ex.Message}"));
+
+// Not / WhereTrue / WhereFalse helpers for boolean streams
+var bools = new[] { true, false, true, false }.ToObservableAsync();
+var negated = bools.Not();
+var onlyTrue = bools.WhereTrue();
+var onlyFalse = bools.WhereFalse();
+
+// ObserveOnSafe: only switch context when one is available
+var currentContext = AsyncContext.GetCurrent();
+var observedSafely = ObservableAsync.Range(1, 3).ObserveOnSafe(currentContext);
+var observedOnSchedulerSafely = ObservableAsync.Range(1, 3).ObserveOnSafe(TaskScheduler.Default);
+
+// ObserveOnIf: conditional context switch
+var maybeObserved = ObservableAsync.Range(1, 3).ObserveOnIf(true, currentContext);
+var maybeObservedOnScheduler = ObservableAsync.Range(1, 3).ObserveOnIf(true, TaskScheduler.Default);
+
+// Pairwise: emit adjacent value pairs
+var pairs = ObservableAsync.Range(1, 4).Pairwise(); // (1,2), (2,3), (3,4)
+
+// Partition: split a source into matching and non-matching branches
+var (evens, odds) = ObservableAsync.Range(1, 6)
+    .Partition(x => x % 2 == 0);
+
+// ReplayLastOnSubscribe: share the sequence and replay latest value to new subscribers
+var replayed = ObservableAsync.Range(1, 3)
+    .ReplayLastOnSubscribe(0);
+
+// ScanWithInitial: emit seed first, then running accumulation
+var runningSum = ObservableAsync.Range(1, 3)
+    .ScanWithInitial(0, (acc, value) => acc + value); // 0, 1, 3, 6
+
+// ScanWithInitial async overload
+var runningSumAsync = ObservableAsync.Range(1, 3)
+    .ScanWithInitial(0, async (acc, value, ct) =>
+    {
+        await Task.Delay(1, ct);
+        return acc + value;
+    });
+
+// SkipWhileNull / WhereIsNotNull: null-aware helpers for reference streams
+string?[] names = [null, null, "Alice", null, "Bob"];
+var afterFirstValue = names.ToObservableAsync().SkipWhileNull();
+var withoutNulls = names.ToObservableAsync().WhereIsNotNull();
+
+// Start helpers
+var startedAction = ObservableAsync.Start(() => Console.WriteLine("Action ran"));
+var startedFunction = ObservableAsync.Start(() => DateTime.UtcNow.Year);
+
+// ThrottleDistinct: reduce duplicate noise around throttled updates
+var throttledDistinct = ObservableAsync.Interval(TimeSpan.FromMilliseconds(50))
+    .Select(x => x % 2)
+    .ThrottleDistinct(TimeSpan.FromMilliseconds(100));
+
+// DebounceUntil: bypass the delay when the condition is already satisfied
+var debouncedUntil = ObservableAsync.Range(1, 5)
+    .DebounceUntil(TimeSpan.FromMilliseconds(100), value => value == 5);
+
+// WaitUntil: emit the first matching value and complete
+var firstLargeValue = ObservableAsync.Range(1, 10)
+    .WaitUntil(x => x > 7);
 ```
 
 ### Side Effects & Lifecycle

@@ -35,6 +35,7 @@ public static partial class ObservableAsync
                 throw new ArgumentNullException(nameof(onNextAsync), "Cannot invoke a null action for each element in the sequence.");
             }
 
+            cancellationToken.ThrowIfCancellationRequested();
             var observer = new ForEachObserver<T>(onNextAsync, cancellationToken);
             await @this.SubscribeAsync(observer, cancellationToken);
             await observer.WaitValueAsync();
@@ -51,6 +52,7 @@ public static partial class ObservableAsync
         public async ValueTask ForEachAsync(Action<T> onNext, CancellationToken cancellationToken = default)
         {
             ArgumentExceptionHelper.ThrowIfNull(onNext, nameof(onNext));
+            cancellationToken.ThrowIfCancellationRequested();
 
             var observer = new ForEachObserverSync<T>(onNext, cancellationToken);
             await @this.SubscribeAsync(observer, cancellationToken);
@@ -58,27 +60,44 @@ public static partial class ObservableAsync
         }
     }
 
-    private sealed class ForEachObserver<T>(Func<T, CancellationToken, ValueTask> onNextAsync, CancellationToken cancellationToken) : TaskObserverAsyncBase<T, bool>(cancellationToken)
+    /// <summary>
+    /// An observer that invokes an asynchronous callback for each element and signals completion via a task.
+    /// </summary>
+    /// <typeparam name="T">The type of elements in the sequence.</typeparam>
+    internal sealed class ForEachObserver<T>(Func<T, CancellationToken, ValueTask> onNextAsync, CancellationToken cancellationToken) : TaskObserverAsyncBase<T, bool>(cancellationToken)
     {
+        /// <inheritdoc/>
         protected override ValueTask OnNextAsyncCore(T value, CancellationToken cancellationToken) => onNextAsync(value, cancellationToken);
 
+        /// <inheritdoc/>
         protected override ValueTask OnErrorResumeAsyncCore(Exception error, CancellationToken cancellationToken) => TrySetException(error);
 
+        /// <inheritdoc/>
         protected override ValueTask OnCompletedAsyncCore(Result result) => result.IsSuccess ? TrySetCompleted(true) : TrySetException(result.Exception);
     }
 
-    private sealed class ForEachObserverSync<T>(Action<T> onNext, CancellationToken cancellationToken) : TaskObserverAsyncBase<T, bool>(cancellationToken)
+    /// <summary>
+    /// An observer that invokes a synchronous callback for each element and signals completion via a task.
+    /// </summary>
+    /// <typeparam name="T">The type of elements in the sequence.</typeparam>
+    internal sealed class ForEachObserverSync<T>(Action<T> onNext, CancellationToken cancellationToken) : TaskObserverAsyncBase<T, bool>(cancellationToken)
     {
+        /// <summary>
+        /// The synchronous callback invoked for each element in the sequence.
+        /// </summary>
         private readonly Action<T> _onNext = onNext;
 
+        /// <inheritdoc/>
         protected override ValueTask OnNextAsyncCore(T value, CancellationToken cancellationToken)
         {
             _onNext(value);
             return default;
         }
 
+        /// <inheritdoc/>
         protected override ValueTask OnErrorResumeAsyncCore(Exception error, CancellationToken cancellationToken) => TrySetException(error);
 
+        /// <inheritdoc/>
         protected override ValueTask OnCompletedAsyncCore(Result result) =>
             result.IsSuccess ? TrySetCompleted(true) : TrySetException(result.Exception);
     }

@@ -2,8 +2,6 @@
 // ReactiveUI Association Incorporated licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using ReactiveUI.Extensions.Async.Internals;
-
 namespace ReactiveUI.Extensions.Async;
 
 /// <summary>
@@ -47,17 +45,25 @@ public static partial class ObservableAsync
                                                                           });
     }
 
-    private sealed class OnDisposeObserverSync<T>(IObserverAsync<T> observer, Action finallySync) : ObserverAsync<T>
+    /// <summary>
+    /// An observer that invokes a synchronous action when disposed.
+    /// </summary>
+    /// <typeparam name="T">The type of elements in the sequence.</typeparam>
+    internal sealed class OnDisposeObserverSync<T>(IObserverAsync<T> observer, Action finallySync) : ObserverAsync<T>
     {
+        /// <inheritdoc/>
         protected override ValueTask OnNextAsyncCore(T value, CancellationToken cancellationToken)
             => observer.OnNextAsync(value, cancellationToken);
 
+        /// <inheritdoc/>
         protected override ValueTask OnErrorResumeAsyncCore(Exception error, CancellationToken cancellationToken)
             => observer.OnErrorResumeAsync(error, cancellationToken);
 
+        /// <inheritdoc/>
         protected override ValueTask OnCompletedAsyncCore(Result result)
             => observer.OnCompletedAsync(result);
 
+        /// <inheritdoc/>
         protected override async ValueTask DisposeAsyncCore()
         {
             try
@@ -71,17 +77,25 @@ public static partial class ObservableAsync
         }
     }
 
-    private class OnDisposeObserver<T>(IObserverAsync<T> observer, Func<ValueTask> finallyAsync) : ObserverAsync<T>
+    /// <summary>
+    /// An observer that invokes an asynchronous callback when disposed.
+    /// </summary>
+    /// <typeparam name="T">The type of elements in the sequence.</typeparam>
+    internal class OnDisposeObserver<T>(IObserverAsync<T> observer, Func<ValueTask> finallyAsync) : ObserverAsync<T>
     {
+        /// <inheritdoc/>
         protected override ValueTask OnNextAsyncCore(T value, CancellationToken cancellationToken)
             => observer.OnNextAsync(value, cancellationToken);
 
+        /// <inheritdoc/>
         protected override ValueTask OnErrorResumeAsyncCore(Exception error, CancellationToken cancellationToken)
             => observer.OnErrorResumeAsync(error, cancellationToken);
 
+        /// <inheritdoc/>
         protected override ValueTask OnCompletedAsyncCore(Result result)
             => observer.OnCompletedAsync(result);
 
+        /// <inheritdoc/>
         protected override async ValueTask DisposeAsyncCore()
         {
             try

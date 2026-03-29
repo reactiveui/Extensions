@@ -3,7 +3,7 @@
 // See the LICENSE file in the project root for full license information.
 
 using ReactiveUI.Extensions.Async;
-using ReactiveUI.Extensions.Async.Internals;
+using ReactiveUI.Extensions.Async.Disposables;
 using ReactiveUI.Extensions.Async.Subjects;
 using AsyncObs = ReactiveUI.Extensions.Async.ObservableAsync;
 
@@ -18,6 +18,7 @@ public class BridgeTests
     /// <summary>
     /// Tests that ToObservableAsync forwards all items from IObservable.
     /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
     public async Task WhenIObservableToObservableAsync_ThenForwardsAllItems()
     {
@@ -26,12 +27,13 @@ public class BridgeTests
 
         var result = await asyncObs.ToListAsync();
 
-        await Assert.That(result).IsEquivalentTo(new[] { 1, 2, 3, 4, 5 });
+        await Assert.That(result).IsEquivalentTo([1, 2, 3, 4, 5]);
     }
 
     /// <summary>
     /// Tests that ToObservableAsync forwards completion from IObservable.
     /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
     public async Task WhenIObservableToObservableAsync_ThenForwardsCompletion()
     {
@@ -46,6 +48,7 @@ public class BridgeTests
     /// <summary>
     /// Tests that ToObservableAsync forwards errors from IObservable.
     /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
     public async Task WhenIObservableToObservableAsync_ThenForwardsError()
     {
@@ -53,13 +56,14 @@ public class BridgeTests
         var rxSource = Observable.Throw<int>(ex);
         var asyncObs = rxSource.ToObservableAsync();
 
-        Assert.ThrowsAsync<InvalidOperationException>(
+        await Assert.ThrowsAsync<InvalidOperationException>(
             async () => await asyncObs.ToListAsync());
     }
 
     /// <summary>
     /// Tests that ToObservable forwards all items from ObservableAsync.
     /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
     public async Task WhenObservableAsyncToObservable_ThenForwardsAllItems()
     {
@@ -68,12 +72,13 @@ public class BridgeTests
 
         var result = await rxObs.ToList();
 
-        await Assert.That(result).IsEquivalentTo(new[] { 1, 2, 3, 4, 5 });
+        await Assert.That(result).IsEquivalentTo([1, 2, 3, 4, 5]);
     }
 
     /// <summary>
     /// Tests that ToObservable forwards completion from ObservableAsync.
     /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
     public async Task WhenObservableAsyncToObservable_ThenForwardsCompletion()
     {
@@ -121,6 +126,7 @@ public class BridgeTests
     /// <summary>
     /// Tests round-trip IObservable through ObservableAsync.
     /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
     public async Task WhenRoundTripIObservableThroughAsync_ThenPreservesSequence()
     {
@@ -132,12 +138,13 @@ public class BridgeTests
 
         var result = await roundTripped.ToList();
 
-        await Assert.That(result).IsEquivalentTo(new[] { 1, 2, 3, 4, 5 });
+        await Assert.That(result).IsEquivalentTo([1, 2, 3, 4, 5]);
     }
 
     /// <summary>
     /// Tests round-trip ObservableAsync through IObservable.
     /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
     public async Task WhenRoundTripAsyncThroughIObservable_ThenPreservesSequence()
     {
@@ -149,12 +156,13 @@ public class BridgeTests
 
         var result = await roundTripped.ToListAsync();
 
-        await Assert.That(result).IsEquivalentTo(new[] { 1, 2, 3, 4, 5 });
+        await Assert.That(result).IsEquivalentTo([1, 2, 3, 4, 5]);
     }
 
     /// <summary>
     /// Tests bridged IObservable with async operators.
     /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
     public async Task WhenBridgedObservableWithAsyncOperators_ThenPipelineWorks()
     {
@@ -166,12 +174,13 @@ public class BridgeTests
             .Take(3)
             .ToListAsync();
 
-        await Assert.That(result).IsEquivalentTo(new[] { 20, 40, 60 });
+        await Assert.That(result).IsEquivalentTo([20, 40, 60]);
     }
 
     /// <summary>
     /// Tests async observable bridged to Rx with Rx operators.
     /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
     public async Task WhenAsyncObservableWithRxOperators_ThenPipelineWorks()
     {
@@ -183,12 +192,13 @@ public class BridgeTests
             .Select(x => x * 2)
             .ToList();
 
-        await Assert.That(result).IsEquivalentTo(new[] { 12, 14, 16 });
+        await Assert.That(result).IsEquivalentTo([12, 14, 16]);
     }
 
     /// <summary>
     /// Tests Rx Subject pushing data through async pipeline.
     /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
     public async Task WhenIObservableSubjectToAsyncPipeline_ThenBidirectionalFlows()
     {
@@ -215,12 +225,13 @@ public class BridgeTests
 
         await Task.Delay(200);
 
-        await Assert.That(items).IsEquivalentTo(new[] { 6, 10 });
+        await Assert.That(items).IsEquivalentTo([6, 10]);
     }
 
     /// <summary>
     /// Tests async subject bridged to Rx pipeline.
     /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
     public async Task WhenAsyncSubjectToRxPipeline_ThenBidirectionalFlows()
     {
@@ -239,12 +250,13 @@ public class BridgeTests
 
         await Task.Delay(200);
 
-        await Assert.That(items).IsEquivalentTo(new[] { 101, 102, 103 });
+        await Assert.That(items).IsEquivalentTo([101, 102, 103]);
     }
 
     /// <summary>
     /// Tests merging bridged IObservable with native async observable.
     /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
     public async Task WhenMixedRxAndAsyncMerge_ThenBothSourcesContribute()
     {
@@ -261,6 +273,7 @@ public class BridgeTests
     /// <summary>
     /// Tests concatenating bridged IObservable with async observable preserves order.
     /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
     public async Task WhenMixedConcatRxAndAsync_ThenOrderPreserved()
     {
@@ -271,12 +284,13 @@ public class BridgeTests
             .Concat(asyncSource)
             .ToListAsync();
 
-        await Assert.That(result).IsEquivalentTo(new[] { 1, 2, 3, 4 });
+        await Assert.That(result).IsEquivalentTo([1, 2, 3, 4]);
     }
 
     /// <summary>
     /// Tests SelectMany across bridged sources.
     /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
     public async Task WhenSelectManyBridgedSources_ThenFlattensCorrectly()
     {
@@ -295,6 +309,7 @@ public class BridgeTests
     /// <summary>
     /// Tests Zip across bridged Rx and async sources.
     /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
     public async Task WhenZipRxAndAsync_ThenPairsCorrectly()
     {
@@ -305,6 +320,423 @@ public class BridgeTests
             .Zip(asyncSource, (n, s) => $"{n}{s}")
             .ToListAsync();
 
-        await Assert.That(result).IsEquivalentTo(new[] { "1a", "2b", "3c" });
+        await Assert.That(result).IsEquivalentTo(["1a", "2b", "3c"]);
+    }
+
+    /// <summary>
+    /// Tests that ProcessAsync swallows OperationCanceledException without routing to the handler.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenProcessAsyncThrowsOperationCanceled_ThenExceptionIsSwallowed()
+    {
+        var handlerCalled = false;
+        var previousHandler = UnhandledExceptionHandler.CurrentHandler;
+        UnhandledExceptionHandler.Register(_ => handlerCalled = true);
+
+        try
+        {
+            ObservableBridgeExtensions.ObservableToObservableAsync<int>.BridgeObserver.ProcessAsync(
+                static () => Task.FromException(new OperationCanceledException()));
+
+            await Assert.That(handlerCalled).IsFalse();
+        }
+        finally
+        {
+            UnhandledExceptionHandler.Register(previousHandler);
+        }
+    }
+
+    /// <summary>
+    /// Tests that ProcessAsync routes general exceptions to the UnhandledExceptionHandler.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenProcessAsyncThrowsGeneralException_ThenRoutesToUnhandledHandler()
+    {
+        Exception? captured = null;
+        var previousHandler = UnhandledExceptionHandler.CurrentHandler;
+        UnhandledExceptionHandler.Register(e => captured = e);
+
+        try
+        {
+            ObservableBridgeExtensions.ObservableToObservableAsync<int>.BridgeObserver.ProcessAsync(
+                static () => Task.FromException(new InvalidOperationException("test error")));
+
+            await Assert.That(captured).IsNotNull();
+            await Assert.That(captured!.Message).IsEqualTo("test error");
+        }
+        finally
+        {
+            UnhandledExceptionHandler.Register(previousHandler);
+        }
+    }
+
+    /// <summary>
+    /// Tests that Enqueue returns early when the drain loop is already busy processing.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenEnqueueCalledWhileDrainIsBusy_ThenSecondCallReturnsEarlyAndItemIsProcessed()
+    {
+        var items = new List<int>();
+        var firstItemStarted = new TaskCompletionSource();
+        var allowFirstToComplete = new TaskCompletionSource();
+
+        var rxSource = new Subject<int>();
+        var asyncObs = rxSource.ToObservableAsync();
+
+        await using var sub = await asyncObs.SubscribeAsync(
+            (x, _) =>
+            {
+                if (x == 1)
+                {
+                    firstItemStarted.TrySetResult();
+                    allowFirstToComplete.Task.GetAwaiter().GetResult();
+                }
+
+                items.Add(x);
+                return default;
+            },
+            null,
+            null);
+
+        // First OnNext starts drain loop and blocks inside the observer callback.
+        // Must run on a background thread because DrainQueue blocks synchronously.
+        _ = Task.Run(() => rxSource.OnNext(1));
+
+        // Wait until observer callback is entered for item 1
+        await firstItemStarted.Task;
+
+        // Since the drain loop is blocked, Enqueue sees _busy==true and returns immediately,
+        // so this call completes without blocking.
+        var secondEnqueued = new TaskCompletionSource();
+        _ = Task.Run(() =>
+        {
+            rxSource.OnNext(2);
+            secondEnqueued.TrySetResult();
+        });
+
+        // Wait until the second item has been enqueued
+        await secondEnqueued.Task;
+
+        // Allow the first item to complete, which will drain item 2 as well
+        allowFirstToComplete.TrySetResult();
+
+        var conditionMet = await AsyncTestHelpers.WaitForConditionAsync(
+            () => items.Count == 2,
+            TimeSpan.FromSeconds(5));
+
+        await Assert.That(conditionMet).IsTrue();
+        await Assert.That(items).IsEquivalentTo([1, 2]);
+    }
+
+    /// <summary>
+    /// Tests that ToObservable disposal catches OperationCanceledException when the subscription throws on cancel.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenToObservableDisposalThrowsOperationCanceled_ThenExceptionIsSwallowed()
+    {
+        var source = AsyncObs.Create<int>(static (observer, ct) =>
+            new ValueTask<IAsyncDisposable>(DisposableAsync.Create(
+                static () => new ValueTask(Task.FromException(new OperationCanceledException())))));
+
+        var handlerCalled = false;
+        var previousHandler = UnhandledExceptionHandler.CurrentHandler;
+        UnhandledExceptionHandler.Register(_ => handlerCalled = true);
+
+        try
+        {
+            var rxObs = source.ToObservable();
+            var sub = rxObs.Subscribe(_ => { });
+
+            // Disposing triggers cancellation path that throws OperationCanceledException
+            // This should be caught and swallowed
+            sub.Dispose();
+
+            await Assert.That(handlerCalled).IsFalse();
+        }
+        finally
+        {
+            UnhandledExceptionHandler.Register(previousHandler);
+        }
+    }
+
+    /// <summary>
+    /// Tests that ToObservable disposal catches general exceptions and routes them to the UnhandledExceptionHandler.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenToObservableDisposalThrowsGeneralException_ThenRoutesToUnhandledHandler()
+    {
+        Exception? captured = null;
+        var previousHandler = UnhandledExceptionHandler.CurrentHandler;
+        UnhandledExceptionHandler.Register(e => captured = e);
+
+        try
+        {
+            var source = AsyncObs.Create<int>(static (observer, ct) =>
+                new ValueTask<IAsyncDisposable>(DisposableAsync.Create(
+                    static () => new ValueTask(Task.FromException(new InvalidOperationException("dispose error"))))));
+
+            var rxObs = source.ToObservable();
+            var sub = rxObs.Subscribe(_ => { });
+
+            // Disposing triggers disposal path that throws a general exception
+            sub.Dispose();
+
+            await Assert.That(captured).IsNotNull();
+            await Assert.That(captured!.Message).IsEqualTo("dispose error");
+        }
+        finally
+        {
+            UnhandledExceptionHandler.Register(previousHandler);
+        }
+    }
+
+    /// <summary>
+    /// Tests that subscribing to a bridged IObservable with an already-cancelled token returns an empty disposable immediately.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenSubscribeWithCancelledToken_ThenReturnsEmptyDisposable()
+    {
+        var rxSource = Observable.Range(1, 5);
+        var asyncObs = rxSource.ToObservableAsync();
+
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        var items = new List<int>();
+        await using var sub = await asyncObs.SubscribeAsync(
+            (x, _) =>
+            {
+                items.Add(x);
+                return default;
+            },
+            null,
+            null,
+            cts.Token);
+
+        await Assert.That(items).IsEmpty();
+    }
+
+    /// <summary>
+    /// Tests that the BridgeObserver OnError method enqueues a failure completion on the async observer.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenIObservableEmitsError_ThenBridgeObserverForwardsAsFailureCompletion()
+    {
+        var rxSource = new Subject<int>();
+        var asyncObs = rxSource.ToObservableAsync();
+        var error = new InvalidOperationException("bridge error");
+
+        var items = new List<int>();
+        Result? completionResult = null;
+        var completionReceived = new TaskCompletionSource();
+
+        await using var sub = await asyncObs.SubscribeAsync(
+            (x, _) =>
+            {
+                items.Add(x);
+                return default;
+            },
+            null,
+            result =>
+            {
+                completionResult = result;
+                completionReceived.TrySetResult();
+                return default;
+            });
+
+        RxSubjectOnNextThenError(rxSource, 42, error);
+
+        var conditionMet = await AsyncTestHelpers.WaitForConditionAsync(
+            () => completionResult is not null,
+            TimeSpan.FromSeconds(5));
+
+        await Assert.That(conditionMet).IsTrue();
+        await Assert.That(items).IsEquivalentTo([42]);
+        await Assert.That(completionResult!.Value.IsFailure).IsTrue();
+        await Assert.That(completionResult!.Value.Exception).IsSameReferenceAs(error);
+
+        static void RxSubjectOnNextThenError(Subject<int> subject, int value, Exception ex)
+        {
+            subject.OnNext(value);
+            subject.OnError(ex);
+        }
+    }
+
+    /// <summary>
+    /// Tests that disposing a ToObservable subscription before the async subscription task completes
+    /// exercises the not-yet-completed disposal path.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenToObservableDisposedBeforeSubscriptionCompletes_ThenDisposalWaitsForSubscription()
+    {
+        var subscribeStarted = new TaskCompletionSource();
+        var allowSubscribeToComplete = new TaskCompletionSource();
+
+        var source = AsyncObs.Create<int>(async (observer, ct) =>
+        {
+            subscribeStarted.TrySetResult();
+            await allowSubscribeToComplete.Task;
+            await observer.OnCompletedAsync(Result.Success);
+            return DisposableAsync.Empty;
+        });
+
+        var rxObs = source.ToObservable();
+        var items = new List<int>();
+
+        // Subscribe starts SubscribeAndCaptureAsync which will block
+        var sub = rxObs.Subscribe(x => items.Add(x));
+
+        // Wait until subscribe has started
+        await subscribeStarted.Task;
+
+        // Dispose on a background thread (it will block waiting for subscription to complete)
+        var disposeCompleted = new TaskCompletionSource();
+        _ = Task.Run(() =>
+        {
+            sub.Dispose();
+            disposeCompleted.TrySetResult();
+        });
+
+        // Allow subscription to complete, which unblocks dispose
+        allowSubscribeToComplete.TrySetResult();
+
+        var conditionMet = await AsyncTestHelpers.WaitForConditionAsync(
+            () => disposeCompleted.Task.IsCompleted,
+            TimeSpan.FromSeconds(5));
+
+        await Assert.That(conditionMet).IsTrue();
+    }
+
+    /// <summary>
+    /// Tests that SubscribeAndCaptureAsync catches OperationCanceledException when subscription is cancelled.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenSubscribeAndCaptureAsyncThrowsOperationCanceled_ThenReturnsNull()
+    {
+        var source = AsyncObs.Create<int>(static (observer, ct) =>
+            throw new OperationCanceledException());
+
+        var handlerCalled = false;
+        var previousHandler = UnhandledExceptionHandler.CurrentHandler;
+        UnhandledExceptionHandler.Register(_ => handlerCalled = true);
+
+        try
+        {
+            var rxObs = source.ToObservable();
+            using var sub = rxObs.Subscribe(_ => { });
+
+            // The subscription should silently handle the OperationCanceledException
+            // and not route to the unhandled exception handler
+            await Assert.That(handlerCalled).IsFalse();
+        }
+        finally
+        {
+            UnhandledExceptionHandler.Register(previousHandler);
+        }
+    }
+
+    /// <summary>
+    /// Tests that SubscribeAndCaptureAsync catches general exceptions and routes them to the unhandled exception handler.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenSubscribeAndCaptureAsyncThrowsGeneralException_ThenRoutesToUnhandledHandler()
+    {
+        Exception? captured = null;
+        var previousHandler = UnhandledExceptionHandler.CurrentHandler;
+        UnhandledExceptionHandler.Register(e => captured = e);
+
+        try
+        {
+            var source = AsyncObs.Create<int>(static (observer, ct) =>
+                throw new InvalidOperationException("subscribe failed"));
+
+            var rxObs = source.ToObservable();
+            using var sub = rxObs.Subscribe(_ => { });
+
+            var conditionMet = await AsyncTestHelpers.WaitForConditionAsync(
+                () => captured is not null,
+                TimeSpan.FromSeconds(5));
+
+            await Assert.That(conditionMet).IsTrue();
+            await Assert.That(captured!.Message).IsEqualTo("subscribe failed");
+        }
+        finally
+        {
+            UnhandledExceptionHandler.Register(previousHandler);
+        }
+    }
+
+    /// <summary>
+    /// Tests that the BridgeAsyncObserver forwards non-fatal errors to the synchronous observer via OnError.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenAsyncSourceEmitsErrorResume_ThenBridgeAsyncObserverForwardsToSyncOnError()
+    {
+        var directSource = AsyncTestHelpers.CreateDirectSource<int>();
+        var rxObs = directSource.ToObservable();
+        var error = new InvalidOperationException("resume error");
+
+        var errorReceived = new TaskCompletionSource();
+        Exception? receivedError = null;
+
+        using var sub = rxObs.Subscribe(
+            _ => { },
+            ex =>
+            {
+                receivedError = ex;
+                errorReceived.TrySetResult();
+            });
+
+        await directSource.EmitError(error);
+
+        var conditionMet = await AsyncTestHelpers.WaitForConditionAsync(
+            () => receivedError is not null,
+            TimeSpan.FromSeconds(5));
+
+        await Assert.That(conditionMet).IsTrue();
+        await Assert.That(receivedError!.Message).IsEqualTo("resume error");
+    }
+
+    /// <summary>
+    /// Tests that the BridgeAsyncObserver forwards failure completion to the synchronous observer via OnError.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenAsyncSourceCompletesWithFailure_ThenBridgeAsyncObserverForwardsToSyncOnError()
+    {
+        var directSource = AsyncTestHelpers.CreateDirectSource<int>();
+        var rxObs = directSource.ToObservable();
+        var error = new InvalidOperationException("completion failure");
+
+        var errorReceived = new TaskCompletionSource();
+        Exception? receivedError = null;
+
+        using var sub = rxObs.Subscribe(
+            _ => { },
+            ex =>
+            {
+                receivedError = ex;
+                errorReceived.TrySetResult();
+            });
+
+        await directSource.Complete(Result.Failure(error));
+
+        var conditionMet = await AsyncTestHelpers.WaitForConditionAsync(
+            () => receivedError is not null,
+            TimeSpan.FromSeconds(5));
+
+        await Assert.That(conditionMet).IsTrue();
+        await Assert.That(receivedError!.Message).IsEqualTo("completion failure");
     }
 }

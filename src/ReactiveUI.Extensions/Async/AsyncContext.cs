@@ -18,6 +18,9 @@ namespace ReactiveUI.Extensions.Async;
 /// scheduler.</remarks>
 public record AsyncContext
 {
+    /// <summary>
+    /// Initializes a new instance of the <see cref="AsyncContext"/> class.
+    /// </summary>
     private AsyncContext()
     {
     }
@@ -210,7 +213,7 @@ public record AsyncContext
     /// this TaskScheduler will be executed according to the policies of the specified IScheduler. This class is
     /// intended for advanced scenarios where control over task scheduling is required.</remarks>
     /// <param name="scheduler">The IScheduler used to schedule and execute tasks. Cannot be null.</param>
-    private sealed class SchedulerTaskScheduler(IScheduler scheduler) : TaskScheduler
+    internal sealed class SchedulerTaskScheduler(IScheduler scheduler) : TaskScheduler
     {
         /// <inheritdoc/>
         protected override IEnumerable<Task>? GetScheduledTasks() => null;

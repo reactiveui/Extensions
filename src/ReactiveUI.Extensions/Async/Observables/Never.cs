@@ -24,10 +24,18 @@ public static partial class ObservableAsync
     /// <returns>An observable sequence of type <typeparamref name="T"/> that never emits any items and never terminates.</returns>
     public static IObservableAsync<T> Never<T>() => NeverObservableAsync<T>.Instance;
 
-    private sealed class NeverObservableAsync<T> : ObservableAsync<T>
+    /// <summary>
+    /// An observable sequence that never produces any values and never completes.
+    /// </summary>
+    /// <typeparam name="T">The type of elements in the observable sequence.</typeparam>
+    internal sealed class NeverObservableAsync<T> : ObservableAsync<T>
     {
+        /// <summary>
+        /// Gets the singleton instance of <see cref="NeverObservableAsync{T}"/>.
+        /// </summary>
         public static NeverObservableAsync<T> Instance { get; } = new();
 
+        /// <inheritdoc/>
         protected override ValueTask<IAsyncDisposable> SubscribeAsyncCore(IObserverAsync<T> observer, CancellationToken cancellationToken) =>
             new(DisposableAsync.Empty);
     }

@@ -3,7 +3,6 @@
 // See the LICENSE file in the project root for full license information.
 
 using ReactiveUI.Extensions.Async.Disposables;
-using ReactiveUI.Extensions.Async.Internals;
 
 namespace ReactiveUI.Extensions.Async;
 
@@ -39,8 +38,9 @@ public static partial class ObservableAsync
     /// asynchronous observable scenarios.</remarks>
     /// <typeparam name="T">The type of elements in the observable sequence.</typeparam>
     /// <param name="error">The exception that will be signaled to observers as the terminal error.</param>
-    private sealed class ObservableAsyncThrow<T>(Exception error) : ObservableAsync<T>
+    internal sealed class ObservableAsyncThrow<T>(Exception error) : ObservableAsync<T>
     {
+        /// <inheritdoc/>
         protected override async ValueTask<IAsyncDisposable> SubscribeAsyncCore(IObserverAsync<T> observer, CancellationToken cancellationToken)
         {
             await observer.OnCompletedAsync(Result.Failure(error));

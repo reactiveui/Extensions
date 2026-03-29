@@ -30,6 +30,7 @@ public static partial class ObservableAsync
         public async ValueTask<TAcc> AggregateAsync<TAcc>(TAcc seed, Func<TAcc, T, CancellationToken, ValueTask<TAcc>> accumulator, CancellationToken cancellationToken = default)
         {
             ArgumentExceptionHelper.ThrowIfNull(accumulator);
+            cancellationToken.ThrowIfCancellationRequested();
 
             var observer = new AggregateAsyncObserver<T, TAcc>(seed, accumulator, cancellationToken);
             _ = await @this.SubscribeAsync(observer, cancellationToken);
@@ -77,14 +78,28 @@ public static partial class ObservableAsync
         }
     }
 
-    private sealed class AggregateAsyncObserver<T, TAcc>(TAcc seed, Func<TAcc, T, CancellationToken, ValueTask<TAcc>> accumulator, CancellationToken cancellationToken) : TaskObserverAsyncBase<T, TAcc>(cancellationToken)
+    /// <summary>
+    /// Observer that accumulates values using an asynchronous accumulator function and produces the final result.
+    /// </summary>
+    /// <typeparam name="T">The type of elements in the source sequence.</typeparam>
+    /// <typeparam name="TAcc">The type of the accumulated value.</typeparam>
+    /// <param name="seed">The initial accumulator value.</param>
+    /// <param name="accumulator">The asynchronous accumulator function.</param>
+    /// <param name="cancellationToken">A cancellation token for the operation.</param>
+    internal sealed class AggregateAsyncObserver<T, TAcc>(TAcc seed, Func<TAcc, T, CancellationToken, ValueTask<TAcc>> accumulator, CancellationToken cancellationToken) : TaskObserverAsyncBase<T, TAcc>(cancellationToken)
     {
+        /// <summary>
+        /// The current accumulated value.
+        /// </summary>
         private TAcc _acc = seed;
 
+        /// <inheritdoc/>
         protected override async ValueTask OnNextAsyncCore(T value, CancellationToken cancellationToken) => _acc = await accumulator(_acc, value, cancellationToken);
 
+        /// <inheritdoc/>
         protected override ValueTask OnErrorResumeAsyncCore(Exception error, CancellationToken cancellationToken) => TrySetException(error);
 
+        /// <inheritdoc/>
         protected override ValueTask OnCompletedAsyncCore(Result result) =>
             result.IsSuccess ? TrySetCompleted(_acc) : TrySetException(result.Exception);
     }

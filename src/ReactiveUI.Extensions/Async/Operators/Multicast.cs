@@ -17,16 +17,25 @@ namespace ReactiveUI.Extensions.Async;
 /// range of reactive programming patterns.</remarks>
 public static partial class ObservableAsync
 {
+    /// <summary>
+    /// Cached creation options for stateless subject publishing.
+    /// </summary>
     private static readonly SubjectCreationOptions _statelessPublishOptions = SubjectCreationOptions.Default with
     {
         IsStateless = true
     };
 
+    /// <summary>
+    /// Cached creation options for stateless behavior subject publishing.
+    /// </summary>
     private static readonly BehaviorSubjectCreationOptions _statelessBehaviorPublishOptions = BehaviorSubjectCreationOptions.Default with
     {
         IsStateless = true
     };
 
+    /// <summary>
+    /// Cached creation options for stateless replay-latest subject publishing.
+    /// </summary>
     private static readonly ReplayLatestSubjectCreationOptions _statelessReplayLatestPublishOptions = ReplayLatestSubjectCreationOptions.Default with
     {
         IsStateless = true

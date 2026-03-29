@@ -4,8 +4,14 @@
 
 namespace ReactiveUI.Extensions.Async.Internals;
 
+/// <summary>
+/// An observable that delegates subscription logic to a user-supplied asynchronous function.
+/// </summary>
+/// <typeparam name="T">The type of the elements in the observable sequence.</typeparam>
+/// <param name="subscribeAsync">The asynchronous function invoked when an observer subscribes.</param>
 internal class AnonymousObservableAsync<T>(Func<IObserverAsync<T>, CancellationToken, ValueTask<IAsyncDisposable>> subscribeAsync) : ObservableAsync<T>
 {
+    /// <inheritdoc/>
     protected override ValueTask<IAsyncDisposable> SubscribeAsyncCore(IObserverAsync<T> observer, CancellationToken cancellationToken) =>
         subscribeAsync(observer, cancellationToken);
 }

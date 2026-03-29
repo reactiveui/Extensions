@@ -3,7 +3,6 @@
 // See the LICENSE file in the project root for full license information.
 
 using ReactiveUI.Extensions.Async.Disposables;
-using ReactiveUI.Extensions.Async.Internals;
 
 namespace ReactiveUI.Extensions.Async;
 
@@ -65,11 +64,17 @@ public static partial class ObservableAsync
     /// <param name="first">The first asynchronous observable sequence to combine.</param>
     /// <param name="second">The second asynchronous observable sequence to combine.</param>
     /// <param name="resultSelector">A function that specifies how to combine elements from the first and second sequences into a result element.</param>
-    private sealed class ZipObservable<T1, T2, TResult>(
+    internal sealed class ZipObservable<T1, T2, TResult>(
         IObservableAsync<T1> first,
         IObservableAsync<T2> second,
         Func<T1, T2, TResult> resultSelector) : ObservableAsync<TResult>
     {
+        /// <summary>
+        /// Subscribes the specified observer by creating a shared <see cref="ZipState"/> and subscribing to both source sequences.
+        /// </summary>
+        /// <param name="observer">The observer to receive zipped result elements.</param>
+        /// <param name="cancellationToken">A token to cancel the subscription.</param>
+        /// <returns>An async disposable that tears down both subscriptions when disposed.</returns>
         protected override async ValueTask<IAsyncDisposable> SubscribeAsyncCore(IObserverAsync<TResult> observer, CancellationToken cancellationToken)
         {
             var state = new ZipState(observer, resultSelector);
@@ -85,19 +90,53 @@ public static partial class ObservableAsync
             return new CompositeDisposableAsync(sub1, sub2);
         }
 
-        private sealed class ZipState(IObserverAsync<TResult> observer, Func<T1, T2, TResult> resultSelector)
+        /// <summary>
+        /// Shared state that coordinates pair-wise combination of elements from both source sequences.
+        /// </summary>
+        /// <param name="observer">The downstream observer to forward combined results to.</param>
+        /// <param name="resultSelector">The function used to combine paired elements.</param>
+        internal sealed class ZipState(IObserverAsync<TResult> observer, Func<T1, T2, TResult> resultSelector)
         {
+            /// <summary>
+            /// The synchronization gate protecting shared state access.
+            /// </summary>
 #if NET9_0_OR_GREATER
             private readonly Lock _gate = new();
 #else
             private readonly object _gate = new();
 #endif
+
+            /// <summary>
+            /// Queue of buffered elements from the first source awaiting a pair from the second source.
+            /// </summary>
             private readonly Queue<T1> _queue1 = new();
+
+            /// <summary>
+            /// Queue of buffered elements from the second source awaiting a pair from the first source.
+            /// </summary>
             private readonly Queue<T2> _queue2 = new();
+
+            /// <summary>
+            /// Indicates whether the first source has completed.
+            /// </summary>
             private bool _completed1;
+
+            /// <summary>
+            /// Indicates whether the second source has completed.
+            /// </summary>
             private bool _completed2;
+
+            /// <summary>
+            /// Indicates whether the zip operation has finished and no more elements will be emitted.
+            /// </summary>
             private bool _done;
 
+            /// <summary>
+            /// Handles a new element from the first source, pairing it with a buffered element from the second source if available.
+            /// </summary>
+            /// <param name="value">The element from the first source.</param>
+            /// <param name="cancellationToken">A token to cancel the operation.</param>
+            /// <returns>A task representing the asynchronous operation.</returns>
             public async ValueTask OnNext1Async(T1 value, CancellationToken cancellationToken)
             {
                 T2 second;
@@ -123,6 +162,12 @@ public static partial class ObservableAsync
                 await observer.OnNextAsync(result, cancellationToken);
             }
 
+            /// <summary>
+            /// Handles a new element from the second source, pairing it with a buffered element from the first source if available.
+            /// </summary>
+            /// <param name="value">The element from the second source.</param>
+            /// <param name="cancellationToken">A token to cancel the operation.</param>
+            /// <returns>A task representing the asynchronous operation.</returns>
             public async ValueTask OnNext2Async(T2 value, CancellationToken cancellationToken)
             {
                 T1 firstVal;
@@ -148,6 +193,11 @@ public static partial class ObservableAsync
                 await observer.OnNextAsync(result, cancellationToken);
             }
 
+            /// <summary>
+            /// Handles the first source completing, propagating completion downstream when appropriate.
+            /// </summary>
+            /// <param name="result">The completion result from the first source.</param>
+            /// <returns>A task representing the asynchronous operation.</returns>
             public async ValueTask OnCompleted1Async(Result result)
             {
                 bool shouldComplete;
@@ -172,6 +222,11 @@ public static partial class ObservableAsync
                 }
             }
 
+            /// <summary>
+            /// Handles the second source completing, propagating completion downstream when appropriate.
+            /// </summary>
+            /// <param name="result">The completion result from the second source.</param>
+            /// <returns>A task representing the asynchronous operation.</returns>
             public async ValueTask OnCompleted2Async(Result result)
             {
                 bool shouldComplete;
@@ -196,30 +251,78 @@ public static partial class ObservableAsync
                 }
             }
 
+            /// <summary>
+            /// Forwards a non-fatal error from either source to the downstream observer.
+            /// </summary>
+            /// <param name="error">The error to forward.</param>
+            /// <param name="cancellationToken">A token to cancel the operation.</param>
+            /// <returns>A task representing the asynchronous operation.</returns>
             public ValueTask OnErrorResumeAsync(Exception error, CancellationToken cancellationToken) =>
                 observer.OnErrorResumeAsync(error, cancellationToken);
         }
 
-        private sealed class FirstObserver(ZipState state) : ObserverAsync<T1>
+        /// <summary>
+        /// Observer for the first source sequence that delegates to the shared <see cref="ZipState"/>.
+        /// </summary>
+        /// <param name="state">The shared zip state.</param>
+        internal sealed class FirstObserver(ZipState state) : ObserverAsync<T1>
         {
+            /// <summary>
+            /// Forwards an element from the first source to the zip state for pairing.
+            /// </summary>
+            /// <param name="value">The element from the first source.</param>
+            /// <param name="cancellationToken">A token to cancel the operation.</param>
+            /// <returns>A task representing the asynchronous operation.</returns>
             protected override ValueTask OnNextAsyncCore(T1 value, CancellationToken cancellationToken) =>
                 state.OnNext1Async(value, cancellationToken);
 
+            /// <summary>
+            /// Forwards a non-fatal error to the downstream observer.
+            /// </summary>
+            /// <param name="error">The error to forward.</param>
+            /// <param name="cancellationToken">A token to cancel the operation.</param>
+            /// <returns>A task representing the asynchronous operation.</returns>
             protected override ValueTask OnErrorResumeAsyncCore(Exception error, CancellationToken cancellationToken) =>
                 state.OnErrorResumeAsync(error, cancellationToken);
 
+            /// <summary>
+            /// Handles the first source completing.
+            /// </summary>
+            /// <param name="result">The completion result.</param>
+            /// <returns>A task representing the asynchronous operation.</returns>
             protected override ValueTask OnCompletedAsyncCore(Result result) =>
                 state.OnCompleted1Async(result);
         }
 
-        private sealed class SecondObserver(ZipState state) : ObserverAsync<T2>
+        /// <summary>
+        /// Observer for the second source sequence that delegates to the shared <see cref="ZipState"/>.
+        /// </summary>
+        /// <param name="state">The shared zip state.</param>
+        internal sealed class SecondObserver(ZipState state) : ObserverAsync<T2>
         {
+            /// <summary>
+            /// Forwards an element from the second source to the zip state for pairing.
+            /// </summary>
+            /// <param name="value">The element from the second source.</param>
+            /// <param name="cancellationToken">A token to cancel the operation.</param>
+            /// <returns>A task representing the asynchronous operation.</returns>
             protected override ValueTask OnNextAsyncCore(T2 value, CancellationToken cancellationToken) =>
                 state.OnNext2Async(value, cancellationToken);
 
+            /// <summary>
+            /// Forwards a non-fatal error to the downstream observer.
+            /// </summary>
+            /// <param name="error">The error to forward.</param>
+            /// <param name="cancellationToken">A token to cancel the operation.</param>
+            /// <returns>A task representing the asynchronous operation.</returns>
             protected override ValueTask OnErrorResumeAsyncCore(Exception error, CancellationToken cancellationToken) =>
                 state.OnErrorResumeAsync(error, cancellationToken);
 
+            /// <summary>
+            /// Handles the second source completing.
+            /// </summary>
+            /// <param name="result">The completion result.</param>
+            /// <returns>A task representing the asynchronous operation.</returns>
             protected override ValueTask OnCompletedAsyncCore(Result result) =>
                 state.OnCompleted2Async(result);
         }

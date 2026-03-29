@@ -2,15 +2,15 @@
   <PropertyGroup>
     <Authors>ReactiveUI Association Inc</Authors>
     <Company>ReactiveUI Association Inc</Company>
-    <Copyright>Copyright (c) ReactiveUI Association Inc © $([System.DateTime]::Now.ToString('yyyy'))</Copyright>
+    <Copyright>Copyright (c) ReactiveUI Association Inc $([System.DateTime]::Now.ToString('yyyy'))</Copyright>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageProjectUrl>https://github.com/reactiveui/Extensions</PackageProjectUrl>
-    <PackageDescription>A focused collection of high–value Reactive Extensions (Rx) operators that do not ship with System.Reactive but are commonly needed when building reactive .NET applications.</PackageDescription>
+    <PackageDescription>High-value Reactive Extensions (Rx) operators and async-native observable primitives for building reactive .NET applications. Includes operators that complement System.Reactive and a fully async IObservableAsync pipeline.</PackageDescription>
     <PackageIcon>logo.png</PackageIcon>
     <Owners>glennawatson;rlittlesii;chrispulman</Owners>
-    <PackageTags>system.reactive;propertychanged;inpc;reactive;functional;mvvm</PackageTags>
-    <PackageReleaseNotes>https://github.com/ReactiveUI/Extensions/releases</PackageReleaseNotes>
-    <RepositoryUrl>https://github.com/ReactiveUI/Extensions</RepositoryUrl>
+    <PackageTags>system.reactive;rx;reactive;observable;async;IObservableAsync;mvvm;functional;operators</PackageTags>
+    <PackageReleaseNotes>https://github.com/reactiveui/Extensions/releases</PackageReleaseNotes>
+    <RepositoryUrl>https://github.com/reactiveui/Extensions</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
     <Nullable>enable</Nullable>
@@ -37,23 +37,20 @@
     <!-- Cross-platform TFMs that work on all platforms -->
     <NetCoreTargetFrameworks>net8.0;net9.0;net10.0</NetCoreTargetFrameworks>
     
-    <!-- Windows-only .NET Framework TFMs - only included on Windows builds -->
-    <NetFrameworkTargetFrameworks Condition="$([MSBuild]::IsOsPlatform('Windows'))">net462;net472;net481</NetFrameworkTargetFrameworks>
+    <!-- .NET Framework TFMs - EnableWindowsTargeting allows cross-platform compilation -->
+    <NetFrameworkTargetFrameworks>net462;net472;net481</NetFrameworkTargetFrameworks>
     
-    <!-- Library projects: netstandard2.0, net462, net472, net8.0, net9.0, net10.0 -->
-    <LibraryTargetFrameworks>$(NetCoreTargetFrameworks)</LibraryTargetFrameworks>
-    <LibraryTargetFrameworks Condition="'$(NetFrameworkTargetFrameworks)' != ''">$(LibraryTargetFrameworks);$(NetFrameworkTargetFrameworks)</LibraryTargetFrameworks>
-    
-    <!-- Test projects: net8.0, net9.0, net10.0, net462, net472 (no netstandard) -->
-    <TestTargetFrameworks>net8.0;net9.0;net10.0</TestTargetFrameworks>
-    <TestTargetFrameworks Condition="'$(NetFrameworkTargetFrameworks)' != ''">$(TestTargetFrameworks);$(NetFrameworkTargetFrameworks)</TestTargetFrameworks>
+    <!-- Library projects: net8.0, net9.0, net10.0, net462, net472, net481 -->
+    <LibraryTargetFrameworks>$(NetCoreTargetFrameworks);$(NetFrameworkTargetFrameworks)</LibraryTargetFrameworks>
+
+    <!-- Test projects: net8.0, net9.0, net10.0 only -->
+    <TestTargetFrameworks>$(NetCoreTargetFrameworks)</TestTargetFrameworks>
   </PropertyGroup>
   
   <PropertyGroup Condition="'$(IsTestProject)' == 'true'">
     <TestingPlatformDotnetTestSupport>true</TestingPlatformDotnetTestSupport>
-    <TUnitImplicitUsings>false</TUnitImplicitUsings>
-    <TUnitAssertionsImplicitUsings>false</TUnitAssertionsImplicitUsings>
-    <NoWarn>$(NoWarn);SA1615;CS4014</NoWarn>
+    <TUnitImplicitUsings>true</TUnitImplicitUsings>
+    <TUnitAssertionsImplicitUsings>true</TUnitAssertionsImplicitUsings>
   </PropertyGroup>
   
   <!-- MTP Native JSON Configuration -->

@@ -227,8 +227,15 @@ public static partial class ObservableAsync
         IObservableAsync<T8> src8,
         Func<T1, T2, T3, T4, T5, T6, T7, T8, TResult> selector) => new CombineLatest8ObservableAsync<T1, T2, T3, T4, T5, T6, T7, T8, TResult>(src1, src2, src3, src4, src5, src6, src7, src8, selector);
 
-    private sealed class CombineLatest2ObservableAsync<T1, T2, TResult>(IObservableAsync<T1> src1, IObservableAsync<T2> src2, Func<T1, T2, TResult> selector) : ObservableAsync<TResult>
+    /// <summary>
+    /// Async observable that combines the latest values from two source sequences using a selector function.
+    /// </summary>
+    /// <typeparam name="T1">The type of the elements in the first source sequence.</typeparam>
+    /// <typeparam name="T2">The type of the elements in the second source sequence.</typeparam>
+    /// <typeparam name="TResult">The type of the result produced by the selector function.</typeparam>
+    internal sealed class CombineLatest2ObservableAsync<T1, T2, TResult>(IObservableAsync<T1> src1, IObservableAsync<T2> src2, Func<T1, T2, TResult> selector) : ObservableAsync<TResult>
     {
+        /// <inheritdoc/>
         protected override async ValueTask<IAsyncDisposable> SubscribeAsyncCore(IObserverAsync<TResult> observer, CancellationToken cancellationToken)
         {
             var subscription = new CombineLatestSubscription(observer, src1, src2, selector);
@@ -245,25 +252,60 @@ public static partial class ObservableAsync
             return subscription;
         }
 
-        private sealed class CombineLatestSubscription : IAsyncDisposable
+        /// <summary>
+        /// Manages subscriptions to both source sequences and emits combined values via the selector.
+        /// </summary>
+        internal sealed class CombineLatestSubscription : IAsyncDisposable
         {
+            /// <summary>Serializes observer notifications.</summary>
             private readonly AsyncGate _gate = new();
+
+            /// <summary>Cancellation source for disposal.</summary>
             private readonly CancellationTokenSource _disposeCts = new();
+
+            /// <summary>Cached token from <see cref="_disposeCts"/>.</summary>
             private readonly CancellationToken _disposeCancellationToken;
+
+            /// <summary>The downstream observer.</summary>
             private readonly IObserverAsync<TResult> _observer;
+
+            /// <summary>Source observable 1.</summary>
             private readonly IObservableAsync<T1> _src1;
+
+            /// <summary>Source observable 2.</summary>
             private readonly IObservableAsync<T2> _src2;
+
+            /// <summary>The result selector function.</summary>
             private readonly Func<T1, T2, TResult> _selector;
+
+            /// <summary>Subscription to source 1.</summary>
             private IAsyncDisposable? _d1;
+
+            /// <summary>Subscription to source 2.</summary>
             private IAsyncDisposable? _d2;
 
+            /// <summary>Latest value from source 1.</summary>
             private Optional<T1> _val1 = Optional<T1>.Empty;
+
+            /// <summary>Latest value from source 2.</summary>
             private Optional<T2> _val2 = Optional<T2>.Empty;
 
+            /// <summary>Whether source 1 has completed.</summary>
             private bool _done1;
+
+            /// <summary>Whether source 2 has completed.</summary>
             private bool _done2;
+
+            /// <summary>Whether this subscription has been disposed.</summary>
             private int _disposed;
 
+            /// <summary>
+            /// Initializes a new instance of the <see cref="CombineLatestSubscription"/> class.
+            /// </summary>
+            /// <param name="observer">The downstream observer to forward combined values to.</param>
+            /// <param name="src1">The first source observable.</param>
+            /// <param name="src2">The second source observable.</param>
+            /// <param name="selector">The function to combine the latest values.</param>
             public CombineLatestSubscription(IObserverAsync<TResult> observer, IObservableAsync<T1> src1, IObservableAsync<T2> src2, Func<T1, T2, TResult> selector)
             {
                 _observer = observer;
@@ -273,6 +315,11 @@ public static partial class ObservableAsync
                 _disposeCancellationToken = _disposeCts.Token;
             }
 
+            /// <summary>
+            /// Subscribes to all source observables.
+            /// </summary>
+            /// <param name="cancellationToken">A token to cancel the subscription.</param>
+            /// <returns>A task representing the asynchronous subscribe operation.</returns>
             public async ValueTask SubscribeAsync(CancellationToken cancellationToken)
             {
                 _d1 = await _src1.SubscribeAsync(OnNext_1, OnErrorResume, OnCompleted_1, cancellationToken);
@@ -285,7 +332,11 @@ public static partial class ObservableAsync
             /// <returns>A ValueTask that represents the asynchronous dispose operation.</returns>
             public ValueTask DisposeAsync() => CompleteAsync(null);
 
-            private ValueTask OnNext_1(T1 value, CancellationToken cancellationToken)
+            /// <summary>Handles a new value from source 1.</summary>
+            /// <param name="value">The value.</param>
+            /// <param name="cancellationToken">The cancellation token.</param>
+            /// <returns>A ValueTask representing the operation.</returns>
+            internal ValueTask OnNext_1(T1 value, CancellationToken cancellationToken)
             {
                 lock (_disposeCts)
                 {
@@ -300,7 +351,10 @@ public static partial class ObservableAsync
                 return default;
             }
 
-            private ValueTask OnCompleted_1(Result result)
+            /// <summary>Handles completion of source 1.</summary>
+            /// <param name="result">The completion result.</param>
+            /// <returns>A ValueTask representing the operation.</returns>
+            internal ValueTask OnCompleted_1(Result result)
             {
                 if (result.IsFailure)
                 {
@@ -317,7 +371,11 @@ public static partial class ObservableAsync
                 return shouldComplete ? _observer.OnCompletedAsync(result) : default;
             }
 
-            private ValueTask OnNext_2(T2 value, CancellationToken cancellationToken)
+            /// <summary>Handles a new value from source 2.</summary>
+            /// <param name="value">The value.</param>
+            /// <param name="cancellationToken">The cancellation token.</param>
+            /// <returns>A ValueTask representing the operation.</returns>
+            internal ValueTask OnNext_2(T2 value, CancellationToken cancellationToken)
             {
                 lock (_disposeCts)
                 {
@@ -332,7 +390,10 @@ public static partial class ObservableAsync
                 return default;
             }
 
-            private ValueTask OnCompleted_2(Result result)
+            /// <summary>Handles completion of source 2.</summary>
+            /// <param name="result">The completion result.</param>
+            /// <returns>A ValueTask representing the operation.</returns>
+            internal ValueTask OnCompleted_2(Result result)
             {
                 if (result.IsFailure)
                 {
@@ -349,12 +410,17 @@ public static partial class ObservableAsync
                 return shouldComplete ? _observer.OnCompletedAsync(result) : default;
             }
 
-            private async ValueTask OnNextCombined(T1 v1, T2 v2, CancellationToken cancellationToken)
+            /// <summary>Applies the selector and forwards the combined value downstream.</summary>
+            /// <param name="v1">The latest value from source 1.</param>
+            /// <param name="v2">The latest value from source 2.</param>
+            /// <param name="cancellationToken">The cancellation token.</param>
+            /// <returns>A ValueTask representing the operation.</returns>
+            internal async ValueTask OnNextCombined(T1 v1, T2 v2, CancellationToken cancellationToken)
             {
                 using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _disposeCancellationToken);
                 using (await _gate.LockAsync())
                 {
-                    if (_disposed == 1)
+                    if (DisposalHelper.IsDisposed(_disposed))
                     {
                         return;
                     }
@@ -364,12 +430,16 @@ public static partial class ObservableAsync
                 }
             }
 
-            private async ValueTask OnErrorResume(Exception error, CancellationToken cancellationToken)
+            /// <summary>Forwards an error to the downstream observer.</summary>
+            /// <param name="error">The error to forward.</param>
+            /// <param name="cancellationToken">The cancellation token.</param>
+            /// <returns>A ValueTask representing the operation.</returns>
+            internal async ValueTask OnErrorResume(Exception error, CancellationToken cancellationToken)
             {
                 using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _disposeCancellationToken);
                 using (await _gate.LockAsync())
                 {
-                    if (_disposed == 1)
+                    if (DisposalHelper.IsDisposed(_disposed))
                     {
                         return;
                     }
@@ -378,9 +448,12 @@ public static partial class ObservableAsync
                 }
             }
 
-            private async ValueTask CompleteAsync(Result? result)
+            /// <summary>Completes the combined sequence, disposing all subscriptions.</summary>
+            /// <param name="result">The completion result, or null if disposing without signaling.</param>
+            /// <returns>A ValueTask representing the operation.</returns>
+            internal async ValueTask CompleteAsync(Result? result)
             {
-                if (Interlocked.Exchange(ref _disposed, 1) == 1)
+                if (DisposalHelper.TrySetDisposed(ref _disposed))
                 {
                     return;
                 }
@@ -408,8 +481,16 @@ public static partial class ObservableAsync
         }
     }
 
-    private sealed class CombineLatest3ObservableAsync<T1, T2, T3, TResult>(IObservableAsync<T1> src1, IObservableAsync<T2> src2, IObservableAsync<T3> src3, Func<T1, T2, T3, TResult> selector) : ObservableAsync<TResult>
+    /// <summary>
+    /// Async observable that combines the latest values from three source sequences using a selector function.
+    /// </summary>
+    /// <typeparam name="T1">The type of the elements in the first source sequence.</typeparam>
+    /// <typeparam name="T2">The type of the elements in the second source sequence.</typeparam>
+    /// <typeparam name="T3">The type of the elements in the third source sequence.</typeparam>
+    /// <typeparam name="TResult">The type of the result produced by the selector function.</typeparam>
+    internal sealed class CombineLatest3ObservableAsync<T1, T2, T3, TResult>(IObservableAsync<T1> src1, IObservableAsync<T2> src2, IObservableAsync<T3> src3, Func<T1, T2, T3, TResult> selector) : ObservableAsync<TResult>
     {
+        /// <inheritdoc/>
         protected override async ValueTask<IAsyncDisposable> SubscribeAsyncCore(IObserverAsync<TResult> observer, CancellationToken cancellationToken)
         {
             var subscription = new CombineLatestSubscription(observer, src1, src2, src3, selector);
@@ -426,29 +507,73 @@ public static partial class ObservableAsync
             return subscription;
         }
 
-        private sealed class CombineLatestSubscription : IAsyncDisposable
+        /// <summary>
+        /// Manages subscriptions to all three source sequences and emits combined values via the selector.
+        /// </summary>
+        internal sealed class CombineLatestSubscription : IAsyncDisposable
         {
+            /// <summary>Serializes observer notifications.</summary>
             private readonly AsyncGate _gate = new();
+
+            /// <summary>Cancellation source for disposal.</summary>
             private readonly CancellationTokenSource _disposeCts = new();
+
+            /// <summary>Cached token from <see cref="_disposeCts"/>.</summary>
             private readonly CancellationToken _disposeCancellationToken;
+
+            /// <summary>The downstream observer.</summary>
             private readonly IObserverAsync<TResult> _observer;
+
+            /// <summary>Source observable 1.</summary>
             private readonly IObservableAsync<T1> _src1;
+
+            /// <summary>Source observable 2.</summary>
             private readonly IObservableAsync<T2> _src2;
+
+            /// <summary>Source observable 3.</summary>
             private readonly IObservableAsync<T3> _src3;
+
+            /// <summary>The result selector function.</summary>
             private readonly Func<T1, T2, T3, TResult> _selector;
+
+            /// <summary>Subscription to source 1.</summary>
             private IAsyncDisposable? _d1;
+
+            /// <summary>Subscription to source 2.</summary>
             private IAsyncDisposable? _d2;
+
+            /// <summary>Subscription to source 3.</summary>
             private IAsyncDisposable? _d3;
 
+            /// <summary>Latest value from source 1.</summary>
             private Optional<T1> _val1 = Optional<T1>.Empty;
+
+            /// <summary>Latest value from source 2.</summary>
             private Optional<T2> _val2 = Optional<T2>.Empty;
+
+            /// <summary>Latest value from source 3.</summary>
             private Optional<T3> _val3 = Optional<T3>.Empty;
 
+            /// <summary>Whether source 1 has completed.</summary>
             private bool _done1;
+
+            /// <summary>Whether source 2 has completed.</summary>
             private bool _done2;
+
+            /// <summary>Whether source 3 has completed.</summary>
             private bool _done3;
+
+            /// <summary>Whether this subscription has been disposed.</summary>
             private int _disposed;
 
+            /// <summary>
+            /// Initializes a new instance of the <see cref="CombineLatestSubscription"/> class.
+            /// </summary>
+            /// <param name="observer">The downstream observer to forward combined values to.</param>
+            /// <param name="src1">The first source observable.</param>
+            /// <param name="src2">The second source observable.</param>
+            /// <param name="src3">The third source observable.</param>
+            /// <param name="selector">The function to combine the latest values.</param>
             public CombineLatestSubscription(IObserverAsync<TResult> observer, IObservableAsync<T1> src1, IObservableAsync<T2> src2, IObservableAsync<T3> src3, Func<T1, T2, T3, TResult> selector)
             {
                 _observer = observer;
@@ -459,6 +584,11 @@ public static partial class ObservableAsync
                 _disposeCancellationToken = _disposeCts.Token;
             }
 
+            /// <summary>
+            /// Subscribes to all source observables.
+            /// </summary>
+            /// <param name="cancellationToken">A token to cancel the subscription.</param>
+            /// <returns>A task representing the asynchronous subscribe operation.</returns>
             public async ValueTask SubscribeAsync(CancellationToken cancellationToken)
             {
                 _d1 = await _src1.SubscribeAsync(OnNext_1, OnErrorResume, OnCompleted_1, cancellationToken);
@@ -466,9 +596,17 @@ public static partial class ObservableAsync
                 _d3 = await _src3.SubscribeAsync(OnNext_3, OnErrorResume, OnCompleted_3, cancellationToken);
             }
 
+            /// <summary>
+            /// Asynchronously releases resources used by this subscription.
+            /// </summary>
+            /// <returns>A task representing the asynchronous dispose operation.</returns>
             public ValueTask DisposeAsync() => CompleteAsync(null);
 
-            private ValueTask OnNext_1(T1 value, CancellationToken cancellationToken)
+            /// <summary>Handles a new value from source 1.</summary>
+            /// <param name="value">The value.</param>
+            /// <param name="cancellationToken">The cancellation token.</param>
+            /// <returns>A ValueTask representing the operation.</returns>
+            internal ValueTask OnNext_1(T1 value, CancellationToken cancellationToken)
             {
                 lock (_disposeCts)
                 {
@@ -483,7 +621,10 @@ public static partial class ObservableAsync
                 return default;
             }
 
-            private ValueTask OnCompleted_1(Result result)
+            /// <summary>Handles completion of source 1.</summary>
+            /// <param name="result">The completion result.</param>
+            /// <returns>A ValueTask representing the operation.</returns>
+            internal ValueTask OnCompleted_1(Result result)
             {
                 if (result.IsFailure)
                 {
@@ -500,7 +641,11 @@ public static partial class ObservableAsync
                 return shouldComplete ? _observer.OnCompletedAsync(result) : default;
             }
 
-            private ValueTask OnNext_2(T2 value, CancellationToken cancellationToken)
+            /// <summary>Handles a new value from source 2.</summary>
+            /// <param name="value">The value.</param>
+            /// <param name="cancellationToken">The cancellation token.</param>
+            /// <returns>A ValueTask representing the operation.</returns>
+            internal ValueTask OnNext_2(T2 value, CancellationToken cancellationToken)
             {
                 lock (_disposeCts)
                 {
@@ -515,7 +660,10 @@ public static partial class ObservableAsync
                 return default;
             }
 
-            private ValueTask OnCompleted_2(Result result)
+            /// <summary>Handles completion of source 2.</summary>
+            /// <param name="result">The completion result.</param>
+            /// <returns>A ValueTask representing the operation.</returns>
+            internal ValueTask OnCompleted_2(Result result)
             {
                 if (result.IsFailure)
                 {
@@ -532,7 +680,11 @@ public static partial class ObservableAsync
                 return shouldComplete ? _observer.OnCompletedAsync(result) : default;
             }
 
-            private ValueTask OnNext_3(T3 value, CancellationToken cancellationToken)
+            /// <summary>Handles a new value from source 3.</summary>
+            /// <param name="value">The value.</param>
+            /// <param name="cancellationToken">The cancellation token.</param>
+            /// <returns>A ValueTask representing the operation.</returns>
+            internal ValueTask OnNext_3(T3 value, CancellationToken cancellationToken)
             {
                 lock (_disposeCts)
                 {
@@ -547,7 +699,10 @@ public static partial class ObservableAsync
                 return default;
             }
 
-            private ValueTask OnCompleted_3(Result result)
+            /// <summary>Handles completion of source 3.</summary>
+            /// <param name="result">The completion result.</param>
+            /// <returns>A ValueTask representing the operation.</returns>
+            internal ValueTask OnCompleted_3(Result result)
             {
                 if (result.IsFailure)
                 {
@@ -564,12 +719,18 @@ public static partial class ObservableAsync
                 return shouldComplete ? _observer.OnCompletedAsync(result) : default;
             }
 
-            private async ValueTask OnNextCombined(T1 v1, T2 v2, T3 v3, CancellationToken cancellationToken)
+            /// <summary>Applies the selector and forwards the combined value downstream.</summary>
+            /// <param name="v1">The latest value from source 1.</param>
+            /// <param name="v2">The latest value from source 2.</param>
+            /// <param name="v3">The latest value from source 3.</param>
+            /// <param name="cancellationToken">The cancellation token.</param>
+            /// <returns>A ValueTask representing the operation.</returns>
+            internal async ValueTask OnNextCombined(T1 v1, T2 v2, T3 v3, CancellationToken cancellationToken)
             {
                 using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _disposeCancellationToken);
                 using (await _gate.LockAsync())
                 {
-                    if (_disposed == 1)
+                    if (DisposalHelper.IsDisposed(_disposed))
                     {
                         return;
                     }
@@ -579,12 +740,16 @@ public static partial class ObservableAsync
                 }
             }
 
-            private async ValueTask OnErrorResume(Exception error, CancellationToken cancellationToken)
+            /// <summary>Forwards an error to the downstream observer.</summary>
+            /// <param name="error">The error to forward.</param>
+            /// <param name="cancellationToken">The cancellation token.</param>
+            /// <returns>A ValueTask representing the operation.</returns>
+            internal async ValueTask OnErrorResume(Exception error, CancellationToken cancellationToken)
             {
                 using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _disposeCancellationToken);
                 using (await _gate.LockAsync())
                 {
-                    if (_disposed == 1)
+                    if (DisposalHelper.IsDisposed(_disposed))
                     {
                         return;
                     }
@@ -593,9 +758,12 @@ public static partial class ObservableAsync
                 }
             }
 
-            private async ValueTask CompleteAsync(Result? result)
+            /// <summary>Completes the combined sequence, disposing all subscriptions.</summary>
+            /// <param name="result">The completion result, or null if disposing without signaling.</param>
+            /// <returns>A ValueTask representing the operation.</returns>
+            internal async ValueTask CompleteAsync(Result? result)
             {
-                if (Interlocked.Exchange(ref _disposed, 1) == 1)
+                if (DisposalHelper.TrySetDisposed(ref _disposed))
                 {
                     return;
                 }
@@ -628,8 +796,17 @@ public static partial class ObservableAsync
         }
     }
 
-    private sealed class CombineLatest4ObservableAsync<T1, T2, T3, T4, TResult>(IObservableAsync<T1> src1, IObservableAsync<T2> src2, IObservableAsync<T3> src3, IObservableAsync<T4> src4, Func<T1, T2, T3, T4, TResult> selector) : ObservableAsync<TResult>
+    /// <summary>
+    /// Async observable that combines the latest values from four source sequences using a selector function.
+    /// </summary>
+    /// <typeparam name="T1">The type of the elements in the first source sequence.</typeparam>
+    /// <typeparam name="T2">The type of the elements in the second source sequence.</typeparam>
+    /// <typeparam name="T3">The type of the elements in the third source sequence.</typeparam>
+    /// <typeparam name="T4">The type of the elements in the fourth source sequence.</typeparam>
+    /// <typeparam name="TResult">The type of the result produced by the selector function.</typeparam>
+    internal sealed class CombineLatest4ObservableAsync<T1, T2, T3, T4, TResult>(IObservableAsync<T1> src1, IObservableAsync<T2> src2, IObservableAsync<T3> src3, IObservableAsync<T4> src4, Func<T1, T2, T3, T4, TResult> selector) : ObservableAsync<TResult>
     {
+        /// <inheritdoc/>
         protected override async ValueTask<IAsyncDisposable> SubscribeAsyncCore(IObserverAsync<TResult> observer, CancellationToken cancellationToken)
         {
             var subscription = new CombineLatestSubscription(observer, src1, src2, src3, src4, selector);
@@ -646,33 +823,86 @@ public static partial class ObservableAsync
             return subscription;
         }
 
-        private sealed class CombineLatestSubscription : IAsyncDisposable
+        /// <summary>
+        /// Manages subscriptions to all four source sequences and emits combined values via the selector.
+        /// </summary>
+        internal sealed class CombineLatestSubscription : IAsyncDisposable
         {
+            /// <summary>Serializes observer notifications.</summary>
             private readonly AsyncGate _gate = new();
+
+            /// <summary>Cancellation source for disposal.</summary>
             private readonly CancellationTokenSource _disposeCts = new();
+
+            /// <summary>Cached token from <see cref="_disposeCts"/>.</summary>
             private readonly CancellationToken _disposeCancellationToken;
+
+            /// <summary>The downstream observer.</summary>
             private readonly IObserverAsync<TResult> _observer;
+
+            /// <summary>Source observable 1.</summary>
             private readonly IObservableAsync<T1> _src1;
+
+            /// <summary>Source observable 2.</summary>
             private readonly IObservableAsync<T2> _src2;
+
+            /// <summary>Source observable 3.</summary>
             private readonly IObservableAsync<T3> _src3;
+
+            /// <summary>Source observable 4.</summary>
             private readonly IObservableAsync<T4> _src4;
+
+            /// <summary>The result selector function.</summary>
             private readonly Func<T1, T2, T3, T4, TResult> _selector;
+
+            /// <summary>Subscription to source 1.</summary>
             private IAsyncDisposable? _d1;
+
+            /// <summary>Subscription to source 2.</summary>
             private IAsyncDisposable? _d2;
+
+            /// <summary>Subscription to source 3.</summary>
             private IAsyncDisposable? _d3;
+
+            /// <summary>Subscription to source 4.</summary>
             private IAsyncDisposable? _d4;
 
+            /// <summary>Latest value from source 1.</summary>
             private Optional<T1> _val1 = Optional<T1>.Empty;
+
+            /// <summary>Latest value from source 2.</summary>
             private Optional<T2> _val2 = Optional<T2>.Empty;
+
+            /// <summary>Latest value from source 3.</summary>
             private Optional<T3> _val3 = Optional<T3>.Empty;
+
+            /// <summary>Latest value from source 4.</summary>
             private Optional<T4> _val4 = Optional<T4>.Empty;
 
+            /// <summary>Whether source 1 has completed.</summary>
             private bool _done1;
+
+            /// <summary>Whether source 2 has completed.</summary>
             private bool _done2;
+
+            /// <summary>Whether source 3 has completed.</summary>
             private bool _done3;
+
+            /// <summary>Whether source 4 has completed.</summary>
             private bool _done4;
+
+            /// <summary>Whether this subscription has been disposed.</summary>
             private int _disposed;
 
+            /// <summary>
+            /// Initializes a new instance of the <see cref="CombineLatestSubscription"/> class.
+            /// </summary>
+            /// <param name="observer">The downstream observer to forward combined values to.</param>
+            /// <param name="src1">The first source observable.</param>
+            /// <param name="src2">The second source observable.</param>
+            /// <param name="src3">The third source observable.</param>
+            /// <param name="src4">The fourth source observable.</param>
+            /// <param name="selector">The function to combine the latest values.</param>
             public CombineLatestSubscription(IObserverAsync<TResult> observer, IObservableAsync<T1> src1, IObservableAsync<T2> src2, IObservableAsync<T3> src3, IObservableAsync<T4> src4, Func<T1, T2, T3, T4, TResult> selector)
             {
                 _observer = observer;
@@ -684,6 +914,11 @@ public static partial class ObservableAsync
                 _disposeCancellationToken = _disposeCts.Token;
             }
 
+            /// <summary>
+            /// Subscribes to all source observables.
+            /// </summary>
+            /// <param name="cancellationToken">A token to cancel the subscription.</param>
+            /// <returns>A task representing the asynchronous subscribe operation.</returns>
             public async ValueTask SubscribeAsync(CancellationToken cancellationToken)
             {
                 _d1 = await _src1.SubscribeAsync(OnNext_1, OnErrorResume, OnCompleted_1, cancellationToken);
@@ -692,9 +927,17 @@ public static partial class ObservableAsync
                 _d4 = await _src4.SubscribeAsync(OnNext_4, OnErrorResume, OnCompleted_4, cancellationToken);
             }
 
+            /// <summary>
+            /// Asynchronously releases resources used by this subscription.
+            /// </summary>
+            /// <returns>A task representing the asynchronous dispose operation.</returns>
             public ValueTask DisposeAsync() => CompleteAsync(null);
 
-            private ValueTask OnNext_1(T1 value, CancellationToken cancellationToken)
+            /// <summary>Handles a new value from source 1.</summary>
+            /// <param name="value">The value.</param>
+            /// <param name="cancellationToken">The cancellation token.</param>
+            /// <returns>A ValueTask representing the operation.</returns>
+            internal ValueTask OnNext_1(T1 value, CancellationToken cancellationToken)
             {
                 lock (_disposeCts)
                 {
@@ -709,7 +952,10 @@ public static partial class ObservableAsync
                 return default;
             }
 
-            private ValueTask OnCompleted_1(Result result)
+            /// <summary>Handles completion of source 1.</summary>
+            /// <param name="result">The completion result.</param>
+            /// <returns>A ValueTask representing the operation.</returns>
+            internal ValueTask OnCompleted_1(Result result)
             {
                 if (result.IsFailure)
                 {
@@ -726,7 +972,11 @@ public static partial class ObservableAsync
                 return shouldComplete ? _observer.OnCompletedAsync(result) : default;
             }
 
-            private ValueTask OnNext_2(T2 value, CancellationToken cancellationToken)
+            /// <summary>Handles a new value from source 2.</summary>
+            /// <param name="value">The value.</param>
+            /// <param name="cancellationToken">The cancellation token.</param>
+            /// <returns>A ValueTask representing the operation.</returns>
+            internal ValueTask OnNext_2(T2 value, CancellationToken cancellationToken)
             {
                 lock (_disposeCts)
                 {
@@ -741,7 +991,10 @@ public static partial class ObservableAsync
                 return default;
             }
 
-            private ValueTask OnCompleted_2(Result result)
+            /// <summary>Handles completion of source 2.</summary>
+            /// <param name="result">The completion result.</param>
+            /// <returns>A ValueTask representing the operation.</returns>
+            internal ValueTask OnCompleted_2(Result result)
             {
                 if (result.IsFailure)
                 {
@@ -758,7 +1011,11 @@ public static partial class ObservableAsync
                 return shouldComplete ? _observer.OnCompletedAsync(result) : default;
             }
 
-            private ValueTask OnNext_3(T3 value, CancellationToken cancellationToken)
+            /// <summary>Handles a new value from source 3.</summary>
+            /// <param name="value">The value.</param>
+            /// <param name="cancellationToken">The cancellation token.</param>
+            /// <returns>A ValueTask representing the operation.</returns>
+            internal ValueTask OnNext_3(T3 value, CancellationToken cancellationToken)
             {
                 lock (_disposeCts)
                 {
@@ -773,7 +1030,10 @@ public static partial class ObservableAsync
                 return default;
             }
 
-            private ValueTask OnCompleted_3(Result result)
+            /// <summary>Handles completion of source 3.</summary>
+            /// <param name="result">The completion result.</param>
+            /// <returns>A ValueTask representing the operation.</returns>
+            internal ValueTask OnCompleted_3(Result result)
             {
                 if (result.IsFailure)
                 {
@@ -790,7 +1050,11 @@ public static partial class ObservableAsync
                 return shouldComplete ? _observer.OnCompletedAsync(result) : default;
             }
 
-            private ValueTask OnNext_4(T4 value, CancellationToken cancellationToken)
+            /// <summary>Handles a new value from source 4.</summary>
+            /// <param name="value">The value.</param>
+            /// <param name="cancellationToken">The cancellation token.</param>
+            /// <returns>A ValueTask representing the operation.</returns>
+            internal ValueTask OnNext_4(T4 value, CancellationToken cancellationToken)
             {
                 lock (_disposeCts)
                 {
@@ -805,7 +1069,10 @@ public static partial class ObservableAsync
                 return default;
             }
 
-            private ValueTask OnCompleted_4(Result result)
+            /// <summary>Handles completion of source 4.</summary>
+            /// <param name="result">The completion result.</param>
+            /// <returns>A ValueTask representing the operation.</returns>
+            internal ValueTask OnCompleted_4(Result result)
             {
                 if (result.IsFailure)
                 {
@@ -822,12 +1089,19 @@ public static partial class ObservableAsync
                 return shouldComplete ? _observer.OnCompletedAsync(result) : default;
             }
 
-            private async ValueTask OnNextCombined(T1 v1, T2 v2, T3 v3, T4 v4, CancellationToken cancellationToken)
+            /// <summary>Applies the selector and forwards the combined value downstream.</summary>
+            /// <param name="v1">The latest value from source 1.</param>
+            /// <param name="v2">The latest value from source 2.</param>
+            /// <param name="v3">The latest value from source 3.</param>
+            /// <param name="v4">The latest value from source 4.</param>
+            /// <param name="cancellationToken">The cancellation token.</param>
+            /// <returns>A ValueTask representing the operation.</returns>
+            internal async ValueTask OnNextCombined(T1 v1, T2 v2, T3 v3, T4 v4, CancellationToken cancellationToken)
             {
                 using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _disposeCancellationToken);
                 using (await _gate.LockAsync())
                 {
-                    if (_disposed == 1)
+                    if (DisposalHelper.IsDisposed(_disposed))
                     {
                         return;
                     }
@@ -837,12 +1111,16 @@ public static partial class ObservableAsync
                 }
             }
 
-            private async ValueTask OnErrorResume(Exception error, CancellationToken cancellationToken)
+            /// <summary>Forwards an error to the downstream observer.</summary>
+            /// <param name="error">The error to forward.</param>
+            /// <param name="cancellationToken">The cancellation token.</param>
+            /// <returns>A ValueTask representing the operation.</returns>
+            internal async ValueTask OnErrorResume(Exception error, CancellationToken cancellationToken)
             {
                 using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _disposeCancellationToken);
                 using (await _gate.LockAsync())
                 {
-                    if (_disposed == 1)
+                    if (DisposalHelper.IsDisposed(_disposed))
                     {
                         return;
                     }
@@ -851,9 +1129,12 @@ public static partial class ObservableAsync
                 }
             }
 
-            private async ValueTask CompleteAsync(Result? result)
+            /// <summary>Completes the combined sequence, disposing all subscriptions.</summary>
+            /// <param name="result">The completion result, or null if disposing without signaling.</param>
+            /// <returns>A ValueTask representing the operation.</returns>
+            internal async ValueTask CompleteAsync(Result? result)
             {
-                if (Interlocked.Exchange(ref _disposed, 1) == 1)
+                if (DisposalHelper.TrySetDisposed(ref _disposed))
                 {
                     return;
                 }
@@ -891,8 +1172,18 @@ public static partial class ObservableAsync
         }
     }
 
-    private sealed class CombineLatest5ObservableAsync<T1, T2, T3, T4, T5, TResult>(IObservableAsync<T1> src1, IObservableAsync<T2> src2, IObservableAsync<T3> src3, IObservableAsync<T4> src4, IObservableAsync<T5> src5, Func<T1, T2, T3, T4, T5, TResult> selector) : ObservableAsync<TResult>
+    /// <summary>
+    /// Async observable that combines the latest values from five source sequences using a selector function.
+    /// </summary>
+    /// <typeparam name="T1">The type of the elements in the first source sequence.</typeparam>
+    /// <typeparam name="T2">The type of the elements in the second source sequence.</typeparam>
+    /// <typeparam name="T3">The type of the elements in the third source sequence.</typeparam>
+    /// <typeparam name="T4">The type of the elements in the fourth source sequence.</typeparam>
+    /// <typeparam name="T5">The type of the elements in the fifth source sequence.</typeparam>
+    /// <typeparam name="TResult">The type of the result produced by the selector function.</typeparam>
+    internal sealed class CombineLatest5ObservableAsync<T1, T2, T3, T4, T5, TResult>(IObservableAsync<T1> src1, IObservableAsync<T2> src2, IObservableAsync<T3> src3, IObservableAsync<T4> src4, IObservableAsync<T5> src5, Func<T1, T2, T3, T4, T5, TResult> selector) : ObservableAsync<TResult>
     {
+        /// <inheritdoc/>
         protected override async ValueTask<IAsyncDisposable> SubscribeAsyncCore(IObserverAsync<TResult> observer, CancellationToken cancellationToken)
         {
             var subscription = new CombineLatestSubscription(observer, src1, src2, src3, src4, src5, selector);
@@ -909,37 +1200,99 @@ public static partial class ObservableAsync
             return subscription;
         }
 
-        private sealed class CombineLatestSubscription : IAsyncDisposable
+        /// <summary>
+        /// Manages subscriptions to all five source sequences and emits combined values via the selector.
+        /// </summary>
+        internal sealed class CombineLatestSubscription : IAsyncDisposable
         {
+            /// <summary>Serializes observer notifications.</summary>
             private readonly AsyncGate _gate = new();
+
+            /// <summary>Cancellation source for disposal.</summary>
             private readonly CancellationTokenSource _disposeCts = new();
+
+            /// <summary>Cached token from <see cref="_disposeCts"/>.</summary>
             private readonly CancellationToken _disposeCancellationToken;
+
+            /// <summary>The downstream observer.</summary>
             private readonly IObserverAsync<TResult> _observer;
+
+            /// <summary>Source observable 1.</summary>
             private readonly IObservableAsync<T1> _src1;
+
+            /// <summary>Source observable 2.</summary>
             private readonly IObservableAsync<T2> _src2;
+
+            /// <summary>Source observable 3.</summary>
             private readonly IObservableAsync<T3> _src3;
+
+            /// <summary>Source observable 4.</summary>
             private readonly IObservableAsync<T4> _src4;
+
+            /// <summary>Source observable 5.</summary>
             private readonly IObservableAsync<T5> _src5;
+
+            /// <summary>The result selector function.</summary>
             private readonly Func<T1, T2, T3, T4, T5, TResult> _selector;
+
+            /// <summary>Subscription to source 1.</summary>
             private IAsyncDisposable? _d1;
+
+            /// <summary>Subscription to source 2.</summary>
             private IAsyncDisposable? _d2;
+
+            /// <summary>Subscription to source 3.</summary>
             private IAsyncDisposable? _d3;
+
+            /// <summary>Subscription to source 4.</summary>
             private IAsyncDisposable? _d4;
+
+            /// <summary>Subscription to source 5.</summary>
             private IAsyncDisposable? _d5;
 
+            /// <summary>Latest value from source 1.</summary>
             private Optional<T1> _val1 = Optional<T1>.Empty;
+
+            /// <summary>Latest value from source 2.</summary>
             private Optional<T2> _val2 = Optional<T2>.Empty;
+
+            /// <summary>Latest value from source 3.</summary>
             private Optional<T3> _val3 = Optional<T3>.Empty;
+
+            /// <summary>Latest value from source 4.</summary>
             private Optional<T4> _val4 = Optional<T4>.Empty;
+
+            /// <summary>Latest value from source 5.</summary>
             private Optional<T5> _val5 = Optional<T5>.Empty;
 
+            /// <summary>Whether source 1 has completed.</summary>
             private bool _done1;
+
+            /// <summary>Whether source 2 has completed.</summary>
             private bool _done2;
+
+            /// <summary>Whether source 3 has completed.</summary>
             private bool _done3;
+
+            /// <summary>Whether source 4 has completed.</summary>
             private bool _done4;
+
+            /// <summary>Whether source 5 has completed.</summary>
             private bool _done5;
+
+            /// <summary>Whether this subscription has been disposed.</summary>
             private int _disposed;
 
+            /// <summary>
+            /// Initializes a new instance of the <see cref="CombineLatestSubscription"/> class.
+            /// </summary>
+            /// <param name="observer">The downstream observer to forward combined values to.</param>
+            /// <param name="src1">The first source observable.</param>
+            /// <param name="src2">The second source observable.</param>
+            /// <param name="src3">The third source observable.</param>
+            /// <param name="src4">The fourth source observable.</param>
+            /// <param name="src5">The fifth source observable.</param>
+            /// <param name="selector">The function to combine the latest values.</param>
             public CombineLatestSubscription(IObserverAsync<TResult> observer, IObservableAsync<T1> src1, IObservableAsync<T2> src2, IObservableAsync<T3> src3, IObservableAsync<T4> src4, IObservableAsync<T5> src5, Func<T1, T2, T3, T4, T5, TResult> selector)
             {
                 _observer = observer;
@@ -952,6 +1305,11 @@ public static partial class ObservableAsync
                 _disposeCancellationToken = _disposeCts.Token;
             }
 
+            /// <summary>
+            /// Subscribes to all source observables.
+            /// </summary>
+            /// <param name="cancellationToken">A token to cancel the subscription.</param>
+            /// <returns>A task representing the asynchronous subscribe operation.</returns>
             public async ValueTask SubscribeAsync(CancellationToken cancellationToken)
             {
                 _d1 = await _src1.SubscribeAsync(OnNext_1, OnErrorResume, OnCompleted_1, cancellationToken);
@@ -961,9 +1319,17 @@ public static partial class ObservableAsync
                 _d5 = await _src5.SubscribeAsync(OnNext_5, OnErrorResume, OnCompleted_5, cancellationToken);
             }
 
+            /// <summary>
+            /// Asynchronously releases resources used by this subscription.
+            /// </summary>
+            /// <returns>A task representing the asynchronous dispose operation.</returns>
             public ValueTask DisposeAsync() => CompleteAsync(null);
 
-            private ValueTask OnNext_1(T1 value, CancellationToken cancellationToken)
+            /// <summary>Handles a new value from source 1.</summary>
+            /// <param name="value">The value.</param>
+            /// <param name="cancellationToken">The cancellation token.</param>
+            /// <returns>A ValueTask representing the operation.</returns>
+            internal ValueTask OnNext_1(T1 value, CancellationToken cancellationToken)
             {
                 lock (_disposeCts)
                 {
@@ -978,7 +1344,10 @@ public static partial class ObservableAsync
                 return default;
             }
 
-            private ValueTask OnCompleted_1(Result result)
+            /// <summary>Handles completion of source 1.</summary>
+            /// <param name="result">The completion result.</param>
+            /// <returns>A ValueTask representing the operation.</returns>
+            internal ValueTask OnCompleted_1(Result result)
             {
                 if (result.IsFailure)
                 {
@@ -995,7 +1364,11 @@ public static partial class ObservableAsync
                 return shouldComplete ? _observer.OnCompletedAsync(result) : default;
             }
 
-            private ValueTask OnNext_2(T2 value, CancellationToken cancellationToken)
+            /// <summary>Handles a new value from source 2.</summary>
+            /// <param name="value">The value.</param>
+            /// <param name="cancellationToken">The cancellation token.</param>
+            /// <returns>A ValueTask representing the operation.</returns>
+            internal ValueTask OnNext_2(T2 value, CancellationToken cancellationToken)
             {
                 lock (_disposeCts)
                 {
@@ -1010,7 +1383,10 @@ public static partial class ObservableAsync
                 return default;
             }
 
-            private ValueTask OnCompleted_2(Result result)
+            /// <summary>Handles completion of source 2.</summary>
+            /// <param name="result">The completion result.</param>
+            /// <returns>A ValueTask representing the operation.</returns>
+            internal ValueTask OnCompleted_2(Result result)
             {
                 if (result.IsFailure)
                 {
@@ -1027,7 +1403,11 @@ public static partial class ObservableAsync
                 return shouldComplete ? _observer.OnCompletedAsync(result) : default;
             }
 
-            private ValueTask OnNext_3(T3 value, CancellationToken cancellationToken)
+            /// <summary>Handles a new value from source 3.</summary>
+            /// <param name="value">The value.</param>
+            /// <param name="cancellationToken">The cancellation token.</param>
+            /// <returns>A ValueTask representing the operation.</returns>
+            internal ValueTask OnNext_3(T3 value, CancellationToken cancellationToken)
             {
                 lock (_disposeCts)
                 {
@@ -1042,7 +1422,10 @@ public static partial class ObservableAsync
                 return default;
             }
 
-            private ValueTask OnCompleted_3(Result result)
+            /// <summary>Handles completion of source 3.</summary>
+            /// <param name="result">The completion result.</param>
+            /// <returns>A ValueTask representing the operation.</returns>
+            internal ValueTask OnCompleted_3(Result result)
             {
                 if (result.IsFailure)
                 {
@@ -1059,7 +1442,11 @@ public static partial class ObservableAsync
                 return shouldComplete ? _observer.OnCompletedAsync(result) : default;
             }
 
-            private ValueTask OnNext_4(T4 value, CancellationToken cancellationToken)
+            /// <summary>Handles a new value from source 4.</summary>
+            /// <param name="value">The value.</param>
+            /// <param name="cancellationToken">The cancellation token.</param>
+            /// <returns>A ValueTask representing the operation.</returns>
+            internal ValueTask OnNext_4(T4 value, CancellationToken cancellationToken)
             {
                 lock (_disposeCts)
                 {
@@ -1074,7 +1461,10 @@ public static partial class ObservableAsync
                 return default;
             }
 
-            private ValueTask OnCompleted_4(Result result)
+            /// <summary>Handles completion of source 4.</summary>
+            /// <param name="result">The completion result.</param>
+            /// <returns>A ValueTask representing the operation.</returns>
+            internal ValueTask OnCompleted_4(Result result)
             {
                 if (result.IsFailure)
                 {
@@ -1091,7 +1481,11 @@ public static partial class ObservableAsync
                 return shouldComplete ? _observer.OnCompletedAsync(result) : default;
             }
 
-            private ValueTask OnNext_5(T5 value, CancellationToken cancellationToken)
+            /// <summary>Handles a new value from source 5.</summary>
+            /// <param name="value">The value.</param>
+            /// <param name="cancellationToken">The cancellation token.</param>
+            /// <returns>A ValueTask representing the operation.</returns>
+            internal ValueTask OnNext_5(T5 value, CancellationToken cancellationToken)
             {
                 lock (_disposeCts)
                 {
@@ -1106,7 +1500,10 @@ public static partial class ObservableAsync
                 return default;
             }
 
-            private ValueTask OnCompleted_5(Result result)
+            /// <summary>Handles completion of source 5.</summary>
+            /// <param name="result">The completion result.</param>
+            /// <returns>A ValueTask representing the operation.</returns>
+            internal ValueTask OnCompleted_5(Result result)
             {
                 if (result.IsFailure)
                 {
@@ -1123,12 +1520,20 @@ public static partial class ObservableAsync
                 return shouldComplete ? _observer.OnCompletedAsync(result) : default;
             }
 
-            private async ValueTask OnNextCombined(T1 v1, T2 v2, T3 v3, T4 v4, T5 v5, CancellationToken cancellationToken)
+            /// <summary>Applies the selector and forwards the combined value downstream.</summary>
+            /// <param name="v1">The latest value from source 1.</param>
+            /// <param name="v2">The latest value from source 2.</param>
+            /// <param name="v3">The latest value from source 3.</param>
+            /// <param name="v4">The latest value from source 4.</param>
+            /// <param name="v5">The latest value from source 5.</param>
+            /// <param name="cancellationToken">The cancellation token.</param>
+            /// <returns>A ValueTask representing the operation.</returns>
+            internal async ValueTask OnNextCombined(T1 v1, T2 v2, T3 v3, T4 v4, T5 v5, CancellationToken cancellationToken)
             {
                 using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _disposeCancellationToken);
                 using (await _gate.LockAsync())
                 {
-                    if (_disposed == 1)
+                    if (DisposalHelper.IsDisposed(_disposed))
                     {
                         return;
                     }
@@ -1138,12 +1543,16 @@ public static partial class ObservableAsync
                 }
             }
 
-            private async ValueTask OnErrorResume(Exception error, CancellationToken cancellationToken)
+            /// <summary>Forwards an error to the downstream observer.</summary>
+            /// <param name="error">The error to forward.</param>
+            /// <param name="cancellationToken">The cancellation token.</param>
+            /// <returns>A ValueTask representing the operation.</returns>
+            internal async ValueTask OnErrorResume(Exception error, CancellationToken cancellationToken)
             {
                 using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _disposeCancellationToken);
                 using (await _gate.LockAsync())
                 {
-                    if (_disposed == 1)
+                    if (DisposalHelper.IsDisposed(_disposed))
                     {
                         return;
                     }
@@ -1152,9 +1561,12 @@ public static partial class ObservableAsync
                 }
             }
 
-            private async ValueTask CompleteAsync(Result? result)
+            /// <summary>Completes the combined sequence, disposing all subscriptions.</summary>
+            /// <param name="result">The completion result, or null if disposing without signaling.</param>
+            /// <returns>A ValueTask representing the operation.</returns>
+            internal async ValueTask CompleteAsync(Result? result)
             {
-                if (Interlocked.Exchange(ref _disposed, 1) == 1)
+                if (DisposalHelper.TrySetDisposed(ref _disposed))
                 {
                     return;
                 }
@@ -1197,8 +1609,19 @@ public static partial class ObservableAsync
         }
     }
 
-    private sealed class CombineLatest6ObservableAsync<T1, T2, T3, T4, T5, T6, TResult>(IObservableAsync<T1> src1, IObservableAsync<T2> src2, IObservableAsync<T3> src3, IObservableAsync<T4> src4, IObservableAsync<T5> src5, IObservableAsync<T6> src6, Func<T1, T2, T3, T4, T5, T6, TResult> selector) : ObservableAsync<TResult>
+    /// <summary>
+    /// Async observable that combines the latest values from six source sequences using a selector function.
+    /// </summary>
+    /// <typeparam name="T1">The type of the elements in the first source sequence.</typeparam>
+    /// <typeparam name="T2">The type of the elements in the second source sequence.</typeparam>
+    /// <typeparam name="T3">The type of the elements in the third source sequence.</typeparam>
+    /// <typeparam name="T4">The type of the elements in the fourth source sequence.</typeparam>
+    /// <typeparam name="T5">The type of the elements in the fifth source sequence.</typeparam>
+    /// <typeparam name="T6">The type of the elements in the sixth source sequence.</typeparam>
+    /// <typeparam name="TResult">The type of the result produced by the selector function.</typeparam>
+    internal sealed class CombineLatest6ObservableAsync<T1, T2, T3, T4, T5, T6, TResult>(IObservableAsync<T1> src1, IObservableAsync<T2> src2, IObservableAsync<T3> src3, IObservableAsync<T4> src4, IObservableAsync<T5> src5, IObservableAsync<T6> src6, Func<T1, T2, T3, T4, T5, T6, TResult> selector) : ObservableAsync<TResult>
     {
+        /// <inheritdoc/>
         protected override async ValueTask<IAsyncDisposable> SubscribeAsyncCore(IObserverAsync<TResult> observer, CancellationToken cancellationToken)
         {
             var subscription = new CombineLatestSubscription(observer, src1, src2, src3, src4, src5, src6, selector);
@@ -1215,41 +1638,112 @@ public static partial class ObservableAsync
             return subscription;
         }
 
-        private sealed class CombineLatestSubscription : IAsyncDisposable
+        /// <summary>
+        /// Manages subscriptions to all six source sequences and emits combined values via the selector.
+        /// </summary>
+        internal sealed class CombineLatestSubscription : IAsyncDisposable
         {
+            /// <summary>Serializes observer notifications.</summary>
             private readonly AsyncGate _gate = new();
+
+            /// <summary>Cancellation source for disposal.</summary>
             private readonly CancellationTokenSource _disposeCts = new();
+
+            /// <summary>Cached token from <see cref="_disposeCts"/>.</summary>
             private readonly CancellationToken _disposeCancellationToken;
+
+            /// <summary>The downstream observer.</summary>
             private readonly IObserverAsync<TResult> _observer;
+
+            /// <summary>Source observable 1.</summary>
             private readonly IObservableAsync<T1> _src1;
+
+            /// <summary>Source observable 2.</summary>
             private readonly IObservableAsync<T2> _src2;
+
+            /// <summary>Source observable 3.</summary>
             private readonly IObservableAsync<T3> _src3;
+
+            /// <summary>Source observable 4.</summary>
             private readonly IObservableAsync<T4> _src4;
+
+            /// <summary>Source observable 5.</summary>
             private readonly IObservableAsync<T5> _src5;
+
+            /// <summary>Source observable 6.</summary>
             private readonly IObservableAsync<T6> _src6;
+
+            /// <summary>The result selector function.</summary>
             private readonly Func<T1, T2, T3, T4, T5, T6, TResult> _selector;
+
+            /// <summary>Subscription to source 1.</summary>
             private IAsyncDisposable? _d1;
+
+            /// <summary>Subscription to source 2.</summary>
             private IAsyncDisposable? _d2;
+
+            /// <summary>Subscription to source 3.</summary>
             private IAsyncDisposable? _d3;
+
+            /// <summary>Subscription to source 4.</summary>
             private IAsyncDisposable? _d4;
+
+            /// <summary>Subscription to source 5.</summary>
             private IAsyncDisposable? _d5;
+
+            /// <summary>Subscription to source 6.</summary>
             private IAsyncDisposable? _d6;
 
+            /// <summary>Latest value from source 1.</summary>
             private Optional<T1> _val1 = Optional<T1>.Empty;
+
+            /// <summary>Latest value from source 2.</summary>
             private Optional<T2> _val2 = Optional<T2>.Empty;
+
+            /// <summary>Latest value from source 3.</summary>
             private Optional<T3> _val3 = Optional<T3>.Empty;
+
+            /// <summary>Latest value from source 4.</summary>
             private Optional<T4> _val4 = Optional<T4>.Empty;
+
+            /// <summary>Latest value from source 5.</summary>
             private Optional<T5> _val5 = Optional<T5>.Empty;
+
+            /// <summary>Latest value from source 6.</summary>
             private Optional<T6> _val6 = Optional<T6>.Empty;
 
+            /// <summary>Whether source 1 has completed.</summary>
             private bool _done1;
+
+            /// <summary>Whether source 2 has completed.</summary>
             private bool _done2;
+
+            /// <summary>Whether source 3 has completed.</summary>
             private bool _done3;
+
+            /// <summary>Whether source 4 has completed.</summary>
             private bool _done4;
+
+            /// <summary>Whether source 5 has completed.</summary>
             private bool _done5;
+
+            /// <summary>Whether source 6 has completed.</summary>
             private bool _done6;
+
+            /// <summary>Whether this subscription has been disposed.</summary>
             private int _disposed;
 
+            /// <summary>
+            /// Initializes a new instance of the <see cref="CombineLatestSubscription"/> class.
+            /// </summary>
+            /// <param name="observer">The downstream observer to forward combined values to.</param>
+            /// <param name="src1">The first source observable.</param>
+            /// <param name="src2">The second source observable.</param>
+            /// <param name="src3">The third source observable.</param>
+            /// <param name="src4">The fourth source observable.</param>
+            /// <param name="src5">The fifth source observable.</param>
+            /// <param name="src6">The sixth source observable.</param>
+            /// <param name="selector">The function to combine the latest values.</param>
             public CombineLatestSubscription(IObserverAsync<TResult> observer, IObservableAsync<T1> src1, IObservableAsync<T2> src2, IObservableAsync<T3> src3, IObservableAsync<T4> src4, IObservableAsync<T5> src5, IObservableAsync<T6> src6, Func<T1, T2, T3, T4, T5, T6, TResult> selector)
             {
                 _observer = observer;
@@ -1263,6 +1757,11 @@ public static partial class ObservableAsync
                 _disposeCancellationToken = _disposeCts.Token;
             }
 
+            /// <summary>
+            /// Subscribes to all source observables.
+            /// </summary>
+            /// <param name="cancellationToken">A token to cancel the subscription.</param>
+            /// <returns>A task representing the asynchronous subscribe operation.</returns>
             public async ValueTask SubscribeAsync(CancellationToken cancellationToken)
             {
                 _d1 = await _src1.SubscribeAsync(OnNext_1, OnErrorResume, OnCompleted_1, cancellationToken);
@@ -1273,9 +1772,17 @@ public static partial class ObservableAsync
                 _d6 = await _src6.SubscribeAsync(OnNext_6, OnErrorResume, OnCompleted_6, cancellationToken);
             }
 
+            /// <summary>
+            /// Asynchronously releases resources used by this subscription.
+            /// </summary>
+            /// <returns>A task representing the asynchronous dispose operation.</returns>
             public ValueTask DisposeAsync() => CompleteAsync(null);
 
-            private ValueTask OnNext_1(T1 value, CancellationToken cancellationToken)
+            /// <summary>Handles a new value from source 1.</summary>
+            /// <param name="value">The value.</param>
+            /// <param name="cancellationToken">The cancellation token.</param>
+            /// <returns>A ValueTask representing the operation.</returns>
+            internal ValueTask OnNext_1(T1 value, CancellationToken cancellationToken)
             {
                 lock (_disposeCts)
                 {
@@ -1290,7 +1797,10 @@ public static partial class ObservableAsync
                 return default;
             }
 
-            private ValueTask OnCompleted_1(Result result)
+            /// <summary>Handles completion of source 1.</summary>
+            /// <param name="result">The completion result.</param>
+            /// <returns>A ValueTask representing the operation.</returns>
+            internal ValueTask OnCompleted_1(Result result)
             {
                 if (result.IsFailure)
                 {
@@ -1307,7 +1817,11 @@ public static partial class ObservableAsync
                 return shouldComplete ? _observer.OnCompletedAsync(result) : default;
             }
 
-            private ValueTask OnNext_2(T2 value, CancellationToken cancellationToken)
+            /// <summary>Handles a new value from source 2.</summary>
+            /// <param name="value">The value.</param>
+            /// <param name="cancellationToken">The cancellation token.</param>
+            /// <returns>A ValueTask representing the operation.</returns>
+            internal ValueTask OnNext_2(T2 value, CancellationToken cancellationToken)
             {
                 lock (_disposeCts)
                 {
@@ -1322,7 +1836,10 @@ public static partial class ObservableAsync
                 return default;
             }
 
-            private ValueTask OnCompleted_2(Result result)
+            /// <summary>Handles completion of source 2.</summary>
+            /// <param name="result">The completion result.</param>
+            /// <returns>A ValueTask representing the operation.</returns>
+            internal ValueTask OnCompleted_2(Result result)
             {
                 if (result.IsFailure)
                 {
@@ -1339,7 +1856,11 @@ public static partial class ObservableAsync
                 return shouldComplete ? _observer.OnCompletedAsync(result) : default;
             }
 
-            private ValueTask OnNext_3(T3 value, CancellationToken cancellationToken)
+            /// <summary>Handles a new value from source 3.</summary>
+            /// <param name="value">The value.</param>
+            /// <param name="cancellationToken">The cancellation token.</param>
+            /// <returns>A ValueTask representing the operation.</returns>
+            internal ValueTask OnNext_3(T3 value, CancellationToken cancellationToken)
             {
                 lock (_disposeCts)
                 {
@@ -1354,7 +1875,10 @@ public static partial class ObservableAsync
                 return default;
             }
 
-            private ValueTask OnCompleted_3(Result result)
+            /// <summary>Handles completion of source 3.</summary>
+            /// <param name="result">The completion result.</param>
+            /// <returns>A ValueTask representing the operation.</returns>
+            internal ValueTask OnCompleted_3(Result result)
             {
                 if (result.IsFailure)
                 {
@@ -1371,7 +1895,11 @@ public static partial class ObservableAsync
                 return shouldComplete ? _observer.OnCompletedAsync(result) : default;
             }
 
-            private ValueTask OnNext_4(T4 value, CancellationToken cancellationToken)
+            /// <summary>Handles a new value from source 4.</summary>
+            /// <param name="value">The value.</param>
+            /// <param name="cancellationToken">The cancellation token.</param>
+            /// <returns>A ValueTask representing the operation.</returns>
+            internal ValueTask OnNext_4(T4 value, CancellationToken cancellationToken)
             {
                 lock (_disposeCts)
                 {
@@ -1386,7 +1914,10 @@ public static partial class ObservableAsync
                 return default;
             }
 
-            private ValueTask OnCompleted_4(Result result)
+            /// <summary>Handles completion of source 4.</summary>
+            /// <param name="result">The completion result.</param>
+            /// <returns>A ValueTask representing the operation.</returns>
+            internal ValueTask OnCompleted_4(Result result)
             {
                 if (result.IsFailure)
                 {
@@ -1403,7 +1934,11 @@ public static partial class ObservableAsync
                 return shouldComplete ? _observer.OnCompletedAsync(result) : default;
             }
 
-            private ValueTask OnNext_5(T5 value, CancellationToken cancellationToken)
+            /// <summary>Handles a new value from source 5.</summary>
+            /// <param name="value">The value.</param>
+            /// <param name="cancellationToken">The cancellation token.</param>
+            /// <returns>A ValueTask representing the operation.</returns>
+            internal ValueTask OnNext_5(T5 value, CancellationToken cancellationToken)
             {
                 lock (_disposeCts)
                 {
@@ -1418,7 +1953,10 @@ public static partial class ObservableAsync
                 return default;
             }
 
-            private ValueTask OnCompleted_5(Result result)
+            /// <summary>Handles completion of source 5.</summary>
+            /// <param name="result">The completion result.</param>
+            /// <returns>A ValueTask representing the operation.</returns>
+            internal ValueTask OnCompleted_5(Result result)
             {
                 if (result.IsFailure)
                 {
@@ -1435,7 +1973,11 @@ public static partial class ObservableAsync
                 return shouldComplete ? _observer.OnCompletedAsync(result) : default;
             }
 
-            private ValueTask OnNext_6(T6 value, CancellationToken cancellationToken)
+            /// <summary>Handles a new value from source 6.</summary>
+            /// <param name="value">The value.</param>
+            /// <param name="cancellationToken">The cancellation token.</param>
+            /// <returns>A ValueTask representing the operation.</returns>
+            internal ValueTask OnNext_6(T6 value, CancellationToken cancellationToken)
             {
                 lock (_disposeCts)
                 {
@@ -1450,7 +1992,10 @@ public static partial class ObservableAsync
                 return default;
             }
 
-            private ValueTask OnCompleted_6(Result result)
+            /// <summary>Handles completion of source 6.</summary>
+            /// <param name="result">The completion result.</param>
+            /// <returns>A ValueTask representing the operation.</returns>
+            internal ValueTask OnCompleted_6(Result result)
             {
                 if (result.IsFailure)
                 {
@@ -1467,12 +2012,21 @@ public static partial class ObservableAsync
                 return shouldComplete ? _observer.OnCompletedAsync(result) : default;
             }
 
-            private async ValueTask OnNextCombined(T1 v1, T2 v2, T3 v3, T4 v4, T5 v5, T6 v6, CancellationToken cancellationToken)
+            /// <summary>Applies the selector and forwards the combined value downstream.</summary>
+            /// <param name="v1">The latest value from source 1.</param>
+            /// <param name="v2">The latest value from source 2.</param>
+            /// <param name="v3">The latest value from source 3.</param>
+            /// <param name="v4">The latest value from source 4.</param>
+            /// <param name="v5">The latest value from source 5.</param>
+            /// <param name="v6">The latest value from source 6.</param>
+            /// <param name="cancellationToken">The cancellation token.</param>
+            /// <returns>A ValueTask representing the operation.</returns>
+            internal async ValueTask OnNextCombined(T1 v1, T2 v2, T3 v3, T4 v4, T5 v5, T6 v6, CancellationToken cancellationToken)
             {
                 using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _disposeCancellationToken);
                 using (await _gate.LockAsync())
                 {
-                    if (_disposed == 1)
+                    if (DisposalHelper.IsDisposed(_disposed))
                     {
                         return;
                     }
@@ -1482,12 +2036,16 @@ public static partial class ObservableAsync
                 }
             }
 
-            private async ValueTask OnErrorResume(Exception error, CancellationToken cancellationToken)
+            /// <summary>Forwards an error to the downstream observer.</summary>
+            /// <param name="error">The error to forward.</param>
+            /// <param name="cancellationToken">The cancellation token.</param>
+            /// <returns>A ValueTask representing the operation.</returns>
+            internal async ValueTask OnErrorResume(Exception error, CancellationToken cancellationToken)
             {
                 using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _disposeCancellationToken);
                 using (await _gate.LockAsync())
                 {
-                    if (_disposed == 1)
+                    if (DisposalHelper.IsDisposed(_disposed))
                     {
                         return;
                     }
@@ -1496,9 +2054,12 @@ public static partial class ObservableAsync
                 }
             }
 
-            private async ValueTask CompleteAsync(Result? result)
+            /// <summary>Completes the combined sequence, disposing all subscriptions.</summary>
+            /// <param name="result">The completion result, or null if disposing without signaling.</param>
+            /// <returns>A ValueTask representing the operation.</returns>
+            internal async ValueTask CompleteAsync(Result? result)
             {
-                if (Interlocked.Exchange(ref _disposed, 1) == 1)
+                if (DisposalHelper.TrySetDisposed(ref _disposed))
                 {
                     return;
                 }
@@ -1546,8 +2107,20 @@ public static partial class ObservableAsync
         }
     }
 
-    private sealed class CombineLatest7ObservableAsync<T1, T2, T3, T4, T5, T6, T7, TResult>(IObservableAsync<T1> src1, IObservableAsync<T2> src2, IObservableAsync<T3> src3, IObservableAsync<T4> src4, IObservableAsync<T5> src5, IObservableAsync<T6> src6, IObservableAsync<T7> src7, Func<T1, T2, T3, T4, T5, T6, T7, TResult> selector) : ObservableAsync<TResult>
+    /// <summary>
+    /// Async observable that combines the latest values from seven source sequences using a selector function.
+    /// </summary>
+    /// <typeparam name="T1">The type of the elements in the first source sequence.</typeparam>
+    /// <typeparam name="T2">The type of the elements in the second source sequence.</typeparam>
+    /// <typeparam name="T3">The type of the elements in the third source sequence.</typeparam>
+    /// <typeparam name="T4">The type of the elements in the fourth source sequence.</typeparam>
+    /// <typeparam name="T5">The type of the elements in the fifth source sequence.</typeparam>
+    /// <typeparam name="T6">The type of the elements in the sixth source sequence.</typeparam>
+    /// <typeparam name="T7">The type of the elements in the seventh source sequence.</typeparam>
+    /// <typeparam name="TResult">The type of the result produced by the selector function.</typeparam>
+    internal sealed class CombineLatest7ObservableAsync<T1, T2, T3, T4, T5, T6, T7, TResult>(IObservableAsync<T1> src1, IObservableAsync<T2> src2, IObservableAsync<T3> src3, IObservableAsync<T4> src4, IObservableAsync<T5> src5, IObservableAsync<T6> src6, IObservableAsync<T7> src7, Func<T1, T2, T3, T4, T5, T6, T7, TResult> selector) : ObservableAsync<TResult>
     {
+        /// <inheritdoc/>
         protected override async ValueTask<IAsyncDisposable> SubscribeAsyncCore(IObserverAsync<TResult> observer, CancellationToken cancellationToken)
         {
             var subscription = new CombineLatestSubscription(observer, src1, src2, src3, src4, src5, src6, src7, selector);
@@ -1564,45 +2137,125 @@ public static partial class ObservableAsync
             return subscription;
         }
 
-        private sealed class CombineLatestSubscription : IAsyncDisposable
+        /// <summary>
+        /// Manages subscriptions to all seven source sequences and emits combined values via the selector.
+        /// </summary>
+        internal sealed class CombineLatestSubscription : IAsyncDisposable
         {
+            /// <summary>Serializes observer notifications.</summary>
             private readonly AsyncGate _gate = new();
+
+            /// <summary>Cancellation source for disposal.</summary>
             private readonly CancellationTokenSource _disposeCts = new();
+
+            /// <summary>Cached token from <see cref="_disposeCts"/>.</summary>
             private readonly CancellationToken _disposeCancellationToken;
+
+            /// <summary>The downstream observer.</summary>
             private readonly IObserverAsync<TResult> _observer;
+
+            /// <summary>Source observable 1.</summary>
             private readonly IObservableAsync<T1> _src1;
+
+            /// <summary>Source observable 2.</summary>
             private readonly IObservableAsync<T2> _src2;
+
+            /// <summary>Source observable 3.</summary>
             private readonly IObservableAsync<T3> _src3;
+
+            /// <summary>Source observable 4.</summary>
             private readonly IObservableAsync<T4> _src4;
+
+            /// <summary>Source observable 5.</summary>
             private readonly IObservableAsync<T5> _src5;
+
+            /// <summary>Source observable 6.</summary>
             private readonly IObservableAsync<T6> _src6;
+
+            /// <summary>Source observable 7.</summary>
             private readonly IObservableAsync<T7> _src7;
+
+            /// <summary>The result selector function.</summary>
             private readonly Func<T1, T2, T3, T4, T5, T6, T7, TResult> _selector;
+
+            /// <summary>Subscription to source 1.</summary>
             private IAsyncDisposable? _d1;
+
+            /// <summary>Subscription to source 2.</summary>
             private IAsyncDisposable? _d2;
+
+            /// <summary>Subscription to source 3.</summary>
             private IAsyncDisposable? _d3;
+
+            /// <summary>Subscription to source 4.</summary>
             private IAsyncDisposable? _d4;
+
+            /// <summary>Subscription to source 5.</summary>
             private IAsyncDisposable? _d5;
+
+            /// <summary>Subscription to source 6.</summary>
             private IAsyncDisposable? _d6;
+
+            /// <summary>Subscription to source 7.</summary>
             private IAsyncDisposable? _d7;
 
+            /// <summary>Latest value from source 1.</summary>
             private Optional<T1> _val1 = Optional<T1>.Empty;
+
+            /// <summary>Latest value from source 2.</summary>
             private Optional<T2> _val2 = Optional<T2>.Empty;
+
+            /// <summary>Latest value from source 3.</summary>
             private Optional<T3> _val3 = Optional<T3>.Empty;
+
+            /// <summary>Latest value from source 4.</summary>
             private Optional<T4> _val4 = Optional<T4>.Empty;
+
+            /// <summary>Latest value from source 5.</summary>
             private Optional<T5> _val5 = Optional<T5>.Empty;
+
+            /// <summary>Latest value from source 6.</summary>
             private Optional<T6> _val6 = Optional<T6>.Empty;
+
+            /// <summary>Latest value from source 7.</summary>
             private Optional<T7> _val7 = Optional<T7>.Empty;
 
+            /// <summary>Whether source 1 has completed.</summary>
             private bool _done1;
+
+            /// <summary>Whether source 2 has completed.</summary>
             private bool _done2;
+
+            /// <summary>Whether source 3 has completed.</summary>
             private bool _done3;
+
+            /// <summary>Whether source 4 has completed.</summary>
             private bool _done4;
+
+            /// <summary>Whether source 5 has completed.</summary>
             private bool _done5;
+
+            /// <summary>Whether source 6 has completed.</summary>
             private bool _done6;
+
+            /// <summary>Whether source 7 has completed.</summary>
             private bool _done7;
+
+            /// <summary>Whether this subscription has been disposed.</summary>
             private int _disposed;
 
+            /// <summary>
+            /// Initializes a new instance of the <see cref="CombineLatestSubscription"/> class.
+            /// </summary>
+            /// <param name="observer">The downstream observer to forward combined values to.</param>
+            /// <param name="src1">The first source observable.</param>
+            /// <param name="src2">The second source observable.</param>
+            /// <param name="src3">The third source observable.</param>
+            /// <param name="src4">The fourth source observable.</param>
+            /// <param name="src5">The fifth source observable.</param>
+            /// <param name="src6">The sixth source observable.</param>
+            /// <param name="src7">The seventh source observable.</param>
+            /// <param name="selector">The function to combine the latest values.</param>
             public CombineLatestSubscription(IObserverAsync<TResult> observer, IObservableAsync<T1> src1, IObservableAsync<T2> src2, IObservableAsync<T3> src3, IObservableAsync<T4> src4, IObservableAsync<T5> src5, IObservableAsync<T6> src6, IObservableAsync<T7> src7, Func<T1, T2, T3, T4, T5, T6, T7, TResult> selector)
             {
                 _observer = observer;
@@ -1617,6 +2270,11 @@ public static partial class ObservableAsync
                 _disposeCancellationToken = _disposeCts.Token;
             }
 
+            /// <summary>
+            /// Subscribes to all source observables.
+            /// </summary>
+            /// <param name="cancellationToken">A token to cancel the subscription.</param>
+            /// <returns>A task representing the asynchronous subscribe operation.</returns>
             public async ValueTask SubscribeAsync(CancellationToken cancellationToken)
             {
                 _d1 = await _src1.SubscribeAsync(OnNext_1, OnErrorResume, OnCompleted_1, cancellationToken);
@@ -1628,9 +2286,17 @@ public static partial class ObservableAsync
                 _d7 = await _src7.SubscribeAsync(OnNext_7, OnErrorResume, OnCompleted_7, cancellationToken);
             }
 
+            /// <summary>
+            /// Asynchronously releases resources used by this subscription.
+            /// </summary>
+            /// <returns>A task representing the asynchronous dispose operation.</returns>
             public ValueTask DisposeAsync() => CompleteAsync(null);
 
-            private ValueTask OnNext_1(T1 value, CancellationToken cancellationToken)
+            /// <summary>Handles a new value from source 1.</summary>
+            /// <param name="value">The value.</param>
+            /// <param name="cancellationToken">The cancellation token.</param>
+            /// <returns>A ValueTask representing the operation.</returns>
+            internal ValueTask OnNext_1(T1 value, CancellationToken cancellationToken)
             {
                 lock (_disposeCts)
                 {
@@ -1645,7 +2311,10 @@ public static partial class ObservableAsync
                 return default;
             }
 
-            private ValueTask OnCompleted_1(Result result)
+            /// <summary>Handles completion of source 1.</summary>
+            /// <param name="result">The completion result.</param>
+            /// <returns>A ValueTask representing the operation.</returns>
+            internal ValueTask OnCompleted_1(Result result)
             {
                 if (result.IsFailure)
                 {
@@ -1662,7 +2331,11 @@ public static partial class ObservableAsync
                 return shouldComplete ? _observer.OnCompletedAsync(result) : default;
             }
 
-            private ValueTask OnNext_2(T2 value, CancellationToken cancellationToken)
+            /// <summary>Handles a new value from source 2.</summary>
+            /// <param name="value">The value.</param>
+            /// <param name="cancellationToken">The cancellation token.</param>
+            /// <returns>A ValueTask representing the operation.</returns>
+            internal ValueTask OnNext_2(T2 value, CancellationToken cancellationToken)
             {
                 lock (_disposeCts)
                 {
@@ -1677,7 +2350,10 @@ public static partial class ObservableAsync
                 return default;
             }
 
-            private ValueTask OnCompleted_2(Result result)
+            /// <summary>Handles completion of source 2.</summary>
+            /// <param name="result">The completion result.</param>
+            /// <returns>A ValueTask representing the operation.</returns>
+            internal ValueTask OnCompleted_2(Result result)
             {
                 if (result.IsFailure)
                 {
@@ -1694,7 +2370,11 @@ public static partial class ObservableAsync
                 return shouldComplete ? _observer.OnCompletedAsync(result) : default;
             }
 
-            private ValueTask OnNext_3(T3 value, CancellationToken cancellationToken)
+            /// <summary>Handles a new value from source 3.</summary>
+            /// <param name="value">The value.</param>
+            /// <param name="cancellationToken">The cancellation token.</param>
+            /// <returns>A ValueTask representing the operation.</returns>
+            internal ValueTask OnNext_3(T3 value, CancellationToken cancellationToken)
             {
                 lock (_disposeCts)
                 {
@@ -1709,7 +2389,10 @@ public static partial class ObservableAsync
                 return default;
             }
 
-            private ValueTask OnCompleted_3(Result result)
+            /// <summary>Handles completion of source 3.</summary>
+            /// <param name="result">The completion result.</param>
+            /// <returns>A ValueTask representing the operation.</returns>
+            internal ValueTask OnCompleted_3(Result result)
             {
                 if (result.IsFailure)
                 {
@@ -1726,7 +2409,11 @@ public static partial class ObservableAsync
                 return shouldComplete ? _observer.OnCompletedAsync(result) : default;
             }
 
-            private ValueTask OnNext_4(T4 value, CancellationToken cancellationToken)
+            /// <summary>Handles a new value from source 4.</summary>
+            /// <param name="value">The value.</param>
+            /// <param name="cancellationToken">The cancellation token.</param>
+            /// <returns>A ValueTask representing the operation.</returns>
+            internal ValueTask OnNext_4(T4 value, CancellationToken cancellationToken)
             {
                 lock (_disposeCts)
                 {
@@ -1741,7 +2428,10 @@ public static partial class ObservableAsync
                 return default;
             }
 
-            private ValueTask OnCompleted_4(Result result)
+            /// <summary>Handles completion of source 4.</summary>
+            /// <param name="result">The completion result.</param>
+            /// <returns>A ValueTask representing the operation.</returns>
+            internal ValueTask OnCompleted_4(Result result)
             {
                 if (result.IsFailure)
                 {
@@ -1758,7 +2448,11 @@ public static partial class ObservableAsync
                 return shouldComplete ? _observer.OnCompletedAsync(result) : default;
             }
 
-            private ValueTask OnNext_5(T5 value, CancellationToken cancellationToken)
+            /// <summary>Handles a new value from source 5.</summary>
+            /// <param name="value">The value.</param>
+            /// <param name="cancellationToken">The cancellation token.</param>
+            /// <returns>A ValueTask representing the operation.</returns>
+            internal ValueTask OnNext_5(T5 value, CancellationToken cancellationToken)
             {
                 lock (_disposeCts)
                 {
@@ -1773,7 +2467,10 @@ public static partial class ObservableAsync
                 return default;
             }
 
-            private ValueTask OnCompleted_5(Result result)
+            /// <summary>Handles completion of source 5.</summary>
+            /// <param name="result">The completion result.</param>
+            /// <returns>A ValueTask representing the operation.</returns>
+            internal ValueTask OnCompleted_5(Result result)
             {
                 if (result.IsFailure)
                 {
@@ -1790,7 +2487,11 @@ public static partial class ObservableAsync
                 return shouldComplete ? _observer.OnCompletedAsync(result) : default;
             }
 
-            private ValueTask OnNext_6(T6 value, CancellationToken cancellationToken)
+            /// <summary>Handles a new value from source 6.</summary>
+            /// <param name="value">The value.</param>
+            /// <param name="cancellationToken">The cancellation token.</param>
+            /// <returns>A ValueTask representing the operation.</returns>
+            internal ValueTask OnNext_6(T6 value, CancellationToken cancellationToken)
             {
                 lock (_disposeCts)
                 {
@@ -1805,7 +2506,10 @@ public static partial class ObservableAsync
                 return default;
             }
 
-            private ValueTask OnCompleted_6(Result result)
+            /// <summary>Handles completion of source 6.</summary>
+            /// <param name="result">The completion result.</param>
+            /// <returns>A ValueTask representing the operation.</returns>
+            internal ValueTask OnCompleted_6(Result result)
             {
                 if (result.IsFailure)
                 {
@@ -1822,7 +2526,11 @@ public static partial class ObservableAsync
                 return shouldComplete ? _observer.OnCompletedAsync(result) : default;
             }
 
-            private ValueTask OnNext_7(T7 value, CancellationToken cancellationToken)
+            /// <summary>Handles a new value from source 7.</summary>
+            /// <param name="value">The value.</param>
+            /// <param name="cancellationToken">The cancellation token.</param>
+            /// <returns>A ValueTask representing the operation.</returns>
+            internal ValueTask OnNext_7(T7 value, CancellationToken cancellationToken)
             {
                 lock (_disposeCts)
                 {
@@ -1837,7 +2545,10 @@ public static partial class ObservableAsync
                 return default;
             }
 
-            private ValueTask OnCompleted_7(Result result)
+            /// <summary>Handles completion of source 7.</summary>
+            /// <param name="result">The completion result.</param>
+            /// <returns>A ValueTask representing the operation.</returns>
+            internal ValueTask OnCompleted_7(Result result)
             {
                 if (result.IsFailure)
                 {
@@ -1854,12 +2565,22 @@ public static partial class ObservableAsync
                 return shouldComplete ? _observer.OnCompletedAsync(result) : default;
             }
 
-            private async ValueTask OnNextCombined(T1 v1, T2 v2, T3 v3, T4 v4, T5 v5, T6 v6, T7 v7, CancellationToken cancellationToken)
+            /// <summary>Applies the selector and forwards the combined value downstream.</summary>
+            /// <param name="v1">The latest value from source 1.</param>
+            /// <param name="v2">The latest value from source 2.</param>
+            /// <param name="v3">The latest value from source 3.</param>
+            /// <param name="v4">The latest value from source 4.</param>
+            /// <param name="v5">The latest value from source 5.</param>
+            /// <param name="v6">The latest value from source 6.</param>
+            /// <param name="v7">The latest value from source 7.</param>
+            /// <param name="cancellationToken">The cancellation token.</param>
+            /// <returns>A ValueTask representing the operation.</returns>
+            internal async ValueTask OnNextCombined(T1 v1, T2 v2, T3 v3, T4 v4, T5 v5, T6 v6, T7 v7, CancellationToken cancellationToken)
             {
                 using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _disposeCancellationToken);
                 using (await _gate.LockAsync())
                 {
-                    if (_disposed == 1)
+                    if (DisposalHelper.IsDisposed(_disposed))
                     {
                         return;
                     }
@@ -1869,12 +2590,16 @@ public static partial class ObservableAsync
                 }
             }
 
-            private async ValueTask OnErrorResume(Exception error, CancellationToken cancellationToken)
+            /// <summary>Forwards an error to the downstream observer.</summary>
+            /// <param name="error">The error to forward.</param>
+            /// <param name="cancellationToken">The cancellation token.</param>
+            /// <returns>A ValueTask representing the operation.</returns>
+            internal async ValueTask OnErrorResume(Exception error, CancellationToken cancellationToken)
             {
                 using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _disposeCancellationToken);
                 using (await _gate.LockAsync())
                 {
-                    if (_disposed == 1)
+                    if (DisposalHelper.IsDisposed(_disposed))
                     {
                         return;
                     }
@@ -1883,9 +2608,12 @@ public static partial class ObservableAsync
                 }
             }
 
-            private async ValueTask CompleteAsync(Result? result)
+            /// <summary>Completes the combined sequence, disposing all subscriptions.</summary>
+            /// <param name="result">The completion result, or null if disposing without signaling.</param>
+            /// <returns>A ValueTask representing the operation.</returns>
+            internal async ValueTask CompleteAsync(Result? result)
             {
-                if (Interlocked.Exchange(ref _disposed, 1) == 1)
+                if (DisposalHelper.TrySetDisposed(ref _disposed))
                 {
                     return;
                 }
@@ -1938,8 +2666,21 @@ public static partial class ObservableAsync
         }
     }
 
-    private sealed class CombineLatest8ObservableAsync<T1, T2, T3, T4, T5, T6, T7, T8, TResult>(IObservableAsync<T1> src1, IObservableAsync<T2> src2, IObservableAsync<T3> src3, IObservableAsync<T4> src4, IObservableAsync<T5> src5, IObservableAsync<T6> src6, IObservableAsync<T7> src7, IObservableAsync<T8> src8, Func<T1, T2, T3, T4, T5, T6, T7, T8, TResult> selector) : ObservableAsync<TResult>
+    /// <summary>
+    /// Async observable that combines the latest values from eight source sequences using a selector function.
+    /// </summary>
+    /// <typeparam name="T1">The type of the elements in the first source sequence.</typeparam>
+    /// <typeparam name="T2">The type of the elements in the second source sequence.</typeparam>
+    /// <typeparam name="T3">The type of the elements in the third source sequence.</typeparam>
+    /// <typeparam name="T4">The type of the elements in the fourth source sequence.</typeparam>
+    /// <typeparam name="T5">The type of the elements in the fifth source sequence.</typeparam>
+    /// <typeparam name="T6">The type of the elements in the sixth source sequence.</typeparam>
+    /// <typeparam name="T7">The type of the elements in the seventh source sequence.</typeparam>
+    /// <typeparam name="T8">The type of the elements in the eighth source sequence.</typeparam>
+    /// <typeparam name="TResult">The type of the result produced by the selector function.</typeparam>
+    internal sealed class CombineLatest8ObservableAsync<T1, T2, T3, T4, T5, T6, T7, T8, TResult>(IObservableAsync<T1> src1, IObservableAsync<T2> src2, IObservableAsync<T3> src3, IObservableAsync<T4> src4, IObservableAsync<T5> src5, IObservableAsync<T6> src6, IObservableAsync<T7> src7, IObservableAsync<T8> src8, Func<T1, T2, T3, T4, T5, T6, T7, T8, TResult> selector) : ObservableAsync<TResult>
     {
+        /// <inheritdoc/>
         protected override async ValueTask<IAsyncDisposable> SubscribeAsyncCore(IObserverAsync<TResult> observer, CancellationToken cancellationToken)
         {
             var subscription = new CombineLatestSubscription(observer, src1, src2, src3, src4, src5, src6, src7, src8, selector);
@@ -1956,49 +2697,138 @@ public static partial class ObservableAsync
             return subscription;
         }
 
-        private sealed class CombineLatestSubscription : IAsyncDisposable
+        /// <summary>
+        /// Manages subscriptions to all eight source sequences and emits combined values via the selector.
+        /// </summary>
+        internal sealed class CombineLatestSubscription : IAsyncDisposable
         {
+            /// <summary>Serializes observer notifications.</summary>
             private readonly AsyncGate _gate = new();
+
+            /// <summary>Cancellation source for disposal.</summary>
             private readonly CancellationTokenSource _disposeCts = new();
+
+            /// <summary>Cached token from <see cref="_disposeCts"/>.</summary>
             private readonly CancellationToken _disposeCancellationToken;
+
+            /// <summary>The downstream observer.</summary>
             private readonly IObserverAsync<TResult> _observer;
+
+            /// <summary>Source observable 1.</summary>
             private readonly IObservableAsync<T1> _src1;
+
+            /// <summary>Source observable 2.</summary>
             private readonly IObservableAsync<T2> _src2;
+
+            /// <summary>Source observable 3.</summary>
             private readonly IObservableAsync<T3> _src3;
+
+            /// <summary>Source observable 4.</summary>
             private readonly IObservableAsync<T4> _src4;
+
+            /// <summary>Source observable 5.</summary>
             private readonly IObservableAsync<T5> _src5;
+
+            /// <summary>Source observable 6.</summary>
             private readonly IObservableAsync<T6> _src6;
+
+            /// <summary>Source observable 7.</summary>
             private readonly IObservableAsync<T7> _src7;
+
+            /// <summary>Source observable 8.</summary>
             private readonly IObservableAsync<T8> _src8;
+
+            /// <summary>The result selector function.</summary>
             private readonly Func<T1, T2, T3, T4, T5, T6, T7, T8, TResult> _selector;
+
+            /// <summary>Subscription to source 1.</summary>
             private IAsyncDisposable? _d1;
+
+            /// <summary>Subscription to source 2.</summary>
             private IAsyncDisposable? _d2;
+
+            /// <summary>Subscription to source 3.</summary>
             private IAsyncDisposable? _d3;
+
+            /// <summary>Subscription to source 4.</summary>
             private IAsyncDisposable? _d4;
+
+            /// <summary>Subscription to source 5.</summary>
             private IAsyncDisposable? _d5;
+
+            /// <summary>Subscription to source 6.</summary>
             private IAsyncDisposable? _d6;
+
+            /// <summary>Subscription to source 7.</summary>
             private IAsyncDisposable? _d7;
+
+            /// <summary>Subscription to source 8.</summary>
             private IAsyncDisposable? _d8;
 
+            /// <summary>Latest value from source 1.</summary>
             private Optional<T1> _val1 = Optional<T1>.Empty;
+
+            /// <summary>Latest value from source 2.</summary>
             private Optional<T2> _val2 = Optional<T2>.Empty;
+
+            /// <summary>Latest value from source 3.</summary>
             private Optional<T3> _val3 = Optional<T3>.Empty;
+
+            /// <summary>Latest value from source 4.</summary>
             private Optional<T4> _val4 = Optional<T4>.Empty;
+
+            /// <summary>Latest value from source 5.</summary>
             private Optional<T5> _val5 = Optional<T5>.Empty;
+
+            /// <summary>Latest value from source 6.</summary>
             private Optional<T6> _val6 = Optional<T6>.Empty;
+
+            /// <summary>Latest value from source 7.</summary>
             private Optional<T7> _val7 = Optional<T7>.Empty;
+
+            /// <summary>Latest value from source 8.</summary>
             private Optional<T8> _val8 = Optional<T8>.Empty;
 
+            /// <summary>Whether source 1 has completed.</summary>
             private bool _done1;
+
+            /// <summary>Whether source 2 has completed.</summary>
             private bool _done2;
+
+            /// <summary>Whether source 3 has completed.</summary>
             private bool _done3;
+
+            /// <summary>Whether source 4 has completed.</summary>
             private bool _done4;
+
+            /// <summary>Whether source 5 has completed.</summary>
             private bool _done5;
+
+            /// <summary>Whether source 6 has completed.</summary>
             private bool _done6;
+
+            /// <summary>Whether source 7 has completed.</summary>
             private bool _done7;
+
+            /// <summary>Whether source 8 has completed.</summary>
             private bool _done8;
+
+            /// <summary>Whether this subscription has been disposed.</summary>
             private int _disposed;
 
+            /// <summary>
+            /// Initializes a new instance of the <see cref="CombineLatestSubscription"/> class.
+            /// </summary>
+            /// <param name="observer">The downstream observer to forward combined values to.</param>
+            /// <param name="src1">The first source observable.</param>
+            /// <param name="src2">The second source observable.</param>
+            /// <param name="src3">The third source observable.</param>
+            /// <param name="src4">The fourth source observable.</param>
+            /// <param name="src5">The fifth source observable.</param>
+            /// <param name="src6">The sixth source observable.</param>
+            /// <param name="src7">The seventh source observable.</param>
+            /// <param name="src8">The eighth source observable.</param>
+            /// <param name="selector">The function to combine the latest values.</param>
             public CombineLatestSubscription(IObserverAsync<TResult> observer, IObservableAsync<T1> src1, IObservableAsync<T2> src2, IObservableAsync<T3> src3, IObservableAsync<T4> src4, IObservableAsync<T5> src5, IObservableAsync<T6> src6, IObservableAsync<T7> src7, IObservableAsync<T8> src8, Func<T1, T2, T3, T4, T5, T6, T7, T8, TResult> selector)
             {
                 _observer = observer;
@@ -2014,6 +2844,11 @@ public static partial class ObservableAsync
                 _disposeCancellationToken = _disposeCts.Token;
             }
 
+            /// <summary>
+            /// Subscribes to all source observables.
+            /// </summary>
+            /// <param name="cancellationToken">A token to cancel the subscription.</param>
+            /// <returns>A task representing the asynchronous subscribe operation.</returns>
             public async ValueTask SubscribeAsync(CancellationToken cancellationToken)
             {
                 _d1 = await _src1.SubscribeAsync(OnNext_1, OnErrorResume, OnCompleted_1, cancellationToken);
@@ -2026,9 +2861,17 @@ public static partial class ObservableAsync
                 _d8 = await _src8.SubscribeAsync(OnNext_8, OnErrorResume, OnCompleted_8, cancellationToken);
             }
 
+            /// <summary>
+            /// Asynchronously releases resources used by this subscription.
+            /// </summary>
+            /// <returns>A task representing the asynchronous dispose operation.</returns>
             public ValueTask DisposeAsync() => CompleteAsync(null);
 
-            private ValueTask OnNext_1(T1 value, CancellationToken cancellationToken)
+            /// <summary>Handles a new value from source 1.</summary>
+            /// <param name="value">The value.</param>
+            /// <param name="cancellationToken">The cancellation token.</param>
+            /// <returns>A ValueTask representing the operation.</returns>
+            internal ValueTask OnNext_1(T1 value, CancellationToken cancellationToken)
             {
                 lock (_disposeCts)
                 {
@@ -2043,7 +2886,10 @@ public static partial class ObservableAsync
                 return default;
             }
 
-            private ValueTask OnCompleted_1(Result result)
+            /// <summary>Handles completion of source 1.</summary>
+            /// <param name="result">The completion result.</param>
+            /// <returns>A ValueTask representing the operation.</returns>
+            internal ValueTask OnCompleted_1(Result result)
             {
                 if (result.IsFailure)
                 {
@@ -2060,7 +2906,11 @@ public static partial class ObservableAsync
                 return shouldComplete ? _observer.OnCompletedAsync(result) : default;
             }
 
-            private ValueTask OnNext_2(T2 value, CancellationToken cancellationToken)
+            /// <summary>Handles a new value from source 2.</summary>
+            /// <param name="value">The value.</param>
+            /// <param name="cancellationToken">The cancellation token.</param>
+            /// <returns>A ValueTask representing the operation.</returns>
+            internal ValueTask OnNext_2(T2 value, CancellationToken cancellationToken)
             {
                 lock (_disposeCts)
                 {
@@ -2075,7 +2925,10 @@ public static partial class ObservableAsync
                 return default;
             }
 
-            private ValueTask OnCompleted_2(Result result)
+            /// <summary>Handles completion of source 2.</summary>
+            /// <param name="result">The completion result.</param>
+            /// <returns>A ValueTask representing the operation.</returns>
+            internal ValueTask OnCompleted_2(Result result)
             {
                 if (result.IsFailure)
                 {
@@ -2092,7 +2945,11 @@ public static partial class ObservableAsync
                 return shouldComplete ? _observer.OnCompletedAsync(result) : default;
             }
 
-            private ValueTask OnNext_3(T3 value, CancellationToken cancellationToken)
+            /// <summary>Handles a new value from source 3.</summary>
+            /// <param name="value">The value.</param>
+            /// <param name="cancellationToken">The cancellation token.</param>
+            /// <returns>A ValueTask representing the operation.</returns>
+            internal ValueTask OnNext_3(T3 value, CancellationToken cancellationToken)
             {
                 lock (_disposeCts)
                 {
@@ -2107,7 +2964,10 @@ public static partial class ObservableAsync
                 return default;
             }
 
-            private ValueTask OnCompleted_3(Result result)
+            /// <summary>Handles completion of source 3.</summary>
+            /// <param name="result">The completion result.</param>
+            /// <returns>A ValueTask representing the operation.</returns>
+            internal ValueTask OnCompleted_3(Result result)
             {
                 if (result.IsFailure)
                 {
@@ -2124,7 +2984,11 @@ public static partial class ObservableAsync
                 return shouldComplete ? _observer.OnCompletedAsync(result) : default;
             }
 
-            private ValueTask OnNext_4(T4 value, CancellationToken cancellationToken)
+            /// <summary>Handles a new value from source 4.</summary>
+            /// <param name="value">The value.</param>
+            /// <param name="cancellationToken">The cancellation token.</param>
+            /// <returns>A ValueTask representing the operation.</returns>
+            internal ValueTask OnNext_4(T4 value, CancellationToken cancellationToken)
             {
                 lock (_disposeCts)
                 {
@@ -2139,7 +3003,10 @@ public static partial class ObservableAsync
                 return default;
             }
 
-            private ValueTask OnCompleted_4(Result result)
+            /// <summary>Handles completion of source 4.</summary>
+            /// <param name="result">The completion result.</param>
+            /// <returns>A ValueTask representing the operation.</returns>
+            internal ValueTask OnCompleted_4(Result result)
             {
                 if (result.IsFailure)
                 {
@@ -2156,7 +3023,11 @@ public static partial class ObservableAsync
                 return shouldComplete ? _observer.OnCompletedAsync(result) : default;
             }
 
-            private ValueTask OnNext_5(T5 value, CancellationToken cancellationToken)
+            /// <summary>Handles a new value from source 5.</summary>
+            /// <param name="value">The value.</param>
+            /// <param name="cancellationToken">The cancellation token.</param>
+            /// <returns>A ValueTask representing the operation.</returns>
+            internal ValueTask OnNext_5(T5 value, CancellationToken cancellationToken)
             {
                 lock (_disposeCts)
                 {
@@ -2171,7 +3042,10 @@ public static partial class ObservableAsync
                 return default;
             }
 
-            private ValueTask OnCompleted_5(Result result)
+            /// <summary>Handles completion of source 5.</summary>
+            /// <param name="result">The completion result.</param>
+            /// <returns>A ValueTask representing the operation.</returns>
+            internal ValueTask OnCompleted_5(Result result)
             {
                 if (result.IsFailure)
                 {
@@ -2188,7 +3062,11 @@ public static partial class ObservableAsync
                 return shouldComplete ? _observer.OnCompletedAsync(result) : default;
             }
 
-            private ValueTask OnNext_6(T6 value, CancellationToken cancellationToken)
+            /// <summary>Handles a new value from source 6.</summary>
+            /// <param name="value">The value.</param>
+            /// <param name="cancellationToken">The cancellation token.</param>
+            /// <returns>A ValueTask representing the operation.</returns>
+            internal ValueTask OnNext_6(T6 value, CancellationToken cancellationToken)
             {
                 lock (_disposeCts)
                 {
@@ -2203,7 +3081,10 @@ public static partial class ObservableAsync
                 return default;
             }
 
-            private ValueTask OnCompleted_6(Result result)
+            /// <summary>Handles completion of source 6.</summary>
+            /// <param name="result">The completion result.</param>
+            /// <returns>A ValueTask representing the operation.</returns>
+            internal ValueTask OnCompleted_6(Result result)
             {
                 if (result.IsFailure)
                 {
@@ -2220,7 +3101,11 @@ public static partial class ObservableAsync
                 return shouldComplete ? _observer.OnCompletedAsync(result) : default;
             }
 
-            private ValueTask OnNext_7(T7 value, CancellationToken cancellationToken)
+            /// <summary>Handles a new value from source 7.</summary>
+            /// <param name="value">The value.</param>
+            /// <param name="cancellationToken">The cancellation token.</param>
+            /// <returns>A ValueTask representing the operation.</returns>
+            internal ValueTask OnNext_7(T7 value, CancellationToken cancellationToken)
             {
                 lock (_disposeCts)
                 {
@@ -2235,7 +3120,10 @@ public static partial class ObservableAsync
                 return default;
             }
 
-            private ValueTask OnCompleted_7(Result result)
+            /// <summary>Handles completion of source 7.</summary>
+            /// <param name="result">The completion result.</param>
+            /// <returns>A ValueTask representing the operation.</returns>
+            internal ValueTask OnCompleted_7(Result result)
             {
                 if (result.IsFailure)
                 {
@@ -2252,7 +3140,11 @@ public static partial class ObservableAsync
                 return shouldComplete ? _observer.OnCompletedAsync(result) : default;
             }
 
-            private ValueTask OnNext_8(T8 value, CancellationToken cancellationToken)
+            /// <summary>Handles a new value from source 8.</summary>
+            /// <param name="value">The value.</param>
+            /// <param name="cancellationToken">The cancellation token.</param>
+            /// <returns>A ValueTask representing the operation.</returns>
+            internal ValueTask OnNext_8(T8 value, CancellationToken cancellationToken)
             {
                 lock (_disposeCts)
                 {
@@ -2267,7 +3159,10 @@ public static partial class ObservableAsync
                 return default;
             }
 
-            private ValueTask OnCompleted_8(Result result)
+            /// <summary>Handles completion of source 8.</summary>
+            /// <param name="result">The completion result.</param>
+            /// <returns>A ValueTask representing the operation.</returns>
+            internal ValueTask OnCompleted_8(Result result)
             {
                 if (result.IsFailure)
                 {
@@ -2284,12 +3179,23 @@ public static partial class ObservableAsync
                 return shouldComplete ? _observer.OnCompletedAsync(result) : default;
             }
 
-            private async ValueTask OnNextCombined(T1 v1, T2 v2, T3 v3, T4 v4, T5 v5, T6 v6, T7 v7, T8 v8, CancellationToken cancellationToken)
+            /// <summary>Applies the selector and forwards the combined value downstream.</summary>
+            /// <param name="v1">The latest value from source 1.</param>
+            /// <param name="v2">The latest value from source 2.</param>
+            /// <param name="v3">The latest value from source 3.</param>
+            /// <param name="v4">The latest value from source 4.</param>
+            /// <param name="v5">The latest value from source 5.</param>
+            /// <param name="v6">The latest value from source 6.</param>
+            /// <param name="v7">The latest value from source 7.</param>
+            /// <param name="v8">The latest value from source 8.</param>
+            /// <param name="cancellationToken">The cancellation token.</param>
+            /// <returns>A ValueTask representing the operation.</returns>
+            internal async ValueTask OnNextCombined(T1 v1, T2 v2, T3 v3, T4 v4, T5 v5, T6 v6, T7 v7, T8 v8, CancellationToken cancellationToken)
             {
                 using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _disposeCancellationToken);
                 using (await _gate.LockAsync())
                 {
-                    if (_disposed == 1)
+                    if (DisposalHelper.IsDisposed(_disposed))
                     {
                         return;
                     }
@@ -2299,12 +3205,16 @@ public static partial class ObservableAsync
                 }
             }
 
-            private async ValueTask OnErrorResume(Exception error, CancellationToken cancellationToken)
+            /// <summary>Forwards an error to the downstream observer.</summary>
+            /// <param name="error">The error to forward.</param>
+            /// <param name="cancellationToken">The cancellation token.</param>
+            /// <returns>A ValueTask representing the operation.</returns>
+            internal async ValueTask OnErrorResume(Exception error, CancellationToken cancellationToken)
             {
                 using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _disposeCancellationToken);
                 using (await _gate.LockAsync())
                 {
-                    if (_disposed == 1)
+                    if (DisposalHelper.IsDisposed(_disposed))
                     {
                         return;
                     }
@@ -2313,9 +3223,12 @@ public static partial class ObservableAsync
                 }
             }
 
-            private async ValueTask CompleteAsync(Result? result)
+            /// <summary>Completes the combined sequence, disposing all subscriptions.</summary>
+            /// <param name="result">The completion result, or null if disposing without signaling.</param>
+            /// <returns>A ValueTask representing the operation.</returns>
+            internal async ValueTask CompleteAsync(Result? result)
             {
-                if (Interlocked.Exchange(ref _disposed, 1) == 1)
+                if (DisposalHelper.TrySetDisposed(ref _disposed))
                 {
                     return;
                 }

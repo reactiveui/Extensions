@@ -96,24 +96,14 @@ public static partial class ObservableAsync
             ArgumentExceptionHelper.ThrowIfNull(onNext, nameof(onNext));
             ArgumentExceptionHelper.ThrowIfNull(source, nameof(source));
 
-            static ValueTask OnErrorResumeAsync(Exception e, Action<Exception>? onErrorResume)
+            static ValueTask OnErrorResumeAsync(Exception e, Action<Exception> onErrorResume)
             {
-                if (onErrorResume is null)
-                {
-                    return default;
-                }
-
                 onErrorResume(e);
                 return default;
             }
 
-            static ValueTask OnCompletedAsync(Result x, Action<Result>? onCompleted)
+            static ValueTask OnCompletedAsync(Result x, Action<Result> onCompleted)
             {
-                if (onCompleted is null)
-                {
-                    return default;
-                }
-
                 onCompleted(x);
                 return ValueTask.CompletedTask;
             }

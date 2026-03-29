@@ -4,12 +4,21 @@
 
 namespace ReactiveUI.Extensions.Async.Internals;
 
+/// <summary>
+/// An observer that delegates notification handling to user-supplied asynchronous functions.
+/// </summary>
+/// <typeparam name="T">The type of the elements received by the observer.</typeparam>
+/// <param name="onNextAsync">The asynchronous function invoked for each element.</param>
+/// <param name="onErrorResumeAsync">An optional asynchronous function invoked when a resumable error occurs.</param>
+/// <param name="onCompletedAsync">An optional asynchronous function invoked when the sequence completes.</param>
 internal sealed class AnonymousObserverAsync<T>(Func<T, CancellationToken, ValueTask> onNextAsync,
                                                 Func<Exception, CancellationToken, ValueTask>? onErrorResumeAsync = null,
                                                 Func<Result, ValueTask>? onCompletedAsync = null) : ObserverAsync<T>
 {
+    /// <inheritdoc/>
     protected override ValueTask OnNextAsyncCore(T value, CancellationToken cancellationToken) => onNextAsync(value, cancellationToken);
 
+    /// <inheritdoc/>
     protected override ValueTask OnErrorResumeAsyncCore(Exception error, CancellationToken cancellationToken)
     {
         if (onErrorResumeAsync is null)
@@ -21,6 +30,7 @@ internal sealed class AnonymousObserverAsync<T>(Func<T, CancellationToken, Value
         return onErrorResumeAsync.Invoke(error, cancellationToken);
     }
 
+    /// <inheritdoc/>
     protected override ValueTask OnCompletedAsyncCore(Result result)
     {
         if (onCompletedAsync is null)

@@ -33,6 +33,7 @@ public static partial class ObservableAsync
         /// one matching element exists.</returns>
         public async ValueTask<T?> SingleOrDefaultAsync(Func<T, bool> predicate, T? defaultValue, CancellationToken cancellationToken = default)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             var observer = new SingleOrDefaultObserver<T>(predicate, defaultValue, cancellationToken);
             _ = await @this.SubscribeAsync(observer, cancellationToken);
             return await observer.WaitValueAsync();
@@ -61,17 +62,33 @@ public static partial class ObservableAsync
         /// present.</returns>
         public async ValueTask<T?> SingleOrDefaultAsync(T? defaultValue, CancellationToken cancellationToken = default)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             var observer = new SingleOrDefaultObserver<T>(null, defaultValue, cancellationToken);
             _ = await @this.SubscribeAsync(observer, cancellationToken);
             return await observer.WaitValueAsync();
         }
     }
 
-    private sealed class SingleOrDefaultObserver<T>(Func<T, bool>? predicate, T? defaultValue, CancellationToken cancellationToken) : TaskObserverAsyncBase<T, T>(cancellationToken)
+    /// <summary>
+    /// Observer that captures the single element matching an optional predicate, or returns a default value.
+    /// </summary>
+    /// <typeparam name="T">The type of elements in the source sequence.</typeparam>
+    /// <param name="predicate">An optional predicate to filter elements.</param>
+    /// <param name="defaultValue">The default value to return if no element matches.</param>
+    /// <param name="cancellationToken">A cancellation token for the operation.</param>
+    internal sealed class SingleOrDefaultObserver<T>(Func<T, bool>? predicate, T? defaultValue, CancellationToken cancellationToken) : TaskObserverAsyncBase<T, T>(cancellationToken)
     {
+        /// <summary>
+        /// A value indicating whether a matching element has been found.
+        /// </summary>
         private bool _hasValue;
+
+        /// <summary>
+        /// The single matching element, or the default value if no match has been found.
+        /// </summary>
         private T? _value = defaultValue;
 
+        /// <inheritdoc/>
         protected override async ValueTask OnNextAsyncCore(T value, CancellationToken cancellationToken)
         {
             if (predicate is null || predicate(value))
@@ -89,8 +106,10 @@ public static partial class ObservableAsync
             }
         }
 
+        /// <inheritdoc/>
         protected override ValueTask OnErrorResumeAsyncCore(Exception error, CancellationToken cancellationToken) => TrySetException(error);
 
+        /// <inheritdoc/>
         protected override ValueTask OnCompletedAsyncCore(Result result)
         {
             if (!result.IsSuccess)

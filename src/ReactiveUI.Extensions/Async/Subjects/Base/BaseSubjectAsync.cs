@@ -4,7 +4,6 @@
 
 using System.Collections.Immutable;
 using ReactiveUI.Extensions.Async.Disposables;
-using ReactiveUI.Extensions.Async.Internals;
 
 namespace ReactiveUI.Extensions.Async.Subjects;
 
@@ -20,12 +19,23 @@ namespace ReactiveUI.Extensions.Async.Subjects;
 /// <typeparam name="T">The type of elements processed by the subject and observed by subscribers.</typeparam>
 public abstract class BaseSubjectAsync<T> : ObservableAsync<T>, ISubjectAsync<T>
 {
+    /// <summary>
+    /// The lock object used to synchronize access to the subject's mutable state.
+    /// </summary>
 #if NET9_0_OR_GREATER
     private readonly Lock _gate = new();
 #else
     private readonly object _gate = new();
 #endif
+
+    /// <summary>
+    /// The immutable list of currently subscribed observers.
+    /// </summary>
     private ImmutableList<IObserverAsync<T>> _observers = [];
+
+    /// <summary>
+    /// The completion result, or <see langword="null"/> if the subject has not yet completed.
+    /// </summary>
     private Result? _result;
 
     /// <summary>

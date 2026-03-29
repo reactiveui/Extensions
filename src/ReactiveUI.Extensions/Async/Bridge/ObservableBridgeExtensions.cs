@@ -3,7 +3,6 @@
 // See the LICENSE file in the project root for full license information.
 
 using ReactiveUI.Extensions.Async.Disposables;
-using ReactiveUI.Extensions.Async.Internals;
 
 namespace ReactiveUI.Extensions.Async;
 
@@ -65,8 +64,15 @@ public static class ObservableBridgeExtensions
     /// <summary>
     /// Bridges an <see cref="IObservable{T}"/> into the async observable world.
     /// </summary>
-    private sealed class ObservableToObservableAsync<T>(IObservable<T> source) : ObservableAsync<T>
+    /// <typeparam name="T">The element type of the observable sequence.</typeparam>
+    internal sealed class ObservableToObservableAsync<T>(IObservable<T> source) : ObservableAsync<T>
     {
+        /// <summary>
+        /// Subscribes an async observer to the underlying synchronous observable, bridging notifications asynchronously.
+        /// </summary>
+        /// <param name="observer">The async observer to receive bridged notifications.</param>
+        /// <param name="cancellationToken">A token to cancel the subscription.</param>
+        /// <returns>An async disposable that disposes the underlying synchronous subscription.</returns>
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Reliability", "CA2000:Dispose objects before losing scope", Justification = "Disposed by the async disposable returned to the caller")]
         protected override ValueTask<IAsyncDisposable> SubscribeAsyncCore(IObserverAsync<T> observer, CancellationToken cancellationToken)
         {
@@ -88,23 +94,49 @@ public static class ObservableBridgeExtensions
         /// <summary>
         /// Synchronous observer that forwards to an async observer, queuing items to ensure sequential delivery.
         /// </summary>
-        private sealed class BridgeObserver(IObserverAsync<T> observer, CancellationToken cancellationToken) : IObserver<T>
+        internal sealed class BridgeObserver(IObserverAsync<T> observer, CancellationToken cancellationToken) : IObserver<T>
         {
+            /// <summary>
+            /// Synchronization gate protecting the work queue and busy flag.
+            /// </summary>
 #if NET9_0_OR_GREATER
             private readonly Lock _gate = new();
 #else
             private readonly object _gate = new();
 #endif
+
+            /// <summary>
+            /// Queue of pending work items to be drained sequentially.
+            /// </summary>
             private readonly Queue<Action> _queue = new();
+
+            /// <summary>
+            /// Indicates whether a drain loop is currently executing.
+            /// </summary>
             private bool _busy;
 
+            /// <summary>
+            /// Enqueues a forwarding of the element to the async observer.
+            /// </summary>
+            /// <param name="value">The element to forward.</param>
             public void OnNext(T value) => Enqueue(() => observer.OnNextAsync(value, cancellationToken).AsTask());
 
+            /// <summary>
+            /// Enqueues a failure completion on the async observer.
+            /// </summary>
+            /// <param name="error">The error to forward.</param>
             public void OnError(Exception error) => Enqueue(() => observer.OnCompletedAsync(Result.Failure(error)).AsTask());
 
+            /// <summary>
+            /// Enqueues a successful completion on the async observer.
+            /// </summary>
             public void OnCompleted() => Enqueue(() => observer.OnCompletedAsync(Result.Success).AsTask());
 
-            private static void ProcessAsync(Func<Task> action)
+            /// <summary>
+            /// Synchronously executes the specified async action, routing exceptions to the unhandled exception handler.
+            /// </summary>
+            /// <param name="action">The async action to execute.</param>
+            internal static void ProcessAsync(Func<Task> action)
             {
                 try
                 {
@@ -120,7 +152,11 @@ public static class ObservableBridgeExtensions
                 }
             }
 
-            private void Enqueue(Func<Task> action)
+            /// <summary>
+            /// Enqueues the specified async action and starts draining if not already in progress.
+            /// </summary>
+            /// <param name="action">The async action to enqueue.</param>
+            internal void Enqueue(Func<Task> action)
             {
                 lock (_gate)
                 {
@@ -136,7 +172,10 @@ public static class ObservableBridgeExtensions
                 DrainQueue();
             }
 
-            private void DrainQueue()
+            /// <summary>
+            /// Drains the work queue, executing each action sequentially until the queue is empty.
+            /// </summary>
+            internal void DrainQueue()
             {
                 while (true)
                 {
@@ -161,8 +200,14 @@ public static class ObservableBridgeExtensions
     /// <summary>
     /// Bridges an <see cref="ObservableAsync{T}"/> into the classic <see cref="IObservable{T}"/> world.
     /// </summary>
-    private sealed class ObservableAsyncToObservable<T>(IObservableAsync<T> source) : IObservable<T>
+    /// <typeparam name="T">The element type of the observable sequence.</typeparam>
+    internal sealed class ObservableAsyncToObservable<T>(IObservableAsync<T> source) : IObservable<T>
     {
+        /// <summary>
+        /// Subscribes a synchronous observer by bridging from the underlying async observable.
+        /// </summary>
+        /// <param name="observer">The synchronous observer to receive notifications.</param>
+        /// <returns>A disposable that tears down the async subscription when disposed.</returns>
         public IDisposable Subscribe(IObserver<T> observer)
         {
             ArgumentExceptionHelper.ThrowIfNull(observer, nameof(observer));
@@ -206,6 +251,12 @@ public static class ObservableBridgeExtensions
             });
         }
 
+        /// <summary>
+        /// Subscribes the bridge observer to the async source, capturing exceptions to avoid unobserved task faults.
+        /// </summary>
+        /// <param name="observer">The bridge observer to subscribe.</param>
+        /// <param name="cancellationToken">A token to cancel the subscription.</param>
+        /// <returns>The async disposable subscription, or <see langword="null"/> if the subscription failed or was cancelled.</returns>
         private async Task<IAsyncDisposable?> SubscribeAndCaptureAsync(BridgeAsyncObserver observer, CancellationToken cancellationToken)
         {
             try
@@ -226,20 +277,37 @@ public static class ObservableBridgeExtensions
         /// <summary>
         /// Async observer that forwards notifications to a classic <see cref="IObserver{T}"/>.
         /// </summary>
-        private sealed class BridgeAsyncObserver(IObserver<T> observer) : ObserverAsync<T>
+        internal sealed class BridgeAsyncObserver(IObserver<T> observer) : ObserverAsync<T>
         {
+            /// <summary>
+            /// Forwards the element to the synchronous observer.
+            /// </summary>
+            /// <param name="value">The element to forward.</param>
+            /// <param name="cancellationToken">A token to cancel the operation.</param>
+            /// <returns>A completed task.</returns>
             protected override ValueTask OnNextAsyncCore(T value, CancellationToken cancellationToken)
             {
                 observer.OnNext(value);
                 return default;
             }
 
+            /// <summary>
+            /// Forwards a non-fatal error to the synchronous observer as an OnError call.
+            /// </summary>
+            /// <param name="error">The error to forward.</param>
+            /// <param name="cancellationToken">A token to cancel the operation.</param>
+            /// <returns>A completed task.</returns>
             protected override ValueTask OnErrorResumeAsyncCore(Exception error, CancellationToken cancellationToken)
             {
                 observer.OnError(error);
                 return default;
             }
 
+            /// <summary>
+            /// Forwards completion or failure to the synchronous observer.
+            /// </summary>
+            /// <param name="result">The completion result.</param>
+            /// <returns>A completed task.</returns>
             protected override ValueTask OnCompletedAsyncCore(Result result)
             {
                 if (result.IsFailure)
