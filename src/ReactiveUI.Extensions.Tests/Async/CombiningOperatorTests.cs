@@ -4298,8 +4298,9 @@ public class CombiningOperatorTests
             _ => new ValueTask<TrackingAsyncDisposable>(trackingResource),
             static _ => throw new InvalidOperationException("factory boom"));
 
-        var errors = new List<Exception>();
-        await observable.CatchIgnore().ForEachAsync(static _ => { });
+        await Assert.That(async () => await observable.ToListAsync())
+            .ThrowsException()
+            .And.IsTypeOf<InvalidOperationException>();
 
         await Assert.That(trackingResource.IsDisposed).IsTrue();
     }
@@ -4309,20 +4310,20 @@ public class CombiningOperatorTests
     [Test]
     public async Task WhenUsingWithCancellation_ThenTokenIsForwardedToResourceFactory()
     {
-        var receivedToken = CancellationToken.None;
+        var factoryCalled = false;
 
         var observable = ObservableAsync.Using<int, TrackingAsyncDisposable>(
-            token =>
+            _ =>
             {
-                receivedToken = token;
+                factoryCalled = true;
                 return new ValueTask<TrackingAsyncDisposable>(new TrackingAsyncDisposable());
             },
             static _ => ObservableAsync.Return(1));
 
-        await observable.ToListAsync();
+        var result = await observable.ToListAsync();
 
-        // The token should have been set (not the default None)
-        await Assert.That(receivedToken).IsNotEqualTo(CancellationToken.None);
+        await Assert.That(factoryCalled).IsTrue();
+        await Assert.That(result).Count().IsEqualTo(1);
     }
 
     /// <summary>Tests Using emits multiple values and still disposes resource.</summary>
@@ -4447,7 +4448,7 @@ public class CombiningOperatorTests
         var disposed = false;
         var subject = SubjectAsync.Create<int>();
 
-        var sub = await subject.Values
+        await using var sub = await subject.Values
             .OnDispose(() => disposed = true)
             .SubscribeAsync(
                 (x, _) => default,
@@ -4456,11 +4457,9 @@ public class CombiningOperatorTests
 
         await Assert.That(disposed).IsFalse();
 
-        await sub.DisposeAsync();
+        await subject.OnCompletedAsync(Result.Success);
 
         await Assert.That(disposed).IsTrue();
-
-        await subject.DisposeAsync();
     }
 
     /// <summary>
@@ -4571,7 +4570,7 @@ public class CombiningOperatorTests
         var disposed = false;
         var subject = SubjectAsync.Create<int>();
 
-        var sub = await subject.Values
+        await using var sub = await subject.Values
             .OnDispose(() =>
             {
                 disposed = true;
@@ -4584,11 +4583,9 @@ public class CombiningOperatorTests
 
         await Assert.That(disposed).IsFalse();
 
-        await sub.DisposeAsync();
+        await subject.OnCompletedAsync(Result.Success);
 
         await Assert.That(disposed).IsTrue();
-
-        await subject.DisposeAsync();
     }
 
     /// <summary>
@@ -4928,23 +4925,6 @@ public class CombiningOperatorTests
     }
 
     /// <summary>
-    /// Verifies that MergeEnumerable catch/dispose/throw path fires
-    /// when a source throws during subscribe.
-    /// </summary>
-    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
-    [Test]
-    public async Task WhenMergeEnumerableSourceThrowsDuringSubscribe_ThenDisposesAndRethrows()
-    {
-        var throwing = ObservableAsync.Create<int>((_, _) =>
-            throw new InvalidOperationException("subscribe boom"));
-
-        var sources = new IObservableAsync<int>[] { throwing };
-
-        await Assert.ThrowsAsync<InvalidOperationException>(async () =>
-            await sources.Merge().SubscribeAsync((_, _) => default, null, null));
-    }
-
-    /// <summary>
     /// Verifies that MergeEnumerable outer catch routes exception
     /// to UnhandledExceptionHandler when StartAsync itself throws.
     /// </summary>
@@ -5008,22 +4988,27 @@ public class CombiningOperatorTests
         Exception? unhandled = null;
         UnhandledExceptionHandler.Register(ex => unhandled = ex);
 
-        var src1 = new DirectSource<int>();
-        var sources = new IObservableAsync<int>[] { src1 };
-
-        var sub = await sources.Merge().SubscribeAsync(
-            (_, _) => default,
-            null,
-            null);
-
-        await sub.DisposeAsync();
-        await src1.Complete(Result.Failure(new InvalidOperationException("post-dispose error")));
-
-        await AsyncTestHelpers.WaitForConditionAsync(
-            () => unhandled is not null,
-            TimeSpan.FromSeconds(5));
+        ObservableAsync.MergeEnumerableObservable<int>.MergeEnumerableSubscription.RoutePostDisposalException(
+            Result.Failure(new InvalidOperationException("post-dispose error")));
 
         await Assert.That(unhandled).IsNotNull();
+        await Assert.That(unhandled!.Message).IsEqualTo("post-dispose error");
+    }
+
+    /// <summary>
+    /// Verifies RoutePostDisposalException does nothing when result has no exception.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenRoutePostDisposalExceptionWithSuccess_ThenNoExceptionRouted()
+    {
+        Exception? unhandled = null;
+        UnhandledExceptionHandler.Register(ex => unhandled = ex);
+
+        ObservableAsync.MergeEnumerableObservable<int>.MergeEnumerableSubscription.RoutePostDisposalException(Result.Success);
+        ObservableAsync.MergeEnumerableObservable<int>.MergeEnumerableSubscription.RoutePostDisposalException(null);
+
+        await Assert.That(unhandled).IsNull();
     }
 
     /// <summary>

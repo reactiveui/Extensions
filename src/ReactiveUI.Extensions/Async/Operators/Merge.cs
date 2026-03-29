@@ -531,6 +531,20 @@ public static partial class ObservableAsync
             public ValueTask DisposeAsync() => CompleteAsync(null);
 
             /// <summary>
+            /// Routes an exception from a post-disposal completion result to the unhandled exception handler.
+            /// Called when <see cref="DisposalHelper.TrySetDisposed"/> returns true (already disposed)
+            /// and the completion result carries an exception.
+            /// </summary>
+            /// <param name="result">The completion result, or null if disposing without signaling.</param>
+            internal static void RoutePostDisposalException(Result? result)
+            {
+                if (result?.Exception is not null and var ex)
+                {
+                    UnhandledExceptionHandler.OnUnhandledException(ex);
+                }
+            }
+
+            /// <summary>
             /// Forwards a value to the downstream observer under the serialization gate.
             /// </summary>
             /// <param name="value">The value to forward.</param>
@@ -599,11 +613,7 @@ public static partial class ObservableAsync
             {
                 if (DisposalHelper.TrySetDisposed(ref _disposed))
                 {
-                    if (result?.Exception is not null and var ex)
-                    {
-                        UnhandledExceptionHandler.OnUnhandledException(ex);
-                    }
-
+                    RoutePostDisposalException(result);
                     return;
                 }
 
