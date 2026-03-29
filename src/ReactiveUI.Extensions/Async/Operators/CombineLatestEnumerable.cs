@@ -90,9 +90,14 @@ public static partial class ObservableAsync
             private readonly IAsyncDisposable?[] _subscriptions = new IAsyncDisposable?[sources.Count];
             private int _completedCount;
             private int _disposed;
+            private CancellationTokenSource? _linkedCts;
+            private CancellationToken _linkedToken;
 
             public async ValueTask SubscribeAsync(CancellationToken cancellationToken)
             {
+                _linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _disposeCts.Token);
+                _linkedToken = _linkedCts.Token;
+
                 for (var index = 0; index < _sources.Count; index++)
                 {
                     if (_disposeCts.IsCancellationRequested)
@@ -113,7 +118,6 @@ public static partial class ObservableAsync
 
             private async ValueTask OnNextAsync(int index, T value, CancellationToken cancellationToken)
             {
-                using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _disposeCts.Token);
                 using (await _gate.LockAsync())
                 {
                     if (_disposed == 1)
@@ -127,13 +131,12 @@ public static partial class ObservableAsync
                         return;
                     }
 
-                    await _observer.OnNextAsync(snapshot, linkedCts.Token);
+                    await _observer.OnNextAsync(snapshot, _linkedToken);
                 }
             }
 
             private async ValueTask OnErrorResumeAsync(Exception error, CancellationToken cancellationToken)
             {
-                using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _disposeCts.Token);
                 using (await _gate.LockAsync())
                 {
                     if (_disposed == 1)
@@ -141,7 +144,7 @@ public static partial class ObservableAsync
                         return;
                     }
 
-                    await _observer.OnErrorResumeAsync(error, linkedCts.Token);
+                    await _observer.OnErrorResumeAsync(error, _linkedToken);
                 }
             }
 
@@ -190,6 +193,7 @@ public static partial class ObservableAsync
                     await _observer.OnCompletedAsync(result.Value);
                 }
 
+                _linkedCts?.Dispose();
                 _disposeCts.Dispose();
                 _gate.Dispose();
             }
