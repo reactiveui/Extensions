@@ -825,4 +825,73 @@ public class TransformationOperatorTests
         await Assert.That(downstreamErrors[0]).IsTypeOf<InvalidOperationException>();
         await Assert.That(downstreamErrors[0].Message).IsEqualTo("group error");
     }
+
+    /// <summary>
+    /// Verifies that when Prepend's source throws during subscription and the raw observer's
+    /// <see cref="IObserverAsync{T}.OnCompletedAsync"/> also throws, the secondary exception
+    /// from the completion handler is routed to the <see cref="UnhandledExceptionHandler"/>.
+    /// This exercises the inner catch block (lines 73-74) that guards against completion handler failures
+    /// by using a raw <see cref="IObserverAsync{T}"/> implementation that bypasses the
+    /// <see cref="ObserverAsync{T}"/> base class exception swallowing.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenPrependSourceThrowsAndRawObserverCompletionThrows_ThenRoutedToUnhandledHandler()
+    {
+        var handlerExceptions = new List<Exception>();
+        var completionException = new InvalidOperationException("raw observer completion failed");
+        var previousHandler = UnhandledExceptionHandler.CurrentHandler;
+
+        UnhandledExceptionHandler.Register(ex => handlerExceptions.Add(ex));
+        try
+        {
+            var source = ObservableAsync.Create<int>(async (observer, ct) =>
+            {
+                throw new ApplicationException("source subscribe error");
+#pragma warning disable CS0162 // Unreachable code detected
+                return DisposableAsync.Empty;
+#pragma warning restore CS0162 // Unreachable code detected
+            });
+
+            var pipeline = source.Prepend(1);
+
+            var rawObserver = new ThrowingOnCompletedObserver<int>(completionException);
+            await using var sub = await pipeline.SubscribeAsync(rawObserver, CancellationToken.None);
+
+            await AsyncTestHelpers.WaitForConditionAsync(
+                () => handlerExceptions.Count >= 1,
+                TimeSpan.FromSeconds(5));
+
+            await Assert.That(handlerExceptions).Count().IsGreaterThanOrEqualTo(1);
+            await Assert.That(handlerExceptions[0]).IsTypeOf<InvalidOperationException>();
+            await Assert.That(handlerExceptions[0].Message).IsEqualTo("raw observer completion failed");
+        }
+        finally
+        {
+            UnhandledExceptionHandler.Register(previousHandler);
+        }
+    }
+
+    /// <summary>
+    /// A raw <see cref="IObserverAsync{T}"/> implementation that throws a specified exception
+    /// from <see cref="OnCompletedAsync"/>. Unlike <see cref="ObserverAsync{T}"/>, this
+    /// implementation does not catch exceptions internally, allowing callers to observe
+    /// the thrown exception directly.
+    /// </summary>
+    /// <typeparam name="T">The type of elements received by the observer.</typeparam>
+    /// <param name="completionException">The exception to throw when <see cref="OnCompletedAsync"/> is called.</param>
+    private sealed class ThrowingOnCompletedObserver<T>(Exception completionException) : IObserverAsync<T>
+    {
+        /// <inheritdoc/>
+        public ValueTask OnNextAsync(T value, CancellationToken cancellationToken) => default;
+
+        /// <inheritdoc/>
+        public ValueTask OnErrorResumeAsync(Exception error, CancellationToken cancellationToken) => default;
+
+        /// <inheritdoc/>
+        public ValueTask OnCompletedAsync(Result result) => throw completionException;
+
+        /// <inheritdoc/>
+        public ValueTask DisposeAsync() => default;
+    }
 }

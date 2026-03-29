@@ -88,8 +88,7 @@ public sealed class SingleAssignmentDisposableAsync : IAsyncDisposable
             return default;
         }
 
-        ThrowAlreadyAssignment();
-        return default;
+        throw CreateAlreadyAssignedException();
     }
 
     /// <summary>
@@ -115,9 +114,10 @@ public sealed class SingleAssignmentDisposableAsync : IAsyncDisposable
     }
 
     /// <summary>
-    /// Throws an <see cref="InvalidOperationException"/> indicating that the disposable has already been assigned.
+    /// Creates an exception indicating that the disposable has already been assigned.
     /// </summary>
-    internal static void ThrowAlreadyAssignment() => throw new InvalidOperationException("Disposable is already assigned.");
+    /// <returns>An <see cref="InvalidOperationException"/> with the already-assigned message.</returns>
+    internal static InvalidOperationException CreateAlreadyAssignedException() => new("Disposable is already assigned.");
 
     /// <summary>
     /// A sentinel object used to indicate that the <see cref="SingleAssignmentDisposableAsync"/> has been disposed.

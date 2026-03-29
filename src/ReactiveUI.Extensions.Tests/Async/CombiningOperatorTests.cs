@@ -3868,6 +3868,40 @@ public class CombiningOperatorTests
     }
 
     /// <summary>
+    /// Verifies that disposing a Multicast connect handle twice leaves the connectable
+    /// in a state where a fresh connection can be established, confirming the null-check
+    /// early-return path in the dispose closure does not corrupt internal state.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenMulticastConnectHandleDisposedTwice_ThenCanReconnectSuccessfully()
+    {
+        var subject = SubjectAsync.Create<int>();
+        var source = ObservableAsync.Return(42);
+        var connectable = source.Multicast(subject);
+
+        var handle = await connectable.ConnectAsync(CancellationToken.None);
+
+        // First dispose tears down the connection and nulls the local capture.
+        await handle.DisposeAsync();
+
+        // Second dispose enters the closure, sees connection is null, and returns early (line 60).
+        await handle.DisposeAsync();
+
+        // After the double-dispose the connectable must accept a new connection.
+        List<int> items = [];
+        await using var sub = await connectable.SubscribeAsync(static (v, _) =>
+        {
+            // Subject is already completed from first connect, so no items arrive.
+            return ValueTask.CompletedTask;
+        });
+
+        // A new ConnectAsync succeeds, proving internal state was not corrupted.
+        await using var newHandle = await connectable.ConnectAsync(CancellationToken.None);
+        await Assert.That(newHandle).IsNotNull();
+    }
+
+    /// <summary>
     /// Verifies that when the first observable in a ConcatEnumerable throws during
     /// subscribe, the subscription is disposed and the exception propagates.
     /// </summary>

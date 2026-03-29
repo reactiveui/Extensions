@@ -4081,13 +4081,12 @@ public class ReactiveExtensionsTests
     }
 
     /// <summary>
-    /// Verifies that FastForEach handles a T[] array correctly. Since T[] implements
-    /// IList{T} and that branch is checked before T[], arrays are handled by the
-    /// IList{T} path.
+    /// Verifies that FastForEach dispatches a T[] array through the dedicated array branch,
+    /// which is checked before the IList{T} branch.
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
-    public async Task WhenFastForEachWithArrayAsIEnumerable_ThenHandledByIListBranch()
+    public async Task WhenFastForEachWithArrayAsIEnumerable_ThenHandledByArrayBranch()
     {
         var arr = new[] { 5, 10, 15 };
         var received = new List<int>();
@@ -4096,6 +4095,106 @@ public class ReactiveExtensionsTests
         ReactiveExtensions.FastForEach(observer, arr);
 
         await Assert.That(received).IsEquivalentTo([5, 10, 15]);
+    }
+
+    /// <summary>
+    /// Verifies that FastForEach iterates a T[] array correctly when the array contains a
+    /// single element, exercising the array branch with a minimal collection.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenFastForEach_GivenSingleElementArray_ThenEmitsSingleItem()
+    {
+        // Given
+        var source = new[] { 99 };
+        var received = new List<int>();
+        var observer = Observer.Create<int>(x => received.Add(x));
+
+        // When
+        ReactiveExtensions.FastForEach(observer, source);
+
+        // Then
+        await Assert.That(received).IsEquivalentTo([99]);
+    }
+
+    /// <summary>
+    /// Verifies that RetryWithBackoff caps the computed delay at maxDelay using a
+    /// TestScheduler so the cap assignment is directly exercised.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenRetryWithBackoff_GivenLargeBackoffFactor_ThenDelayIsCappedAtMaxDelay()
+    {
+        // Given
+        var scheduler = new TestScheduler();
+        var attemptCount = 0;
+        var source = Observable.Create<int>(observer =>
+        {
+            attemptCount++;
+
+            if (attemptCount <= 3)
+            {
+                observer.OnError(new InvalidOperationException($"fail {attemptCount}"));
+            }
+            else
+            {
+                observer.OnNext(100);
+                observer.OnCompleted();
+            }
+
+            return System.Reactive.Disposables.Disposable.Empty;
+        });
+
+        var results = new List<int>();
+
+        // When — backoffFactor 500 with initialDelay 1ms yields huge computed delays,
+        // all of which must be capped to maxDelay 5ms.
+        using var sub = source
+            .RetryWithBackoff(
+                maxRetries: 5,
+                initialDelay: TimeSpan.FromMilliseconds(1),
+                backoffFactor: 500.0,
+                maxDelay: TimeSpan.FromMilliseconds(5),
+                scheduler: scheduler)
+            .Subscribe(results.Add);
+
+        // Advance the scheduler enough for each capped retry delay
+        for (var i = 0; i < 10; i++)
+        {
+            scheduler.AdvanceBy(TimeSpan.FromMilliseconds(10).Ticks);
+        }
+
+        // Then
+        await Assert.That(results).Contains(100);
+        await Assert.That(attemptCount).IsEqualTo(4);
+    }
+
+    /// <summary>
+    /// Verifies that RetryWithDelay rethrows the original exception when all retries
+    /// are exhausted, exercising the error-propagation branch.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenRetryWithDelayExhaustsRetries_ThenRethrowsOriginalException()
+    {
+        // Given — source always fails
+        var source = Observable.Throw<int>(new InvalidOperationException("permanent"));
+        Exception? caught = null;
+
+        // When
+        using var sub = source
+            .RetryWithDelay(2, _ => TimeSpan.FromMilliseconds(1))
+            .Subscribe(
+                static _ => { },
+                ex => caught = ex);
+
+        // Allow time for the retry attempts to complete
+        await AsyncTestHelpers.WaitForConditionAsync(() => caught is not null, TimeSpan.FromSeconds(5));
+
+        // Then
+        await Assert.That(caught).IsNotNull();
+        await Assert.That(caught).IsTypeOf<InvalidOperationException>();
+        await Assert.That(caught!.Message).IsEqualTo("permanent");
     }
 
     /// <summary>

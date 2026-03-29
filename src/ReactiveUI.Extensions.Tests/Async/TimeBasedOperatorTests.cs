@@ -695,6 +695,93 @@ public class TimeBasedOperatorTests
     }
 
     /// <summary>
+    /// Verifies that a periodic <see cref="ObservableAsync.Timer(TimeSpan, TimeSpan, TimeProvider?)"/>
+    /// with a custom <see cref="TimeProvider"/> emits at least two ticks before disposal,
+    /// exercising the loop continuation on line 90 of Timer.cs through the non-system delay path.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenPeriodicTimerWithCustomTimeProvider_ThenLoopContinuesUntilDisposed()
+    {
+        var customProvider = new CustomTimeProvider();
+        var results = new List<long>();
+
+        var sub = await ObservableAsync.Timer(TimeSpan.Zero, TimeSpan.FromMilliseconds(20), customProvider)
+            .SubscribeAsync(
+                (x, _) =>
+                {
+                    results.Add(x);
+                    return default;
+                },
+                null,
+                null);
+
+        var receivedTwo = await AsyncTestHelpers.WaitForConditionAsync(
+            () => results.Count >= 2,
+            TimeSpan.FromSeconds(10));
+
+        await Assert.That(receivedTwo).IsTrue();
+
+        var countAtDispose = results.Count;
+        await sub.DisposeAsync();
+
+        var noMoreEmissions = await AsyncTestHelpers.WaitForConditionAsync(
+            () => results.Count == countAtDispose,
+            TimeSpan.FromMilliseconds(200));
+
+        await Assert.That(noMoreEmissions).IsTrue();
+        await Assert.That(results[0]).IsEqualTo(0L);
+        await Assert.That(results[1]).IsEqualTo(1L);
+    }
+
+    /// <summary>
+    /// Verifies that when the downstream observer throws a non-cancellation exception
+    /// during OnNext from a throttled emission using an immediate-fire
+    /// <see cref="TimeProvider"/>, the exception is routed to the
+    /// <see cref="UnhandledExceptionHandler"/>.
+    /// This deterministically covers lines 162-163 in ThrottleObserver.FireAfterDelayAsync.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenThrottleImmediateFireOnNextThrows_ThenRoutedToUnhandledExceptionHandler()
+    {
+        var previousHandler = UnhandledExceptionHandler.CurrentHandler;
+        var caught = new List<Exception>();
+
+        try
+        {
+            UnhandledExceptionHandler.Register(ex => caught.Add(ex));
+
+            var immediateProvider = new ImmediateFireTimeProvider();
+            var subject = SubjectAsync.Create<int>();
+
+            await using var sub = await subject.Values
+                .Throttle(TimeSpan.FromMilliseconds(100), immediateProvider)
+                .SubscribeAsync(
+                    (_, _) => throw new InvalidOperationException("immediate fire observer exploded"),
+                    null,
+                    null);
+
+            // Single emission; the delay completes synchronously via ImmediateFireTimeProvider,
+            // id matches, observer.OnNextAsync throws, caught by catch(Exception) and routed
+            // to UnhandledExceptionHandler.
+            await subject.OnNextAsync(1, CancellationToken.None);
+
+            var handlerCalled = await AsyncTestHelpers.WaitForConditionAsync(
+                () => caught.Count >= 1,
+                TimeSpan.FromSeconds(5));
+
+            await Assert.That(handlerCalled).IsTrue();
+            await Assert.That(caught[0]).IsTypeOf<InvalidOperationException>();
+            await Assert.That(caught[0].Message).IsEqualTo("immediate fire observer exploded");
+        }
+        finally
+        {
+            UnhandledExceptionHandler.Register(previousHandler);
+        }
+    }
+
+    /// <summary>
     /// A custom <see cref="TimeProvider"/> that delegates timer creation to the system provider.
     /// Used to exercise the non-system <see cref="TimeProvider"/> code paths in Interval and Timer operators.
     /// </summary>
@@ -729,5 +816,55 @@ public class TimeBasedOperatorTests
         /// <exception cref="InvalidOperationException">Always thrown.</exception>
         public override ITimer CreateTimer(TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period) =>
             throw new InvalidOperationException("timer creation failed");
+    }
+
+    /// <summary>
+    /// A <see cref="TimeProvider"/> that fires the timer callback synchronously during
+    /// <see cref="CreateTimer"/>, completing the delay immediately. Used to deterministically
+    /// test the id-mismatch early return and exception routing paths in ThrottleObserver.
+    /// </summary>
+    private sealed class ImmediateFireTimeProvider : TimeProvider
+    {
+        /// <summary>
+        /// Invokes the timer callback synchronously and returns a no-op timer.
+        /// </summary>
+        /// <param name="callback">The callback to invoke immediately.</param>
+        /// <param name="state">The state object passed to the callback.</param>
+        /// <param name="dueTime">The initial delay (ignored; fires immediately).</param>
+        /// <param name="period">The interval (ignored; fires only once).</param>
+        /// <returns>A no-op <see cref="ITimer"/> instance.</returns>
+        public override ITimer CreateTimer(TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period)
+        {
+            callback(state);
+            return new NoOpTimer();
+        }
+
+        /// <summary>
+        /// A timer that performs no operations. Used as the return value from
+        /// <see cref="ImmediateFireTimeProvider.CreateTimer"/>.
+        /// </summary>
+        private sealed class NoOpTimer : ITimer
+        {
+            /// <summary>
+            /// No-op change; returns true.
+            /// </summary>
+            /// <param name="dueTime">The due time (ignored).</param>
+            /// <param name="period">The period (ignored).</param>
+            /// <returns>Always returns true.</returns>
+            public bool Change(TimeSpan dueTime, TimeSpan period) => true;
+
+            /// <summary>
+            /// No-op dispose.
+            /// </summary>
+            public void Dispose()
+            {
+            }
+
+            /// <summary>
+            /// No-op async dispose.
+            /// </summary>
+            /// <returns>A completed <see cref="ValueTask"/>.</returns>
+            public ValueTask DisposeAsync() => default;
+        }
     }
 }

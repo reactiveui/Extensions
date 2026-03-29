@@ -155,7 +155,7 @@ public static partial class ObservableAsync
         private bool _outerCompleted;
 
         /// <summary>Whether this subscription has been disposed.</summary>
-        private bool _disposed;
+        private int _disposed;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="MergeSubscription{T}"/> class.
@@ -210,7 +210,7 @@ public static partial class ObservableAsync
         /// <returns>A task representing the asynchronous forward operation.</returns>
         internal async ValueTask ForwardOnNext(T value, CancellationToken cancellationToken)
         {
-            if (_disposed)
+            if (DisposalHelper.IsDisposed(_disposed))
             {
                 return;
             }
@@ -218,7 +218,7 @@ public static partial class ObservableAsync
             using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, DisposedCancellationToken);
             using (await _onSomethingGate.LockAsync())
             {
-                if (_disposed)
+                if (DisposalHelper.IsDisposed(_disposed))
                 {
                     return;
                 }
@@ -238,7 +238,7 @@ public static partial class ObservableAsync
             using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, DisposedCancellationToken);
             using (await _onSomethingGate.LockAsync())
             {
-                if (_disposed)
+                if (DisposalHelper.IsDisposed(_disposed))
                 {
                     return;
                 }
@@ -278,14 +278,9 @@ public static partial class ObservableAsync
         /// <returns>A task representing the asynchronous completion operation.</returns>
         protected async ValueTask CompleteAsync(Result? result)
         {
-            lock (_disposeCts)
+            if (DisposalHelper.TrySetDisposed(ref _disposed))
             {
-                if (_disposed)
-                {
-                    return;
-                }
-
-                _disposed = true;
+                return;
             }
 
             _disposeCts.Cancel();
@@ -407,15 +402,7 @@ public static partial class ObservableAsync
         protected override async ValueTask<IAsyncDisposable> SubscribeAsyncCore(IObserverAsync<T> observer, CancellationToken cancellationToken)
         {
             var subscription = new MergeEnumerableSubscription(observer, sources);
-            try
-            {
-                subscription.StartAsync();
-            }
-            catch
-            {
-                await subscription.DisposeAsync();
-                throw;
-            }
+            subscription.StartAsync();
 
             return subscription;
         }
@@ -470,59 +457,52 @@ public static partial class ObservableAsync
             /// <summary>
             /// Begins subscribing to all source observables asynchronously.
             /// </summary>
-            public async void StartAsync()
+            public void StartAsync() => FireAndForgetHelper.Run(async () =>
             {
+                _reentrant.Value = true;
                 try
                 {
-                    _reentrant.Value = true;
-                    try
+                    // Sentinel: prevents premature completion while the loop is subscribing to sources.
+                    // Without this, a synchronously-completing source (e.g. Return) can decrement _active
+                    // to zero before the next source is subscribed, terminating the merge early.
+                    Interlocked.Increment(ref _active);
+
+                    foreach (var src in _sources)
                     {
-                        // Sentinel: prevents premature completion while the loop is subscribing to sources.
-                        // Without this, a synchronously-completing source (e.g. Return) can decrement _active
-                        // to zero before the next source is subscribed, terminating the merge early.
                         Interlocked.Increment(ref _active);
 
-                        foreach (var src in _sources)
+                        var innerObserver = new InnerAsyncObserver(this);
+                        await _innerDisposables.AddAsync(innerObserver);
+                        try
                         {
-                            Interlocked.Increment(ref _active);
-
-                            var innerObserver = new InnerAsyncObserver(this);
-                            await _innerDisposables.AddAsync(innerObserver);
-                            try
-                            {
-                                await src.SubscribeAsync(innerObserver, _disposedCancellationToken);
-                            }
-                            catch (TaskCanceledException)
-                            {
-                                return;
-                            }
-                            catch (Exception ex)
-                            {
-                                await CompleteAsync(Result.Failure(ex));
-                                return;
-                            }
+                            await src.SubscribeAsync(innerObserver, _disposedCancellationToken);
                         }
-
-                        // Remove sentinel: if all inner sources completed during the loop, this triggers final completion.
-                        if (Interlocked.Decrement(ref _active) == 0)
+                        catch (TaskCanceledException)
                         {
-                            await CompleteAsync(Result.Success);
+                            return;
+                        }
+                        catch (Exception ex)
+                        {
+                            await CompleteAsync(Result.Failure(ex));
+                            return;
                         }
                     }
-                    catch (Exception e)
+
+                    // Remove sentinel: if all inner sources completed during the loop, this triggers final completion.
+                    if (Interlocked.Decrement(ref _active) == 0)
                     {
-                        await CompleteAsync(Result.Failure(e));
-                    }
-                    finally
-                    {
-                        _subscriptionFinished.SetResult(true);
+                        await CompleteAsync(Result.Success);
                     }
                 }
                 catch (Exception e)
                 {
-                    UnhandledExceptionHandler.OnUnhandledException(e);
+                    await CompleteAsync(Result.Failure(e));
                 }
-            }
+                finally
+                {
+                    _subscriptionFinished.SetResult(true);
+                }
+            });
 
             /// <summary>
             /// Asynchronously releases resources used by this subscription.

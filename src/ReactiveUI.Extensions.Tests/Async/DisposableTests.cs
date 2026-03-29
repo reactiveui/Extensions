@@ -820,10 +820,14 @@ public class DisposableTests
         await Assert.That(disposed).IsTrue();
     }
 
-    /// <summary>Tests ThrowAlreadyAssignment throws InvalidOperationException.</summary>
+    /// <summary>Tests CreateAlreadyAssignedException returns InvalidOperationException.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
-    public void WhenThrowAlreadyAssignment_ThenThrowsInvalidOperation() =>
-        Assert.Throws<InvalidOperationException>(() => SingleAssignmentDisposableAsync.ThrowAlreadyAssignment());
+    public async Task WhenCreateAlreadyAssignedException_ThenReturnsInvalidOperation()
+    {
+        var ex = SingleAssignmentDisposableAsync.CreateAlreadyAssignedException();
+        await Assert.That(ex).IsTypeOf<InvalidOperationException>();
+    }
 
     /// <summary>
     /// Verifies that DisposableAsync.Create throws ArgumentNullException when given a null delegate.
@@ -945,6 +949,31 @@ public class DisposableTests
 
         await Assert.ThrowsAsync<InvalidOperationException>(
             async () => await sad.SetDisposableAsync(DisposableAsync.Empty));
+    }
+
+    /// <summary>
+    /// Verifies that assigning a non-null disposable to a SingleAssignmentDisposableAsync
+    /// that already holds a non-null value throws <see cref="InvalidOperationException"/>
+    /// via the ThrowAlreadyAssignment path.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenSingleAssignmentDisposableAsyncAssignedTwiceWithDistinctValues_ThenThrowsInvalidOperation()
+    {
+        var sad = new SingleAssignmentDisposableAsync();
+        var first = DisposableAsync.Create(static () => default);
+        var second = DisposableAsync.Create(static () => default);
+
+        await sad.SetDisposableAsync(first);
+
+        await Assert.That(async () => await sad.SetDisposableAsync(second))
+            .ThrowsExactly<InvalidOperationException>()
+            .WithMessage("Disposable is already assigned.");
+
+        // Original assignment still intact; dispose cleans up correctly
+        await Assert.That(sad.IsDisposed).IsFalse();
+        await sad.DisposeAsync();
+        await Assert.That(sad.IsDisposed).IsTrue();
     }
 
     /// <summary>

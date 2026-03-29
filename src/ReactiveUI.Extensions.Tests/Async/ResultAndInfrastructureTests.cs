@@ -588,6 +588,36 @@ public class ResultAndInfrastructureTests
     }
 
     /// <summary>
+    /// Verifies that when a background job source throws after yielding and the observer's
+    /// OnCompletedAsync also throws, the inner exception from OnCompletedAsync is routed to
+    /// the <see cref="UnhandledExceptionHandler"/>.
+    /// Covers the catch block (lines 86-87) in <see cref="CancelableTaskSubscription{T}.CompleteWithFailureAsync"/>.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenBackgroundJobThrowsAfterYieldAndOnCompletedThrows_ThenInnerExceptionRoutedToUnhandled()
+    {
+        var received = new TaskCompletionSource<Exception>(TaskCreationOptions.RunContinuationsAsynchronously);
+        UnhandledExceptionHandler.Register(ex => received.TrySetResult(ex));
+
+        var onCompletedError = new ArithmeticException("OnCompleted threw");
+
+        var source = ObservableAsync.CreateAsBackgroundJob<int>(async (observer, ct) =>
+        {
+            await Task.Yield();
+            throw new InvalidOperationException("source failure after yield");
+        });
+
+        await using var sub = await source.SubscribeAsync(
+            (_, _) => default,
+            null,
+            _ => throw onCompletedError);
+
+        var result = await received.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await Assert.That(result).IsSameReferenceAs(onCompletedError);
+    }
+
+    /// <summary>
     /// Tests Continuation.Lock when already locked returns immediately.
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>

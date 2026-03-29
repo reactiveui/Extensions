@@ -1046,4 +1046,75 @@ public class ParityOperatorTests
 
         await Assert.That(result).IsEqualTo(1);
     }
+
+    /// <summary>
+    /// Tests that DropIfBusy silently discards values that arrive while the async action
+    /// from a prior value is still executing, ensuring the early-return guard fires.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenDropIfBusy_WithConcurrentEmission_ThenDroppedValueIsDiscarded()
+    {
+        var source = AsyncTestHelpers.CreateDirectSource<int>();
+        var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var actionStarted = 0;
+        var droppedCount = 0;
+
+        var received = new List<int>();
+        var completed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        await using var sub = await source
+            .DropIfBusy(async (value, _) =>
+            {
+                Interlocked.Increment(ref actionStarted);
+
+                if (value == 1)
+                {
+                    await gate.Task;
+                }
+            })
+            .Do((value, _) =>
+            {
+                received.Add(value);
+                return default;
+            })
+            .SubscribeAsync(
+                (value, _) => default,
+                null,
+                _ =>
+                {
+                    completed.SetResult();
+                    return default;
+                },
+                CancellationToken.None);
+
+        // Start processing value 1 which blocks on the gate.
+        var emit1Task = source.EmitNext(1).AsTask();
+
+        // Wait until the action for value 1 has actually started.
+        await AsyncTestHelpers.WaitForConditionAsync(
+            () => Volatile.Read(ref actionStarted) >= 1,
+            TimeSpan.FromSeconds(5));
+
+        // Emit value 2 while value 1 is still processing - it should be dropped.
+        await source.EmitNext(2);
+
+        // The action should have been invoked only once (for value 1).
+        droppedCount = 1 - (Volatile.Read(ref actionStarted) - 1);
+        await Assert.That(droppedCount).IsEqualTo(1);
+
+        // Release value 1 so it completes.
+        gate.SetResult();
+        await emit1Task;
+
+        // Emit value 3 after the action finishes - this should pass through.
+        await source.EmitNext(3);
+        await source.Complete(ReactiveUI.Extensions.Async.Internals.Result.Success);
+
+        await completed.Task;
+
+        await Assert.That(received).Contains(1);
+        await Assert.That(received).Contains(3);
+        await Assert.That(received).DoesNotContain(2);
+    }
 }

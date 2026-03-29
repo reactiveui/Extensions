@@ -289,18 +289,11 @@ public static partial class ObservableAsync
             /// <summary>
             /// Callback invoked when the external cancellation token is canceled; forwards completion to the observer.
             /// </summary>
-            internal async void OnTokenCanceled()
+            internal void OnTokenCanceled() => FireAndForgetHelper.Run(async () =>
             {
-                try
-                {
-                    await Task.Yield();
-                    await ForwardOnCompletedAsync(Result.Success);
-                }
-                catch
-                {
-                    // Ignored
-                }
-            }
+                await Task.Yield();
+                await ForwardOnCompletedAsync(Result.Success);
+            });
 
             /// <summary>
             /// Forwards a value to the downstream observer under the serialization gate.
@@ -458,66 +451,59 @@ public static partial class ObservableAsync
             /// <summary>
             /// Waits for the stop signal to fire, then forwards completion or error to the downstream observer.
             /// </summary>
-            internal async void WaitAndComplete()
+            internal void WaitAndComplete() => FireAndForgetHelper.Run(async () =>
             {
+                var tcs = new TaskCompletionSource<object?>();
+
+                void Stop(Result result)
+                {
+                    if (result.IsFailure)
+                    {
+                        tcs.SetException(result.Exception);
+                    }
+                    else
+                    {
+                        tcs.SetResult(null);
+                    }
+                }
+
+                var disposable = _parent._stopSignalSignal(Stop);
+
                 try
                 {
-                    var tcs = new TaskCompletionSource<object?>();
-
-                    void Stop(Result result)
-                    {
-                        if (result.IsFailure)
-                        {
-                            tcs.SetException(result.Exception);
-                        }
-                        else
-                        {
-                            tcs.SetResult(null);
-                        }
-                    }
-
-                    var disposable = _parent._stopSignalSignal(Stop);
-
+                    await tcs.Task.WaitAsync(System.Threading.Timeout.InfiniteTimeSpan, _disposeCancellationToken);
                     try
                     {
-                        await tcs.Task.WaitAsync(System.Threading.Timeout.InfiniteTimeSpan, _disposeCancellationToken);
-                        try
-                        {
-                            await disposable.DisposeAsync();
-                        }
-                        catch
-                        {
-                            // Ignored
-                        }
-
-                        await ForwardOnCompletedAsync(Result.Success);
+                        await disposable.DisposeAsync();
                     }
-                    catch (Exception e)
+                    catch
                     {
-                        try
-                        {
-                            await disposable.DisposeAsync();
-                        }
-                        catch
-                        {
-                            // Ignored
-                        }
+                        // Ignored
+                    }
 
-                        if (_parent._options.SourceFailsWhenOtherFails)
-                        {
-                            await ForwardOnCompletedAsync(Result.Failure(e));
-                        }
-                        else
-                        {
-                            await ForwardOnErrorResumeAsync(e, CancellationToken.None);
-                        }
+                    await ForwardOnCompletedAsync(Result.Success);
+                }
+                catch (Exception e)
+                {
+                    try
+                    {
+                        await disposable.DisposeAsync();
+                    }
+                    catch
+                    {
+                        // Ignored
+                    }
+
+                    if (_parent._options.SourceFailsWhenOtherFails)
+                    {
+                        await ForwardOnCompletedAsync(Result.Failure(e));
+                    }
+                    else
+                    {
+                        await ForwardOnErrorResumeAsync(e, CancellationToken.None);
                     }
                 }
-                catch
-                {
-                    // Ignored
-                }
-            }
+            });
 
             /// <summary>
             /// Forwards a value to the downstream observer under the serialization gate.
@@ -680,32 +666,25 @@ public static partial class ObservableAsync
             /// Waits for the task to complete, then forwards completion or error to the downstream observer.
             /// </summary>
             /// <param name="task">The task to await.</param>
-            internal async void WaitAndComplete(Task task)
+            internal void WaitAndComplete(Task task) => FireAndForgetHelper.Run(async () =>
             {
                 try
                 {
-                    try
-                    {
-                        await task.WaitAsync(System.Threading.Timeout.InfiniteTimeSpan, _disposeCancellationToken);
-                        await ForwardOnCompletedAsync(Result.Success);
-                    }
-                    catch (Exception e)
-                    {
-                        if (_parent._options.SourceFailsWhenOtherFails)
-                        {
-                            await ForwardOnCompletedAsync(Result.Failure(e));
-                        }
-                        else
-                        {
-                            await ForwardOnErrorResumeAsync(e, CancellationToken.None);
-                        }
-                    }
+                    await task.WaitAsync(System.Threading.Timeout.InfiniteTimeSpan, _disposeCancellationToken);
+                    await ForwardOnCompletedAsync(Result.Success);
                 }
-                catch
+                catch (Exception e)
                 {
-                    // Ignored
+                    if (_parent._options.SourceFailsWhenOtherFails)
+                    {
+                        await ForwardOnCompletedAsync(Result.Failure(e));
+                    }
+                    else
+                    {
+                        await ForwardOnErrorResumeAsync(e, CancellationToken.None);
+                    }
                 }
-            }
+            });
 
             /// <summary>
             /// Forwards a value to the downstream observer under the serialization gate.

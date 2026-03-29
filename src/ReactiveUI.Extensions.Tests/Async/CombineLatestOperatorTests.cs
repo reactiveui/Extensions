@@ -5454,4 +5454,111 @@ public class CombineLatestOperatorTests
         await Assert.That(completionResult).IsNotNull();
         await Assert.That(completionResult!.Value.IsSuccess).IsTrue();
     }
+
+    /// <summary>
+    /// Verifies that OnCompletedAsync returns early without incrementing the completed count
+    /// when the same source index has already completed, exercising the _completed[index] guard
+    /// on line 268 of CombineLatestEnumerable with a single additional source still active.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenCombineLatestEnumerableDuplicateCompletionForSameIndex_ThenIgnoredAndRemainingSourceStillEmits()
+    {
+        var src1 = AsyncTestHelpers.CreateDirectSource<int>();
+        var src2 = AsyncTestHelpers.CreateDirectSource<int>();
+        var sources = new IObservableAsync<int>[] { src1, src2 };
+        var emissions = new List<IReadOnlyList<int>>();
+        Result? completionResult = null;
+
+        await using var sub = await sources.CombineLatest()
+            .SubscribeAsync(
+                (snapshot, _) =>
+                {
+                    emissions.Add(snapshot);
+                    return default;
+                },
+                null,
+                result =>
+                {
+                    completionResult = result;
+                    return default;
+                });
+
+        // Both sources emit so all _values have values.
+        await src1.EmitNext(1);
+        await src2.EmitNext(2);
+
+        await Assert.That(emissions).Count().IsEqualTo(1);
+
+        // src1 completes: _completed[0]=true, completedCount=1, shouldComplete=false.
+        await src1.Complete(Result.Success);
+
+        await Assert.That(completionResult).IsNull();
+
+        // Duplicate completion for index 0: _completed[0] is already true, returns default (line 268).
+        await src1.Complete(Result.Success);
+
+        // Still no overall completion because src2 hasn't completed.
+        await Assert.That(completionResult).IsNull();
+
+        // src2 can still emit; the duplicate completion did not corrupt state.
+        await src2.EmitNext(5);
+
+        await Assert.That(emissions).Count().IsEqualTo(2);
+        await Assert.That(emissions[1][0]).IsEqualTo(1);
+        await Assert.That(emissions[1][1]).IsEqualTo(5);
+
+        // Clean termination.
+        await src2.Complete(Result.Success);
+
+        await Assert.That(completionResult).IsNotNull();
+        await Assert.That(completionResult!.Value.IsSuccess).IsTrue();
+    }
+
+    /// <summary>
+    /// Verifies that when one source in a three-source CombineLatest completes without ever
+    /// emitting a value, the shouldComplete path triggers immediate completion and the remaining
+    /// sources are torn down, exercising line 277 of CombineLatestEnumerable.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenCombineLatestEnumerableMiddleSourceCompletesWithoutEmitting_ThenCompletesImmediately()
+    {
+        var src1 = AsyncTestHelpers.CreateDirectSource<int>();
+        var src2 = AsyncTestHelpers.CreateDirectSource<int>();
+        var src3 = AsyncTestHelpers.CreateDirectSource<int>();
+        var sources = new IObservableAsync<int>[] { src1, src2, src3 };
+        var emissions = new List<IReadOnlyList<int>>();
+        Result? completionResult = null;
+
+        await using var sub = await sources.CombineLatest()
+            .SubscribeAsync(
+                (snapshot, _) =>
+                {
+                    emissions.Add(snapshot);
+                    return default;
+                },
+                null,
+                result =>
+                {
+                    completionResult = result;
+                    return default;
+                });
+
+        // src1 and src3 emit, but src2 never emits.
+        await src1.EmitNext(10);
+        await src3.EmitNext(30);
+
+        // No snapshot yet because src2 has not emitted.
+        await Assert.That(emissions).IsEmpty();
+
+        // src2 completes without emitting: !_values[1].HasValue is true → shouldComplete=true (line 277).
+        await src2.Complete(Result.Success);
+
+        await Assert.That(completionResult).IsNotNull();
+        await Assert.That(completionResult!.Value.IsSuccess).IsTrue();
+
+        // No snapshots were ever emitted because not all sources had values.
+        await Assert.That(emissions).IsEmpty();
+    }
 }

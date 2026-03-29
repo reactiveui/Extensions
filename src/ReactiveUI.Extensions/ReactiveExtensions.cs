@@ -1807,16 +1807,16 @@ public static class ReactiveExtensions
                 observer.OnNext(item);
             }
         }
-        else if (source is IList<T> list)
+        else if (source is T[] array)
         {
-            foreach (var item in EnumerableIList.Create(list))
+            foreach (var item in array)
             {
                 observer.OnNext(item);
             }
         }
-        else if (source is T[] array)
+        else if (source is IList<T> list)
         {
-            foreach (var item in array)
+            foreach (var item in EnumerableIList.Create(list))
             {
                 observer.OnNext(item);
             }
