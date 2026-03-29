@@ -24,24 +24,36 @@ public static partial class ObservableAsync
         /// source sequence, in the order they were received.</returns>
         public async ValueTask<List<T>> ToListAsync(CancellationToken cancellationToken = default)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             var observer = new ToListAsyncObserver<T>(cancellationToken);
             _ = await @this.SubscribeAsync(observer, cancellationToken);
             return await observer.WaitValueAsync();
         }
     }
 
-    private sealed class ToListAsyncObserver<T>(CancellationToken cancellationToken) : TaskObserverAsyncBase<T, List<T>>(cancellationToken)
+    /// <summary>
+    /// Observer that collects all elements from a sequence into a list.
+    /// </summary>
+    /// <typeparam name="T">The type of elements in the source sequence.</typeparam>
+    /// <param name="cancellationToken">A cancellation token for the operation.</param>
+    internal sealed class ToListAsyncObserver<T>(CancellationToken cancellationToken) : TaskObserverAsyncBase<T, List<T>>(cancellationToken)
     {
+        /// <summary>
+        /// The list that accumulates all elements received from the source sequence.
+        /// </summary>
         private readonly List<T> _items = new();
 
+        /// <inheritdoc/>
         protected override ValueTask OnNextAsyncCore(T value, CancellationToken cancellationToken)
         {
             _items.Add(value);
             return default;
         }
 
+        /// <inheritdoc/>
         protected override ValueTask OnErrorResumeAsyncCore(Exception error, CancellationToken cancellationToken) => TrySetException(error);
 
+        /// <inheritdoc/>
         protected override ValueTask OnCompletedAsyncCore(Result result) =>
             !result.IsSuccess ? TrySetException(result.Exception) : TrySetCompleted(_items);
     }

@@ -25,6 +25,7 @@ public static partial class ObservableAsync
         /// that match the predicate.</returns>
         public async ValueTask<int> CountAsync(Func<T, bool>? predicate, CancellationToken cancellationToken = default)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             var observer = new CountAsyncObserver<T>(predicate, cancellationToken);
             _ = await @this.SubscribeAsync(observer, cancellationToken);
             return await observer.WaitValueAsync();
@@ -40,10 +41,20 @@ public static partial class ObservableAsync
             => @this.CountAsync(null, cancellationToken);
     }
 
-    private sealed class CountAsyncObserver<T>(Func<T, bool>? predicate, CancellationToken cancellationToken) : TaskObserverAsyncBase<T, int>(cancellationToken)
+    /// <summary>
+    /// Observer that counts elements in a sequence, optionally filtered by a predicate.
+    /// </summary>
+    /// <typeparam name="T">The type of elements in the source sequence.</typeparam>
+    /// <param name="predicate">An optional predicate to filter elements. If null, all elements are counted.</param>
+    /// <param name="cancellationToken">A cancellation token for the operation.</param>
+    internal sealed class CountAsyncObserver<T>(Func<T, bool>? predicate, CancellationToken cancellationToken) : TaskObserverAsyncBase<T, int>(cancellationToken)
     {
+        /// <summary>
+        /// The running count of elements that satisfy the predicate.
+        /// </summary>
         private int _count;
 
+        /// <inheritdoc/>
         protected override ValueTask OnNextAsyncCore(T value, CancellationToken cancellationToken)
         {
             if (predicate is null || predicate(value))
@@ -54,8 +65,10 @@ public static partial class ObservableAsync
             return default;
         }
 
+        /// <inheritdoc/>
         protected override ValueTask OnErrorResumeAsyncCore(Exception error, CancellationToken cancellationToken) => TrySetException(error);
 
+        /// <inheritdoc/>
         protected override ValueTask OnCompletedAsyncCore(Result result) => !result.IsSuccess ? TrySetException(result.Exception) : TrySetCompleted(_count);
     }
 }

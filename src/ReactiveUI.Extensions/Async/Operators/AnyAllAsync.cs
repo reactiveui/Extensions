@@ -27,6 +27,7 @@ public static partial class ObservableAsync
         /// otherwise, <see langword="false"/>.</returns>
         public async ValueTask<bool> AnyAsync(Func<T, bool>? predicate, CancellationToken cancellationToken = default)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             var observer = new AnyAsyncObserver<T>(predicate, cancellationToken);
             _ = await @this.SubscribeAsync(observer, cancellationToken);
             return await observer.WaitValueAsync();
@@ -54,6 +55,7 @@ public static partial class ObservableAsync
         public async ValueTask<bool> AllAsync(Func<T, bool> predicate, CancellationToken cancellationToken = default)
         {
             ArgumentExceptionHelper.ThrowIfNull(predicate);
+            cancellationToken.ThrowIfCancellationRequested();
 
             var observer = new AllAsyncObserver<T>(predicate, cancellationToken);
             _ = await @this.SubscribeAsync(observer, cancellationToken);
@@ -61,8 +63,13 @@ public static partial class ObservableAsync
         }
     }
 
-    private sealed class AnyAsyncObserver<T>(Func<T, bool>? predicate, CancellationToken cancellationToken) : TaskObserverAsyncBase<T, bool>(cancellationToken)
+    /// <summary>
+    /// An observer that determines whether any element in the sequence satisfies a predicate.
+    /// </summary>
+    /// <typeparam name="T">The type of elements in the sequence.</typeparam>
+    internal sealed class AnyAsyncObserver<T>(Func<T, bool>? predicate, CancellationToken cancellationToken) : TaskObserverAsyncBase<T, bool>(cancellationToken)
     {
+        /// <inheritdoc/>
         protected override async ValueTask OnNextAsyncCore(T value, CancellationToken cancellationToken)
         {
             if (predicate is null || predicate(value))
@@ -71,16 +78,26 @@ public static partial class ObservableAsync
             }
         }
 
+        /// <inheritdoc/>
         protected override ValueTask OnErrorResumeAsyncCore(Exception error, CancellationToken cancellationToken) => TrySetException(error);
 
+        /// <inheritdoc/>
         protected override ValueTask OnCompletedAsyncCore(Result result) =>
             !result.IsSuccess ? TrySetException(result.Exception) : TrySetCompleted(false);
     }
 
-    private sealed class AllAsyncObserver<T>(Func<T, bool> predicate, CancellationToken cancellationToken) : TaskObserverAsyncBase<T, bool>(cancellationToken)
+    /// <summary>
+    /// An observer that determines whether all elements in the sequence satisfy a predicate.
+    /// </summary>
+    /// <typeparam name="T">The type of elements in the sequence.</typeparam>
+    internal sealed class AllAsyncObserver<T>(Func<T, bool> predicate, CancellationToken cancellationToken) : TaskObserverAsyncBase<T, bool>(cancellationToken)
     {
+        /// <summary>
+        /// The predicate function used to test each element in the sequence.
+        /// </summary>
         private readonly Func<T, bool> _predicate = predicate;
 
+        /// <inheritdoc/>
         protected override async ValueTask OnNextAsyncCore(T value, CancellationToken cancellationToken)
         {
             if (!_predicate(value))
@@ -89,8 +106,10 @@ public static partial class ObservableAsync
             }
         }
 
+        /// <inheritdoc/>
         protected override ValueTask OnErrorResumeAsyncCore(Exception error, CancellationToken cancellationToken) => TrySetException(error);
 
+        /// <inheritdoc/>
         protected override ValueTask OnCompletedAsyncCore(Result result) =>
             !result.IsSuccess ? TrySetException(result.Exception) : TrySetCompleted(true);
     }

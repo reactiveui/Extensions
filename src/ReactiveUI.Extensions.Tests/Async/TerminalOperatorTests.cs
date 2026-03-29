@@ -3,6 +3,8 @@
 // See the LICENSE file in the project root for full license information.
 
 using ReactiveUI.Extensions.Async;
+using ReactiveUI.Extensions.Async.Disposables;
+using ReactiveUI.Extensions.Async.Internals;
 
 namespace ReactiveUI.Extensions.Tests.Async;
 
@@ -310,5 +312,45 @@ public class TerminalOperatorTests
         }
 
         await Assert.That(items).IsEquivalentTo(new[] { 1, 2, 3 });
+    }
+
+    /// <summary>Tests that ToAsyncEnumerable yields all elements from the source when completed.</summary>
+    /// <returns>A task representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenToAsyncEnumerableCompletes_ThenAllElementsYielded()
+    {
+        var items = new List<int>();
+        await foreach (var item in ObservableAsync.Range(1, 3).ToAsyncEnumerable(
+            () => System.Threading.Channels.Channel.CreateUnbounded<int>()))
+        {
+            items.Add(item);
+        }
+
+        await Assert.That(items).Count().IsEqualTo(3);
+        await Assert.That(items[0]).IsEqualTo(1);
+        await Assert.That(items[1]).IsEqualTo(2);
+        await Assert.That(items[2]).IsEqualTo(3);
+    }
+
+    /// <summary>Tests that ForEachAsync captures an exception sent via OnErrorResumeAsync.</summary>
+    /// <returns>A task representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenForEachAsyncSourceEmitsErrorResume_ThenExceptionCaptured()
+    {
+        var expectedError = new InvalidOperationException("resume error");
+        var source = ObservableAsync.Create<int>(async (observer, ct) =>
+        {
+            await observer.OnNextAsync(1, ct);
+            await observer.OnErrorResumeAsync(expectedError, ct);
+            await observer.OnCompletedAsync(Result.Success);
+            return DisposableAsync.Empty;
+        });
+
+        var items = new List<int>();
+        var caughtException = await Assert.ThrowsAsync<InvalidOperationException>(
+            async () => await source.ForEachAsync(x => items.Add(x)));
+
+        await Assert.That(caughtException!.Message).IsEqualTo("resume error");
+        await Assert.That(items).IsEquivalentTo(new[] { 1 });
     }
 }

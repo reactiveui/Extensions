@@ -40,8 +40,9 @@ public static class DisposableAsyncMixins
     /// operation is performed by invoking the synchronous <see cref="IDisposable.Dispose"/> method; no actual
     /// asynchronous work is performed.</remarks>
     /// <param name="disposable">The <see cref="IDisposable"/> instance to be wrapped for asynchronous disposal. Cannot be null.</param>
-    private sealed class DisposableToDisposableAsync(IDisposable disposable) : IAsyncDisposable
+    internal sealed class DisposableToDisposableAsync(IDisposable disposable) : IAsyncDisposable
     {
+        /// <inheritdoc/>
         public ValueTask DisposeAsync()
         {
             disposable.Dispose();

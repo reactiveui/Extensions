@@ -26,6 +26,7 @@ public static partial class ObservableAsync
         /// the predicate.</returns>
         public async ValueTask<T> LastAsync(Func<T, bool> predicate, CancellationToken cancellationToken = default)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             var observer = new LastAsyncObserver<T>(predicate, cancellationToken);
             _ = await @this.SubscribeAsync(observer, cancellationToken);
             return await observer.WaitValueAsync();
@@ -42,17 +43,32 @@ public static partial class ObservableAsync
         /// sequence.</returns>
         public async ValueTask<T> LastAsync(CancellationToken cancellationToken = default)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             var observer = new LastAsyncObserver<T>(null, cancellationToken);
             _ = await @this.SubscribeAsync(observer, cancellationToken);
             return await observer.WaitValueAsync();
         }
     }
 
-    private sealed class LastAsyncObserver<T>(Func<T, bool>? predicate, CancellationToken cancellationToken) : TaskObserverAsyncBase<T, T>(cancellationToken)
+    /// <summary>
+    /// Observer that captures the last element matching an optional predicate.
+    /// </summary>
+    /// <typeparam name="T">The type of elements in the source sequence.</typeparam>
+    /// <param name="predicate">An optional predicate to filter elements.</param>
+    /// <param name="cancellationToken">A cancellation token for the operation.</param>
+    internal sealed class LastAsyncObserver<T>(Func<T, bool>? predicate, CancellationToken cancellationToken) : TaskObserverAsyncBase<T, T>(cancellationToken)
     {
+        /// <summary>
+        /// A value indicating whether any matching element has been observed.
+        /// </summary>
         private bool _hasValue;
+
+        /// <summary>
+        /// The most recently observed matching element.
+        /// </summary>
         private T? _last;
 
+        /// <inheritdoc/>
         protected override ValueTask OnNextAsyncCore(T value, CancellationToken cancellationToken)
         {
             if (predicate is null || predicate(value))
@@ -64,8 +80,10 @@ public static partial class ObservableAsync
             return default;
         }
 
+        /// <inheritdoc/>
         protected override ValueTask OnErrorResumeAsyncCore(Exception error, CancellationToken cancellationToken) => TrySetException(error);
 
+        /// <inheritdoc/>
         protected override ValueTask OnCompletedAsyncCore(Result result)
         {
             if (!result.IsSuccess)

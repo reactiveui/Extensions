@@ -14,7 +14,15 @@ namespace ReactiveUI.Extensions.Async;
 /// class does not handle exceptions of type OperationCanceledException.</remarks>
 public static class UnhandledExceptionHandler
 {
+    /// <summary>
+    /// The currently registered handler action invoked when an unhandled exception occurs.
+    /// </summary>
     private static Action<Exception> _unhandledException = DefaultUnhandledExceptionHandler;
+
+    /// <summary>
+    /// Gets the currently registered handler. Used for save/restore in tests.
+    /// </summary>
+    internal static Action<Exception> CurrentHandler => _unhandledException;
 
     /// <summary>
     /// Registers a handler to be invoked when an unhandled exception occurs.
@@ -55,5 +63,5 @@ public static class UnhandledExceptionHandler
     /// an application. It writes the exception details to the standard console output for diagnostic
     /// purposes.</remarks>
     /// <param name="exception">The exception that was not handled. Cannot be null.</param>
-    private static void DefaultUnhandledExceptionHandler(Exception exception) => Console.WriteLine("UnhandleException: " + exception);
+    internal static void DefaultUnhandledExceptionHandler(Exception exception) => Console.WriteLine("UnhandleException: " + exception);
 }

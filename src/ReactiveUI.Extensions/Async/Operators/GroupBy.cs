@@ -70,16 +70,42 @@ public static partial class ObservableAsync
         return new GroupByAsyncObservable<TKey, TValue>(source, keySelector, groupSubjectSelector);
     }
 
-    private sealed class GroupByAsyncObservable<TKey, TValue>(
+    /// <summary>
+    /// Async observable that groups source elements by key, emitting a <see cref="GroupedAsyncObservable{TKey, TValue}"/>
+    /// for each unique key encountered.
+    /// </summary>
+    /// <typeparam name="TKey">The type of the grouping key.</typeparam>
+    /// <typeparam name="TValue">The type of elements in the source sequence.</typeparam>
+    /// <param name="source">The source observable sequence.</param>
+    /// <param name="keySelector">A function to extract the key for each element.</param>
+    /// <param name="groupSubjectSelector">A function that provides a subject for each group, given its key.</param>
+    internal sealed class GroupByAsyncObservable<TKey, TValue>(
         IObservableAsync<TValue> source,
         Func<TValue, TKey> keySelector,
         Func<TKey, ISubjectAsync<TValue>> groupSubjectSelector) : ObservableAsync<GroupedAsyncObservable<TKey, TValue>>
         where TKey : notnull
     {
+        /// <summary>
+        /// The source observable sequence whose elements are grouped by key.
+        /// </summary>
         private readonly IObservableAsync<TValue> _source = source;
+
+        /// <summary>
+        /// The function used to extract the grouping key from each source element.
+        /// </summary>
         private readonly Func<TValue, TKey> _keySelector = keySelector;
+
+        /// <summary>
+        /// The factory function that creates a subject for each new group key.
+        /// </summary>
         private readonly Func<TKey, ISubjectAsync<TValue>> _groupSubjectSelector = groupSubjectSelector;
 
+        /// <summary>
+        /// Subscribes the specified observer by creating a <see cref="Subscription"/> that tracks groups by key.
+        /// </summary>
+        /// <param name="observer">The observer to receive grouped observable sequences.</param>
+        /// <param name="cancellationToken">A token to cancel the subscription.</param>
+        /// <returns>An async disposable that tears down the subscription when disposed.</returns>
         protected override async ValueTask<IAsyncDisposable> SubscribeAsyncCore(IObserverAsync<GroupedAsyncObservable<TKey, TValue>> observer, CancellationToken cancellationToken)
         {
             var subscrption = new Subscription(this, observer);
@@ -94,13 +120,36 @@ public static partial class ObservableAsync
             }
         }
 
-        private sealed class Subscription(GroupByAsyncObservable<TKey, TValue> parent, IObserverAsync<GroupedAsyncObservable<TKey, TValue>> observer) : ObserverAsync<TValue>
+        /// <summary>
+        /// Observer subscription that tracks groups by key, creating new grouped observables as new keys are encountered.
+        /// </summary>
+        /// <param name="parent">The parent GroupBy observable that provides the key selector and subject factory.</param>
+        /// <param name="observer">The downstream observer to receive grouped observables.</param>
+        internal sealed class Subscription(GroupByAsyncObservable<TKey, TValue> parent, IObserverAsync<GroupedAsyncObservable<TKey, TValue>> observer) : ObserverAsync<TValue>
         {
+            /// <summary>
+            /// The composite disposable that tracks all group subscription disposables.
+            /// </summary>
             private readonly CompositeDisposableAsync _disposables = new();
+
+            /// <summary>
+            /// A dictionary mapping each encountered key to its corresponding group subject.
+            /// </summary>
             private Dictionary<TKey, ISubjectAsync<TValue>> _subjectsByKey = new();
 
+            /// <summary>
+            /// Subscribes this observer to the parent's source sequence.
+            /// </summary>
+            /// <param name="cancellationToken">A token to cancel the subscription.</param>
+            /// <returns>An async disposable representing the source subscription.</returns>
             public ValueTask<IAsyncDisposable> SubscribeAsync(CancellationToken cancellationToken) => parent._source.SubscribeAsync(this, cancellationToken);
 
+            /// <summary>
+            /// Routes the element to the appropriate group subject, creating a new group if the key is new.
+            /// </summary>
+            /// <param name="value">The element to route.</param>
+            /// <param name="cancellationToken">A token to cancel the operation.</param>
+            /// <returns>A task representing the asynchronous operation.</returns>
             protected override async ValueTask OnNextAsyncCore(TValue value, CancellationToken cancellationToken)
             {
                 var key = parent._keySelector(value);
@@ -114,8 +163,19 @@ public static partial class ObservableAsync
                 await subject.OnNextAsync(value, cancellationToken);
             }
 
+            /// <summary>
+            /// Forwards a non-fatal error to the downstream observer.
+            /// </summary>
+            /// <param name="error">The error to forward.</param>
+            /// <param name="cancellationToken">A token to cancel the operation.</param>
+            /// <returns>A task representing the asynchronous operation.</returns>
             protected override ValueTask OnErrorResumeAsyncCore(Exception error, CancellationToken cancellationToken) => observer.OnErrorResumeAsync(error, cancellationToken);
 
+            /// <summary>
+            /// Completes all group subjects and then completes the downstream observer.
+            /// </summary>
+            /// <param name="result">The completion result.</param>
+            /// <returns>A task representing the asynchronous operation.</returns>
             protected override async ValueTask OnCompletedAsyncCore(Result result)
             {
                 var subjects = _subjectsByKey.Values;
@@ -128,12 +188,22 @@ public static partial class ObservableAsync
                 await observer.OnCompletedAsync(result);
             }
 
+            /// <summary>
+            /// Disposes all tracked group subscriptions.
+            /// </summary>
+            /// <returns>A task representing the asynchronous disposal operation.</returns>
             protected override async ValueTask DisposeAsyncCore()
             {
                 await base.DisposeAsyncCore();
                 await _disposables.DisposeAsync();
             }
 
+            /// <summary>
+            /// Represents a single grouped async observable identified by its key.
+            /// </summary>
+            /// <param name="parent">The parent subscription that manages group disposables.</param>
+            /// <param name="key">The key that identifies this group.</param>
+            /// <param name="subjectValues">The observable sequence of values for this group.</param>
             internal class Observable(Subscription parent, TKey key, IObservableAsync<TValue> subjectValues) : GroupedAsyncObservable<TKey, TValue>
             {
                 /// <summary>
@@ -141,6 +211,12 @@ public static partial class ObservableAsync
                 /// </summary>
                 public override TKey Key => key;
 
+                /// <summary>
+                /// Subscribes the specified observer to this group's value stream.
+                /// </summary>
+                /// <param name="observer">The observer to receive elements for this group.</param>
+                /// <param name="cancellationToken">A token to cancel the subscription.</param>
+                /// <returns>An async disposable that removes the subscription from the parent on disposal.</returns>
                 protected override async ValueTask<IAsyncDisposable> SubscribeAsyncCore(IObserverAsync<TValue> observer, CancellationToken cancellationToken)
                 {
                     var subscription = await subjectValues.SubscribeAsync(observer.Wrap(), cancellationToken);

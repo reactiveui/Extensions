@@ -3,6 +3,7 @@
 // See the LICENSE file in the project root for full license information.
 
 using ReactiveUI.Extensions.Async;
+using ReactiveUI.Extensions.Async.Disposables;
 using ReactiveUI.Extensions.Async.Internals;
 using ReactiveUI.Extensions.Async.Subjects;
 using AsyncObs = ReactiveUI.Extensions.Async.ObservableAsync;
@@ -13,6 +14,8 @@ namespace ReactiveUI.Extensions.Tests.Async;
 /// Tests for the bi-directional bridge between IObservable{T} and ObservableAsync{T},
 /// including combined real-world scenarios.
 /// </summary>
+[NotInParallel(nameof(UnhandledExceptionHandler))]
+[TestExecutor<UnhandledExceptionTestExecutor>]
 public class BridgeTests
 {
     /// <summary>
@@ -306,5 +309,173 @@ public class BridgeTests
             .ToListAsync();
 
         await Assert.That(result).IsEquivalentTo(new[] { "1a", "2b", "3c" });
+    }
+
+    /// <summary>
+    /// Tests that ProcessAsync swallows OperationCanceledException without routing to the handler.
+    /// </summary>
+    [Test]
+    public async Task WhenProcessAsyncThrowsOperationCanceled_ThenExceptionIsSwallowed()
+    {
+        var handlerCalled = false;
+        var previousHandler = UnhandledExceptionHandler.CurrentHandler;
+        UnhandledExceptionHandler.Register(_ => handlerCalled = true);
+
+        try
+        {
+            ObservableBridgeExtensions.ObservableToObservableAsync<int>.BridgeObserver.ProcessAsync(
+                static () => Task.FromException(new OperationCanceledException()));
+
+            await Assert.That(handlerCalled).IsFalse();
+        }
+        finally
+        {
+            UnhandledExceptionHandler.Register(previousHandler);
+        }
+    }
+
+    /// <summary>
+    /// Tests that ProcessAsync routes general exceptions to the UnhandledExceptionHandler.
+    /// </summary>
+    [Test]
+    public async Task WhenProcessAsyncThrowsGeneralException_ThenRoutesToUnhandledHandler()
+    {
+        Exception? captured = null;
+        var previousHandler = UnhandledExceptionHandler.CurrentHandler;
+        UnhandledExceptionHandler.Register(e => captured = e);
+
+        try
+        {
+            ObservableBridgeExtensions.ObservableToObservableAsync<int>.BridgeObserver.ProcessAsync(
+                static () => Task.FromException(new InvalidOperationException("test error")));
+
+            await Assert.That(captured).IsNotNull();
+            await Assert.That(captured!.Message).IsEqualTo("test error");
+        }
+        finally
+        {
+            UnhandledExceptionHandler.Register(previousHandler);
+        }
+    }
+
+    /// <summary>
+    /// Tests that Enqueue returns early when the drain loop is already busy processing.
+    /// </summary>
+    [Test]
+    public async Task WhenEnqueueCalledWhileDrainIsBusy_ThenSecondCallReturnsEarlyAndItemIsProcessed()
+    {
+        var items = new List<int>();
+        var firstItemStarted = new TaskCompletionSource();
+        var allowFirstToComplete = new TaskCompletionSource();
+
+        var rxSource = new Subject<int>();
+        var asyncObs = rxSource.ToObservableAsync();
+
+        await using var sub = await asyncObs.SubscribeAsync(
+            (x, _) =>
+            {
+                if (x == 1)
+                {
+                    firstItemStarted.TrySetResult();
+                    allowFirstToComplete.Task.GetAwaiter().GetResult();
+                }
+
+                items.Add(x);
+                return default;
+            },
+            null,
+            null);
+
+        // First OnNext starts drain loop and blocks inside the observer callback.
+        // Must run on a background thread because DrainQueue blocks synchronously.
+        _ = Task.Run(() => rxSource.OnNext(1));
+
+        // Wait until observer callback is entered for item 1
+        await firstItemStarted.Task;
+
+        // Second OnNext enqueues while drain is busy (covers line 167: early return).
+        // Since the drain loop is blocked, Enqueue sees _busy==true and returns immediately,
+        // so this call completes without blocking.
+        var secondEnqueued = new TaskCompletionSource();
+        _ = Task.Run(() =>
+        {
+            rxSource.OnNext(2);
+            secondEnqueued.TrySetResult();
+        });
+
+        // Wait until the second item has been enqueued
+        await secondEnqueued.Task;
+
+        // Allow the first item to complete, which will drain item 2 as well
+        allowFirstToComplete.TrySetResult();
+
+        var conditionMet = await AsyncTestHelpers.WaitForConditionAsync(
+            () => items.Count == 2,
+            TimeSpan.FromSeconds(5));
+
+        await Assert.That(conditionMet).IsTrue();
+        await Assert.That(items).IsEquivalentTo(new[] { 1, 2 });
+    }
+
+    /// <summary>
+    /// Tests that ToObservable disposal catches OperationCanceledException when the subscription throws on cancel.
+    /// </summary>
+    [Test]
+    public async Task WhenToObservableDisposalThrowsOperationCanceled_ThenExceptionIsSwallowed()
+    {
+        var source = AsyncObs.Create<int>(static (observer, ct) =>
+            new ValueTask<IAsyncDisposable>(DisposableAsync.Create(
+                static () => new ValueTask(Task.FromException(new OperationCanceledException())))));
+
+        var handlerCalled = false;
+        var previousHandler = UnhandledExceptionHandler.CurrentHandler;
+        UnhandledExceptionHandler.Register(_ => handlerCalled = true);
+
+        try
+        {
+            var rxObs = source.ToObservable();
+            var sub = rxObs.Subscribe(_ => { });
+
+            // Disposing triggers cancellation path that throws OperationCanceledException
+            // This should be caught and swallowed (lines 240, 243)
+            sub.Dispose();
+
+            await Assert.That(handlerCalled).IsFalse();
+        }
+        finally
+        {
+            UnhandledExceptionHandler.Register(previousHandler);
+        }
+    }
+
+    /// <summary>
+    /// Tests that ToObservable disposal catches general exceptions and routes them to the UnhandledExceptionHandler.
+    /// </summary>
+    [Test]
+    public async Task WhenToObservableDisposalThrowsGeneralException_ThenRoutesToUnhandledHandler()
+    {
+        Exception? captured = null;
+        var previousHandler = UnhandledExceptionHandler.CurrentHandler;
+        UnhandledExceptionHandler.Register(e => captured = e);
+
+        try
+        {
+            var source = AsyncObs.Create<int>(static (observer, ct) =>
+                new ValueTask<IAsyncDisposable>(DisposableAsync.Create(
+                    static () => new ValueTask(Task.FromException(new InvalidOperationException("dispose error"))))));
+
+            var rxObs = source.ToObservable();
+            var sub = rxObs.Subscribe(_ => { });
+
+            // Disposing triggers disposal path that throws a general exception
+            sub.Dispose();
+
+            await Assert.That(captured).IsNotNull();
+            await Assert.That(captured!.Message).IsEqualTo("dispose error");
+        }
+        finally
+        {
+            UnhandledExceptionHandler.Register(previousHandler);
+        }
     }
 }

@@ -27,6 +27,7 @@ public static partial class ObservableAsync
         /// value is found in the sequence; otherwise, <see langword="false"/>.</returns>
         public async ValueTask<bool> ContainsAsync(T value, IEqualityComparer<T>? comparer, CancellationToken cancellationToken = default)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             var cmp = comparer ?? EqualityComparer<T>.Default;
             var observer = new ContainsAsyncObserver<T>(value, cmp, cancellationToken);
             _ = await @this.SubscribeAsync(observer, cancellationToken);
@@ -44,8 +45,16 @@ public static partial class ObservableAsync
             => @this.ContainsAsync(value, null, cancellationToken);
     }
 
-    private sealed class ContainsAsyncObserver<T>(T value, IEqualityComparer<T> comparer, CancellationToken cancellationToken) : TaskObserverAsyncBase<T, bool>(cancellationToken)
+    /// <summary>
+    /// Observer that determines whether a sequence contains a specified value.
+    /// </summary>
+    /// <typeparam name="T">The type of elements in the source sequence.</typeparam>
+    /// <param name="value">The value to search for.</param>
+    /// <param name="comparer">The equality comparer to use for comparison.</param>
+    /// <param name="cancellationToken">A cancellation token for the operation.</param>
+    internal sealed class ContainsAsyncObserver<T>(T value, IEqualityComparer<T> comparer, CancellationToken cancellationToken) : TaskObserverAsyncBase<T, bool>(cancellationToken)
     {
+        /// <inheritdoc/>
         protected override async ValueTask OnNextAsyncCore(T value1, CancellationToken cancellationToken)
         {
             if (comparer.Equals(value, value1))
@@ -54,9 +63,11 @@ public static partial class ObservableAsync
             }
         }
 
+        /// <inheritdoc/>
         protected override ValueTask OnErrorResumeAsyncCore(Exception error, CancellationToken cancellationToken)
             => TrySetException(error);
 
+        /// <inheritdoc/>
         protected override ValueTask OnCompletedAsyncCore(Result result)
             => result.IsSuccess ? TrySetCompleted(false) : TrySetException(result.Exception);
     }

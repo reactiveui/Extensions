@@ -6,10 +6,7 @@
     <EnableVSTestReferences>false</EnableVSTestReferences>
   </PropertyGroup>
 
-  <PropertyGroup Condition="$(TargetFramework.StartsWith('netstandard'))">
-    <DefineConstants>$(DefineConstants);NETSTANDARD;PORTABLE</DefineConstants>
-  </PropertyGroup>
-  <Target Name="ValidateNugetProperties" Condition="!$(IsTestProject) or $(IsTestProject) == ''" BeforeTargets="Compile">
+<Target Name="ValidateNugetProperties" Condition="!$(IsTestProject) or $(IsTestProject) == ''" BeforeTargets="Compile">
       <Error Condition="$(PackageDescription) == '' or $(PackageDescription) == $(DefaultPackageDescription)" Text="The Nuget PackageDescription property needs to be set for the project. Currently : '$(PackageDescription)'" />
   </Target>
 </Project>

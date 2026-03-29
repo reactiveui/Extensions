@@ -57,22 +57,31 @@ public static partial class ObservableAsync
             Action<Result>? onCompleted = null) => new DoSyncObservable<T>(@this, onNext, onErrorResume, onCompleted);
     }
 
-    private sealed class DoAsyncObservable<T>(IObservableAsync<T> source,
+    /// <summary>
+    /// An observable that invokes asynchronous side-effect callbacks for each notification.
+    /// </summary>
+    /// <typeparam name="T">The type of elements in the sequence.</typeparam>
+    internal sealed class DoAsyncObservable<T>(IObservableAsync<T> source,
                                       Func<T, CancellationToken, ValueTask>? onNext,
                                       Func<Exception, CancellationToken, ValueTask>? onErrorResume,
                                       Func<Result, ValueTask>? onCompleted) : ObservableAsync<T>
     {
+        /// <inheritdoc/>
         protected override async ValueTask<IAsyncDisposable> SubscribeAsyncCore(IObserverAsync<T> observer, CancellationToken cancellationToken)
         {
             var doObserver = new DoAsyncObserver(observer, onNext, onErrorResume, onCompleted);
             return await source.SubscribeAsync(doObserver, cancellationToken);
         }
 
-        private sealed class DoAsyncObserver(IObserverAsync<T> observer,
+        /// <summary>
+        /// An observer that invokes asynchronous side-effect callbacks before forwarding notifications.
+        /// </summary>
+        internal sealed class DoAsyncObserver(IObserverAsync<T> observer,
                                       Func<T, CancellationToken, ValueTask>? onNext,
                                       Func<Exception, CancellationToken, ValueTask>? onErrorResume,
                                       Func<Result, ValueTask>? onCompleted) : ObserverAsync<T>
         {
+            /// <inheritdoc/>
             protected override async ValueTask OnNextAsyncCore(T value, CancellationToken cancellationToken)
             {
                 if (onNext is not null)
@@ -83,6 +92,7 @@ public static partial class ObservableAsync
                 await observer.OnNextAsync(value, cancellationToken);
             }
 
+            /// <inheritdoc/>
             protected override async ValueTask OnErrorResumeAsyncCore(Exception error, CancellationToken cancellationToken)
             {
                 if (onErrorResume is not null)
@@ -93,6 +103,7 @@ public static partial class ObservableAsync
                 await observer.OnErrorResumeAsync(error, cancellationToken);
             }
 
+            /// <inheritdoc/>
             protected override async ValueTask OnCompletedAsyncCore(Result result)
             {
                 if (onCompleted is not null)
@@ -105,34 +116,45 @@ public static partial class ObservableAsync
         }
     }
 
-    private sealed class DoSyncObservable<T>(IObservableAsync<T> source,
+    /// <summary>
+    /// An observable that invokes synchronous side-effect callbacks for each notification.
+    /// </summary>
+    /// <typeparam name="T">The type of elements in the sequence.</typeparam>
+    internal sealed class DoSyncObservable<T>(IObservableAsync<T> source,
                                      Action<T>? onNext,
                                      Action<Exception>? onErrorResume,
                                      Action<Result>? onCompleted) : ObservableAsync<T>
     {
+        /// <inheritdoc/>
         protected override async ValueTask<IAsyncDisposable> SubscribeAsyncCore(IObserverAsync<T> observer, CancellationToken cancellationToken)
         {
             var doObserver = new DoSyncObserver(observer, onNext, onErrorResume, onCompleted);
             return await source.SubscribeAsync(doObserver, cancellationToken);
         }
 
-        private sealed class DoSyncObserver(IObserverAsync<T> observer,
+        /// <summary>
+        /// An observer that invokes synchronous side-effect callbacks before forwarding notifications.
+        /// </summary>
+        internal sealed class DoSyncObserver(IObserverAsync<T> observer,
                                     Action<T>? onNext,
                                     Action<Exception>? onErrorResume,
                                     Action<Result>? onCompleted) : ObserverAsync<T>
         {
+            /// <inheritdoc/>
             protected override ValueTask OnNextAsyncCore(T value, CancellationToken cancellationToken)
             {
                 onNext?.Invoke(value);
                 return observer.OnNextAsync(value, cancellationToken);
             }
 
+            /// <inheritdoc/>
             protected override ValueTask OnErrorResumeAsyncCore(Exception error, CancellationToken cancellationToken)
             {
                 onErrorResume?.Invoke(error);
                 return observer.OnErrorResumeAsync(error, cancellationToken);
             }
 
+            /// <inheritdoc/>
             protected override ValueTask OnCompletedAsyncCore(Result result)
             {
                 onCompleted?.Invoke(result);

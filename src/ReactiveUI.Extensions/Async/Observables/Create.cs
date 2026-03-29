@@ -56,6 +56,15 @@ public static partial class ObservableAsync
     public static IObservableAsync<T> CreateAsBackgroundJob<T>(Func<IObserverAsync<T>, CancellationToken, ValueTask> job, TaskScheduler taskScheduler) =>
         CreateAsBackgroundJob(job, false, taskScheduler);
 
+    /// <summary>
+    /// Creates a new observable sequence that runs the specified asynchronous job as a background task,
+    /// with options for synchronous start and a custom task scheduler.
+    /// </summary>
+    /// <typeparam name="T">The type of the elements produced by the observable sequence.</typeparam>
+    /// <param name="job">The asynchronous job to execute.</param>
+    /// <param name="startSynchronously">true to start the job synchronously; otherwise, false.</param>
+    /// <param name="taskScheduler">An optional task scheduler for scheduling the job, or <see langword="null"/> to use the default.</param>
+    /// <returns>An observable that emits values produced by the background job.</returns>
     private static IObservableAsync<T> CreateAsBackgroundJob<T>(Func<IObserverAsync<T>, CancellationToken, ValueTask> job, bool startSynchronously, TaskScheduler? taskScheduler)
     {
         ArgumentExceptionHelper.ThrowIfNull(job, nameof(job));

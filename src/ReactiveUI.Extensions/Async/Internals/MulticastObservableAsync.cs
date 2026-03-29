@@ -7,10 +7,27 @@ using ReactiveUI.Extensions.Async.Subjects;
 
 namespace ReactiveUI.Extensions.Async.Internals;
 
+/// <summary>
+/// A connectable observable that multicasts notifications from a source observable through a subject.
+/// </summary>
+/// <typeparam name="T">The type of the elements in the observable sequence.</typeparam>
+/// <param name="observable">The source observable to multicast.</param>
+/// <param name="subject">The subject used to broadcast notifications to multiple observers.</param>
 internal class MulticastObservableAsync<T>(IObservableAsync<T> observable, ISubjectAsync<T> subject) : ConnectableObservableAsync<T>, IDisposable
 {
+    /// <summary>
+    /// The asynchronous gate used to synchronize connection and disconnection operations.
+    /// </summary>
     private readonly AsyncGate _gate = new();
+
+    /// <summary>
+    /// The current connection subscription, or <see langword="null"/> if not connected.
+    /// </summary>
     private SingleAssignmentDisposableAsync? _connection;
+
+    /// <summary>
+    /// A value indicating whether this instance has been disposed.
+    /// </summary>
     private bool _disposedValue;
 
     /// <summary>

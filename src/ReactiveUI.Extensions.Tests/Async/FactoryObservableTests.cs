@@ -11,6 +11,8 @@ namespace ReactiveUI.Extensions.Tests.Async;
 /// <summary>
 /// Tests for factory observables: Return, Empty, Throw, Never, Range, FromAsync, Defer, Create, Timer, Interval, ToAsyncObservable.
 /// </summary>
+[NotInParallel(nameof(UnhandledExceptionHandler))]
+[TestExecutor<UnhandledExceptionTestExecutor>]
 public class FactoryObservableTests
 {
     /// <summary>
@@ -285,28 +287,23 @@ public class FactoryObservableTests
     [Test]
     public async Task WhenTimerPeriodic_ThenEmitsMultipleValues()
     {
-        using var cts = new CancellationTokenSource(300);
         var source = ObservableAsync.Timer(
             TimeSpan.FromMilliseconds(10),
             TimeSpan.FromMilliseconds(50));
 
         var items = new List<long>();
-        try
-        {
-            await using var sub = await source.SubscribeAsync(
-                (x, _) =>
-                {
-                    items.Add(x);
-                    return default;
-                },
-                null,
-                null,
-                cts.Token);
-            await Task.Delay(350, CancellationToken.None);
-        }
-        catch (OperationCanceledException)
-        {
-        }
+        await using var sub = await source.SubscribeAsync(
+            (x, _) =>
+            {
+                items.Add(x);
+                return default;
+            },
+            null,
+            null);
+
+        await AsyncTestHelpers.WaitForConditionAsync(
+            () => items.Count >= 2,
+            TimeSpan.FromSeconds(5));
 
         await Assert.That(items.Count).IsGreaterThanOrEqualTo(2);
         await Assert.That(items[0]).IsEqualTo(0L);
@@ -433,5 +430,71 @@ public class FactoryObservableTests
         await Assert.That(received).IsTrue();
         await Assert.That(items.Count).IsGreaterThanOrEqualTo(2);
         await Assert.That(items[0]).IsEqualTo(1L);
+    }
+
+    /// <summary>
+    /// Tests that EmitEnumerableAsync returns early when the cancellation token is already cancelled.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenEmitEnumerableAsyncWithCancelledToken_ThenReturnsEarly()
+    {
+        var items = new List<int>();
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        var observer = new AnonymousObserverAsync<int>((x, _) =>
+        {
+            items.Add(x);
+            return default;
+        });
+
+        await ObservableAsync.EmitEnumerableAsync(Enumerable.Range(0, 100), observer, cts.Token);
+
+        await Assert.That(items).IsEmpty();
+    }
+
+    /// <summary>
+    /// Tests that SubscribeAsync with null onErrorResume completes normally.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenSubscribeAsyncWithNullOnErrorResume_ThenCompletesNormally()
+    {
+        var items = new List<int>();
+        var completed = new TaskCompletionSource();
+
+        await using var sub = await ObservableAsync.Return(42).SubscribeAsync(
+            x => items.Add(x),
+            onErrorResume: null,
+            onCompleted: _ => completed.TrySetResult());
+
+        await completed.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        await Assert.That(items).IsEquivalentTo(new[] { 42 });
+    }
+
+    /// <summary>
+    /// Tests that SubscribeAsync with null onCompleted completes normally.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenSubscribeAsyncWithNullOnCompleted_ThenCompletesNormally()
+    {
+        var items = new List<int>();
+        var received = new TaskCompletionSource();
+
+        await using var sub = await ObservableAsync.Return(42).SubscribeAsync(
+            x =>
+            {
+                items.Add(x);
+                received.TrySetResult();
+            },
+            onErrorResume: _ => { },
+            onCompleted: null);
+
+        await received.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        await Assert.That(items).IsEquivalentTo(new[] { 42 });
     }
 }

@@ -3,6 +3,7 @@
 // See the LICENSE file in the project root for full license information.
 
 using ReactiveUI.Extensions.Async;
+using ReactiveUI.Extensions.Async.Disposables;
 using ReactiveUI.Extensions.Async.Internals;
 
 namespace ReactiveUI.Extensions.Tests.Async;
@@ -10,6 +11,8 @@ namespace ReactiveUI.Extensions.Tests.Async;
 /// <summary>
 /// Tests for transformation operators: Select, SelectMany, Scan, Do, Cast, OfType.
 /// </summary>
+[NotInParallel(nameof(UnhandledExceptionHandler))]
+[TestExecutor<UnhandledExceptionTestExecutor>]
 public class TransformationOperatorTests
 {
     /// <summary>Tests sync Select projects each element.</summary>
@@ -203,5 +206,76 @@ public class TransformationOperatorTests
         var strings = await source.OfType<object, string>().ToListAsync();
 
         await Assert.That(strings).IsEmpty();
+    }
+
+    /// <summary>
+    /// Verifies that disposing a Prepend subscription from inside an OnNext callback
+    /// triggers the early return guard when cancellation is requested during the prepend loop.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenPrependCancelledBeforeAllValues_ThenEarlyReturn()
+    {
+        var received = new List<int>();
+        var values = Enumerable.Range(1, 100).ToArray();
+        IAsyncDisposable? subscription = null;
+
+        var source = ObservableAsync.Never<int>();
+        var pipeline = source.Prepend(values);
+
+        subscription = await pipeline.SubscribeAsync(
+            async (x, ct) =>
+            {
+                received.Add(x);
+                if (received.Count == 3)
+                {
+                    await subscription!.DisposeAsync();
+                }
+            },
+            null,
+            null);
+
+        await AsyncTestHelpers.WaitForConditionAsync(
+            () => received.Count >= 3,
+            TimeSpan.FromSeconds(5));
+
+        await Assert.That(received.Count).IsGreaterThanOrEqualTo(3);
+    }
+
+    /// <summary>
+    /// Verifies that when Prepend's source throws an exception and the observer's OnCompletedAsync
+    /// also throws, the completion exception is routed to the UnhandledExceptionHandler.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenPrependSourceThrowsAndCompletionAlsoThrows_ThenRoutedToHandler()
+    {
+        var handlerExceptions = new List<Exception>();
+        var completionException = new InvalidOperationException("completion failed");
+
+        UnhandledExceptionHandler.Register(ex => handlerExceptions.Add(ex));
+
+        var source = ObservableAsync.Create<int>(async (observer, ct) =>
+        {
+            throw new ApplicationException("source error");
+#pragma warning disable CS0162 // Unreachable code detected
+            return DisposableAsync.Empty;
+#pragma warning restore CS0162 // Unreachable code detected
+        });
+
+        var pipeline = source.Prepend(42);
+
+        await using var sub = await pipeline.SubscribeAsync(
+            (x, _) => default,
+            null,
+            _ => throw completionException);
+
+        await AsyncTestHelpers.WaitForConditionAsync(
+            () => handlerExceptions.Count >= 1,
+            TimeSpan.FromSeconds(5));
+
+        await Assert.That(handlerExceptions.Count).IsGreaterThanOrEqualTo(1);
+        await Assert.That(handlerExceptions[0]).IsTypeOf<InvalidOperationException>();
+        await Assert.That(handlerExceptions[0].Message).IsEqualTo("completion failed");
     }
 }

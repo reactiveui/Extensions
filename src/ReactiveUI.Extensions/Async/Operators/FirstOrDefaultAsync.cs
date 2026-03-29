@@ -29,6 +29,7 @@ public static partial class ObservableAsync
         /// the predicate, or <paramref name="defaultValue"/> if no such element is found.</returns>
         public async ValueTask<T?> FirstOrDefaultAsync(Func<T, bool> predicate, T? defaultValue, CancellationToken cancellationToken = default)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             var observer = new FirstOrDefaultObserver<T>(predicate, defaultValue, cancellationToken);
             _ = await @this.SubscribeAsync(observer, cancellationToken);
             return await observer.WaitValueAsync();
@@ -54,14 +55,23 @@ public static partial class ObservableAsync
         /// sequence, or <paramref name="defaultValue"/> if the sequence is empty.</returns>
         public async ValueTask<T?> FirstOrDefaultAsync(T? defaultValue, CancellationToken cancellationToken = default)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             var observer = new FirstOrDefaultObserver<T>(null, defaultValue, cancellationToken);
             _ = await @this.SubscribeAsync(observer, cancellationToken);
             return await observer.WaitValueAsync();
         }
     }
 
-    private sealed class FirstOrDefaultObserver<T>(Func<T, bool>? predicate, T? defaultValue, CancellationToken cancellationToken) : TaskObserverAsyncBase<T, T>(cancellationToken)
+    /// <summary>
+    /// Observer that captures the first element matching an optional predicate, or returns a default value.
+    /// </summary>
+    /// <typeparam name="T">The type of elements in the source sequence.</typeparam>
+    /// <param name="predicate">An optional predicate to filter elements.</param>
+    /// <param name="defaultValue">The default value to return if no element matches.</param>
+    /// <param name="cancellationToken">A cancellation token for the operation.</param>
+    internal sealed class FirstOrDefaultObserver<T>(Func<T, bool>? predicate, T? defaultValue, CancellationToken cancellationToken) : TaskObserverAsyncBase<T, T>(cancellationToken)
     {
+        /// <inheritdoc/>
         protected override async ValueTask OnNextAsyncCore(T value, CancellationToken cancellationToken)
         {
             if (predicate is null || predicate(value))
@@ -70,8 +80,10 @@ public static partial class ObservableAsync
             }
         }
 
+        /// <inheritdoc/>
         protected override ValueTask OnErrorResumeAsyncCore(Exception error, CancellationToken cancellationToken) => TrySetException(error);
 
+        /// <inheritdoc/>
         protected override ValueTask OnCompletedAsyncCore(Result result) =>
             result.IsSuccess ? TrySetCompleted(defaultValue!) : TrySetException(result.Exception);
     }

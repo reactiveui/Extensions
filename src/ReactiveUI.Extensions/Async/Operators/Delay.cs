@@ -45,25 +45,36 @@ public static partial class ObservableAsync
         }
     }
 
-    private sealed class DelayObservable<T>(IObservableAsync<T> source, TimeSpan delay, TimeProvider timeProvider) : ObservableAsync<T>
+    /// <summary>
+    /// An observable that delays each element notification by a specified duration.
+    /// </summary>
+    /// <typeparam name="T">The type of elements in the sequence.</typeparam>
+    internal sealed class DelayObservable<T>(IObservableAsync<T> source, TimeSpan delay, TimeProvider timeProvider) : ObservableAsync<T>
     {
+        /// <inheritdoc/>
         protected override async ValueTask<IAsyncDisposable> SubscribeAsyncCore(IObserverAsync<T> observer, CancellationToken cancellationToken)
         {
             var delayObserver = new DelayObserver(observer, delay, timeProvider);
             return await source.SubscribeAsync(delayObserver, cancellationToken);
         }
 
-        private sealed class DelayObserver(IObserverAsync<T> observer, TimeSpan delay, TimeProvider timeProvider) : ObserverAsync<T>
+        /// <summary>
+        /// An observer that delays each element by waiting before forwarding to the downstream observer.
+        /// </summary>
+        internal sealed class DelayObserver(IObserverAsync<T> observer, TimeSpan delay, TimeProvider timeProvider) : ObserverAsync<T>
         {
+            /// <inheritdoc/>
             protected override async ValueTask OnNextAsyncCore(T value, CancellationToken cancellationToken)
             {
                 await DelayAsync(delay, timeProvider, cancellationToken);
                 await observer.OnNextAsync(value, cancellationToken);
             }
 
+            /// <inheritdoc/>
             protected override ValueTask OnErrorResumeAsyncCore(Exception error, CancellationToken cancellationToken) =>
                 observer.OnErrorResumeAsync(error, cancellationToken);
 
+            /// <inheritdoc/>
             protected override ValueTask OnCompletedAsyncCore(Result result) =>
                 observer.OnCompletedAsync(result);
         }

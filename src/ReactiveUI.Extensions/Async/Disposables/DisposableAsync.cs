@@ -35,15 +35,26 @@ public static class DisposableAsync
         return new AnonymousAsyncDisposable(disposeAsync);
     }
 
-    private sealed class AnonymousAsyncDisposable(Func<ValueTask> disposeAsync) : IAsyncDisposable
+    /// <summary>
+    /// An asynchronous disposable that invokes a delegate when disposed.
+    /// </summary>
+    internal sealed class AnonymousAsyncDisposable(Func<ValueTask> disposeAsync) : IAsyncDisposable
     {
+        /// <summary>
+        /// A flag indicating whether <see cref="DisposeAsync"/> has already been called (0 = not disposed, 1 = disposed).
+        /// </summary>
         private int _disposed;
 
+        /// <inheritdoc/>
         public ValueTask DisposeAsync() => Interlocked.Exchange(ref _disposed, 1) == 1 ? default : disposeAsync();
     }
 
-    private sealed class EmptyAsyncDisposable : IAsyncDisposable
+    /// <summary>
+    /// An asynchronous disposable that performs no action when disposed.
+    /// </summary>
+    internal sealed class EmptyAsyncDisposable : IAsyncDisposable
     {
+        /// <inheritdoc/>
         public ValueTask DisposeAsync() => default;
     }
 }

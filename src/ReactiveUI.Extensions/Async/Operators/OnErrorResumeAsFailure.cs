@@ -35,19 +35,32 @@ public static partial class ObservableAsync
         return new OnErrorResumeAsFailureObservable<T>(@this);
     }
 
-    private sealed class OnErrorResumeAsFailureObservable<T>(IObservableAsync<T> source) : ObservableAsync<T>
+    /// <summary>
+    /// An observable that converts resumable errors from the source into failure completion results.
+    /// </summary>
+    /// <typeparam name="T">The type of elements in the observable sequence.</typeparam>
+    /// <param name="source">The source observable to monitor for errors.</param>
+    internal sealed class OnErrorResumeAsFailureObservable<T>(IObservableAsync<T> source) : ObservableAsync<T>
     {
+        /// <inheritdoc/>
         protected override ValueTask<IAsyncDisposable> SubscribeAsyncCore(IObserverAsync<T> observer, CancellationToken cancellationToken) =>
             source.SubscribeAsync(new OnErrorResumeAsFailureObserver(observer), cancellationToken);
 
-        private sealed class OnErrorResumeAsFailureObserver(IObserverAsync<T> observer) : ObserverAsync<T>
+        /// <summary>
+        /// Observer that forwards values and completion, but converts resumable errors into failure completions.
+        /// </summary>
+        /// <param name="observer">The downstream observer to forward notifications to.</param>
+        internal sealed class OnErrorResumeAsFailureObserver(IObserverAsync<T> observer) : ObserverAsync<T>
         {
+            /// <inheritdoc/>
             protected override ValueTask OnNextAsyncCore(T value, CancellationToken cancellationToken) =>
                 observer.OnNextAsync(value, cancellationToken);
 
+            /// <inheritdoc/>
             protected override ValueTask OnErrorResumeAsyncCore(Exception error, CancellationToken cancellationToken) =>
                 observer.OnCompletedAsync(Result.Failure(error));
 
+            /// <inheritdoc/>
             protected override ValueTask OnCompletedAsyncCore(Result result) =>
                 observer.OnCompletedAsync(result);
         }

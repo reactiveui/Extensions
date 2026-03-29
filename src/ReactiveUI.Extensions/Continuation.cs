@@ -9,8 +9,19 @@ namespace ReactiveUI.Extensions;
 /// </summary>
 public class Continuation : IDisposable
 {
+    /// <summary>
+    /// The barrier used to synchronize phases between the lock holder and the continuation.
+    /// </summary>
     private readonly Barrier _phaseSync = new(2);
+
+    /// <summary>
+    /// A value indicating whether this instance has been disposed.
+    /// </summary>
     private bool _disposedValue;
+
+    /// <summary>
+    /// A value indicating whether the continuation is currently locked.
+    /// </summary>
     private bool _locked;
 
     /// <summary>
@@ -52,6 +63,21 @@ public class Continuation : IDisposable
     }
 
     /// <summary>
+    /// UnLocks this instance.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
+    internal Task UnLock()
+    {
+        if (!_locked)
+        {
+            return Task.CompletedTask;
+        }
+
+        _locked = false;
+        return Task.Run(() => _phaseSync?.SignalAndWait(CancellationToken.None));
+    }
+
+    /// <summary>
     /// Releases unmanaged and - optionally - managed resources.
     /// </summary>
     /// <param name="disposing"><c>true</c> to release both managed and unmanaged resources; <c>false</c> to release only unmanaged resources.</param>
@@ -67,20 +93,5 @@ public class Continuation : IDisposable
 
             _disposedValue = true;
         }
-    }
-
-    /// <summary>
-    /// UnLocks this instance.
-    /// </summary>
-    /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
-    private Task UnLock()
-    {
-        if (!_locked)
-        {
-            return Task.CompletedTask;
-        }
-
-        _locked = false;
-        return Task.Run(() => _phaseSync?.SignalAndWait(CancellationToken.None));
     }
 }

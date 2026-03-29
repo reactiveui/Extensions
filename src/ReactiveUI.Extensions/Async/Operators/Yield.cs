@@ -29,8 +29,14 @@ public static partial class ObservableAsync
         return new YieldObservable<T>(@this);
     }
 
-    private sealed class YieldObservable<T>(IObservableAsync<T> source) : ObservableAsync<T>
+    /// <summary>
+    /// An observable that yields control to the current scheduler before forwarding source emissions.
+    /// </summary>
+    /// <typeparam name="T">The type of elements in the observable sequence.</typeparam>
+    /// <param name="source">The source observable to yield from.</param>
+    internal sealed class YieldObservable<T>(IObservableAsync<T> source) : ObservableAsync<T>
     {
+        /// <inheritdoc/>
         protected override ValueTask<IAsyncDisposable> SubscribeAsyncCore(IObserverAsync<T> observer, CancellationToken cancellationToken)
         {
             var currentContext = AsyncContext.GetCurrent();
