@@ -3,7 +3,7 @@
 // See the LICENSE file in the project root for full license information.
 
 using System.Runtime.CompilerServices;
-using ReactiveUI.Extensions.Async.Internals;
+using ReactiveUI.Extensions.Async;
 
 namespace ReactiveUI.Extensions.Async.Subjects;
 

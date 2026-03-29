@@ -421,6 +421,7 @@ dotnet_diagnostic.RCS1005.severity = error # Simplify nested using statement
 dotnet_diagnostic.RCS1006.severity = error # Merge 'else' with nested 'if'
 dotnet_diagnostic.RCS1020.severity = error # Simplify Nullable<T> to T?
 dotnet_diagnostic.RCS1049.severity = error # Simplify boolean comparison
+dotnet_diagnostic.RCS1047.severity = none # Remove suffix 'Async' from non-asynchronous method name
 dotnet_diagnostic.RCS1068.severity = error # Simplify logical negation
 dotnet_diagnostic.RCS1069.severity = error # Remove unnecessary case label
 dotnet_diagnostic.RCS1071.severity = error # Remove redundant base constructor call

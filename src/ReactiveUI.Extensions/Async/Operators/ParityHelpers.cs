@@ -2,6 +2,8 @@
 // ReactiveUI Association Incorporated licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
+using ReactiveUI.Extensions.Async;
+
 namespace ReactiveUI.Extensions.Async;
 
 /// <summary>
@@ -565,7 +567,7 @@ public static partial class ObservableAsync
                 {
                     action();
                     await observer.OnNextAsync(Unit.Default, cancellationToken);
-                    await observer.OnCompletedAsync(ReactiveUI.Extensions.Async.Internals.Result.Success);
+                    await observer.OnCompletedAsync(Async.Result.Success);
                 },
                 taskScheduler);
     }
@@ -587,7 +589,7 @@ public static partial class ObservableAsync
                 async (observer, cancellationToken) =>
                 {
                     await observer.OnNextAsync(function(), cancellationToken);
-                    await observer.OnCompletedAsync(ReactiveUI.Extensions.Async.Internals.Result.Success);
+                    await observer.OnCompletedAsync(Async.Result.Success);
                 },
                 taskScheduler);
     }

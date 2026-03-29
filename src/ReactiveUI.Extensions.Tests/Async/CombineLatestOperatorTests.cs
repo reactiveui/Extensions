@@ -4,7 +4,6 @@
 
 using ReactiveUI.Extensions.Async;
 using ReactiveUI.Extensions.Async.Disposables;
-using ReactiveUI.Extensions.Async.Internals;
 using ReactiveUI.Extensions.Async.Subjects;
 using AsyncObs = ReactiveUI.Extensions.Async.ObservableAsync;
 
@@ -5100,7 +5099,7 @@ public class CombineLatestOperatorTests
         await sub.DisposeAsync();
 
         // Complete after dispose - should be ignored
-        await subject1.OnCompletedAsync(ReactiveUI.Extensions.Async.Internals.Result.Success);
+        await subject1.OnCompletedAsync(Result.Success);
 
         // No extra completion should have been forwarded since we disposed
         await Assert.That(completion).IsNull();

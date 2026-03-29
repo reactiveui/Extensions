@@ -5,7 +5,7 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.ExceptionServices;
 
-namespace ReactiveUI.Extensions.Async.Internals;
+namespace ReactiveUI.Extensions.Async;
 
 /// <summary>
 /// Represents the outcome of an operation, indicating success or failure and providing error details when applicable.
