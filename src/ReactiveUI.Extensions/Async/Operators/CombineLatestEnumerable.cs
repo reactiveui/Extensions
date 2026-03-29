@@ -93,8 +93,6 @@ public static partial class ObservableAsync
 
             public async ValueTask SubscribeAsync(CancellationToken cancellationToken)
             {
-                using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _disposeCts.Token);
-
                 for (var index = 0; index < _sources.Count; index++)
                 {
                     if (_disposeCts.IsCancellationRequested)
@@ -107,7 +105,7 @@ public static partial class ObservableAsync
                         (value, token) => OnNextAsync(currentIndex, value, token),
                         OnErrorResumeAsync,
                         result => OnCompletedAsync(currentIndex, result),
-                        linkedCts.Token);
+                        cancellationToken);
                 }
             }
 

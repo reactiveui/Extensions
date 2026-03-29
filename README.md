@@ -761,17 +761,17 @@ var saveClicks = ObservableAsync.Range(1, 3).AsSignal();
 var ignoredFailure = ObservableAsync.Throw<int>(new InvalidOperationException("boom"))
     .CatchIgnore();
 
-// CatchIgnore<T, TException>: handle a specific exception type then complete
+// CatchIgnore<TException>: handle a specific exception type then complete
 var ignoredWithHandler = ObservableAsync.Throw<int>(new TimeoutException())
-    .CatchIgnore<int, TimeoutException>(ex => Console.WriteLine(ex.Message));
+    .CatchIgnore<TimeoutException>(ex => Console.WriteLine(ex.Message));
 
 // CatchAndReturn: replace failure with a fallback value
 var recovered = ObservableAsync.Throw<int>(new InvalidOperationException("boom"))
     .CatchAndReturn(-1);
 
-// CatchAndReturn<T, TException>: map a matching exception to a fallback value
+// CatchAndReturn<TException>: map a matching exception to a fallback value
 var recoveredTyped = ObservableAsync.Throw<int>(new TimeoutException("late"))
-    .CatchAndReturn<int, TimeoutException>(ex => ex.Message.Length);
+    .CatchAndReturn<TimeoutException>(ex => ex.Message.Length);
 
 // CombineLatest over IEnumerable<IObservableAsync<T>>
 IObservableAsync<int>[] numberSources =
