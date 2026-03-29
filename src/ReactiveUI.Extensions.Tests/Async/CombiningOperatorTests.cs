@@ -5311,6 +5311,223 @@ public class CombiningOperatorTests
     }
 
     /// <summary>
+    /// Verifies MergeSubscription.ForwardOnNext pre-gate disposed guard returns early.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenMergeSubscriptionDisposed_ThenForwardOnNextReturnsDirectly()
+    {
+        var observer = new AnonymousObserverAsync<int>((_, _) => default);
+        var subscription = new ObservableAsync.MergeSubscription<int>(observer);
+        await subscription.DisposeAsync();
+
+        await subscription.ForwardOnNext(99, CancellationToken.None);
+    }
+
+    /// <summary>
+    /// Verifies MergeSubscription.ForwardOnErrorResume pre-gate disposed guard returns early.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenMergeSubscriptionDisposed_ThenForwardOnErrorResumeReturnsDirectly()
+    {
+        var observer = new AnonymousObserverAsync<int>((_, _) => default);
+        var subscription = new ObservableAsync.MergeSubscription<int>(observer);
+        await subscription.DisposeAsync();
+
+        await subscription.ForwardOnErrorResume(new InvalidOperationException("test"), CancellationToken.None);
+    }
+
+    /// <summary>
+    /// Verifies MergeSubscription.ForwardOnNext post-gate disposed guard.
+    /// Directly calls ForwardOnNext on the subscription while CompleteAsync blocks on downstream completion.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenMergeSubscriptionDisposedWhileGateHeld_ThenForwardOnNextPostGateReturns()
+    {
+        var completionBlocked = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var allowCompletion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var items = new List<int>();
+
+        var observer = new AnonymousObserverAsync<int>(
+            (x, _) =>
+            {
+                items.Add(x);
+                return default;
+            },
+            null,
+            async _ =>
+            {
+                completionBlocked.TrySetResult();
+                await allowCompletion.Task;
+            });
+
+        var subscription = new ObservableAsync.MergeSubscription<int>(observer);
+
+        // Trigger CompleteAsync with failure - blocks on observer.OnCompletedAsync
+        var failTask = Task.Run(() => subscription.CompleteAsync(Result.Failure(new InvalidOperationException("fail"))));
+        await completionBlocked.Task;
+
+        // _disposed is 1, gate is still alive → ForwardOnNext acquires gate and hits post-gate check
+        await subscription.ForwardOnNext(99, CancellationToken.None);
+
+        await Assert.That(items).IsEmpty();
+
+        allowCompletion.TrySetResult();
+        await failTask;
+    }
+
+    /// <summary>
+    /// Verifies MergeSubscription.ForwardOnErrorResume post-gate disposed guard.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenMergeSubscriptionDisposedWhileGateHeld_ThenForwardOnErrorResumePostGateReturns()
+    {
+        var completionBlocked = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var allowCompletion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var errors = new List<Exception>();
+
+        var observer = new AnonymousObserverAsync<int>(
+            (_, _) => default,
+            (ex, _) =>
+            {
+                errors.Add(ex);
+                return default;
+            },
+            async _ =>
+            {
+                completionBlocked.TrySetResult();
+                await allowCompletion.Task;
+            });
+
+        var subscription = new ObservableAsync.MergeSubscription<int>(observer);
+
+        var failTask = Task.Run(() => subscription.CompleteAsync(Result.Failure(new InvalidOperationException("fail"))));
+        await completionBlocked.Task;
+
+        await subscription.ForwardOnErrorResume(new InvalidOperationException("post-dispose"), CancellationToken.None);
+
+        await Assert.That(errors).IsEmpty();
+
+        allowCompletion.TrySetResult();
+        await failTask;
+    }
+
+    /// <summary>
+    /// Verifies that MergeEnumerableSubscription.OnNextAsync returns early when called directly after disposal.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenMergeEnumerableSubscriptionDisposed_ThenOnNextReturnsDirectly()
+    {
+        var observer = new AnonymousObserverAsync<int>((_, _) => default);
+        IObservableAsync<int>[] sources = [];
+        var subscription = new ObservableAsync.MergeEnumerableObservable<int>.MergeEnumerableSubscription(observer, sources);
+        subscription.StartAsync();
+        await subscription.DisposeAsync();
+
+        await subscription.OnNextAsync(99, CancellationToken.None);
+    }
+
+    /// <summary>
+    /// Verifies that MergeEnumerableSubscription.OnErrorResumeAsync returns early when called directly after disposal.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenMergeEnumerableSubscriptionDisposed_ThenOnErrorResumeReturnsDirectly()
+    {
+        var observer = new AnonymousObserverAsync<int>((_, _) => default);
+        IObservableAsync<int>[] sources = [];
+        var subscription = new ObservableAsync.MergeEnumerableObservable<int>.MergeEnumerableSubscription(observer, sources);
+        subscription.StartAsync();
+        await subscription.DisposeAsync();
+
+        await subscription.OnErrorResumeAsync(new InvalidOperationException("test"), CancellationToken.None);
+    }
+
+    /// <summary>
+    /// Verifies MergeEnumerable OnNextAsync post-gate disposed guard using blocking-OnCompletedAsync.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenMergeEnumerableDisposedWhileGateHeld_ThenOnNextPostGateReturns()
+    {
+        var src1 = new DirectSource<int>();
+        var src2 = new DirectSource<int>();
+        var sources = new IObservableAsync<int>[] { src1, src2 };
+        var items = new List<int>();
+        var completionBlocked = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var allowCompletion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        await using var sub = await sources.Merge()
+            .SubscribeAsync(
+                (x, _) =>
+                {
+                    items.Add(x);
+                    return default;
+                },
+                null,
+                async _ =>
+                {
+                    completionBlocked.TrySetResult();
+                    await allowCompletion.Task;
+                });
+
+        await src1.EmitNext(1);
+
+        var failTask = Task.Run(() => src1.Complete(Result.Failure(new InvalidOperationException("fail"))));
+        await completionBlocked.Task;
+
+        await src2.EmitNext(99);
+
+        await Assert.That(items).Count().IsEqualTo(1);
+
+        allowCompletion.TrySetResult();
+        await failTask;
+    }
+
+    /// <summary>
+    /// Verifies MergeEnumerable OnErrorResumeAsync post-gate disposed guard using blocking-OnCompletedAsync.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenMergeEnumerableDisposedWhileGateHeld_ThenOnErrorResumePostGateReturns()
+    {
+        var src1 = new DirectSource<int>();
+        var src2 = new DirectSource<int>();
+        var sources = new IObservableAsync<int>[] { src1, src2 };
+        var errors = new List<Exception>();
+        var completionBlocked = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var allowCompletion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        await using var sub = await sources.Merge()
+            .SubscribeAsync(
+                (_, _) => default,
+                (ex, _) =>
+                {
+                    errors.Add(ex);
+                    return default;
+                },
+                async _ =>
+                {
+                    completionBlocked.TrySetResult();
+                    await allowCompletion.Task;
+                });
+
+        var failTask = Task.Run(() => src1.Complete(Result.Failure(new InvalidOperationException("fail"))));
+        await completionBlocked.Task;
+
+        await src2.EmitError(new InvalidOperationException("post-dispose"));
+
+        await Assert.That(errors).IsEmpty();
+
+        allowCompletion.TrySetResult();
+        await failTask;
+    }
+
+    /// <summary>
     /// A trackable async disposable resource for verifying disposal in Using tests.
     /// </summary>
     private sealed class TrackingAsyncDisposable : IAsyncDisposable

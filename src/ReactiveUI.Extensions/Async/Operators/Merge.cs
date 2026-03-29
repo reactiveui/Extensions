@@ -208,7 +208,7 @@ public static partial class ObservableAsync
         /// <param name="value">The value to forward.</param>
         /// <param name="cancellationToken">A token to cancel the operation.</param>
         /// <returns>A task representing the asynchronous forward operation.</returns>
-        internal async ValueTask ForwardOnNext(T value, CancellationToken cancellationToken)
+        protected internal async ValueTask ForwardOnNext(T value, CancellationToken cancellationToken)
         {
             if (DisposalHelper.IsDisposed(_disposed))
             {
@@ -233,8 +233,13 @@ public static partial class ObservableAsync
         /// <param name="exception">The error to forward.</param>
         /// <param name="cancellationToken">A token to cancel the operation.</param>
         /// <returns>A task representing the asynchronous forward operation.</returns>
-        internal async ValueTask ForwardOnErrorResume(Exception exception, CancellationToken cancellationToken)
+        protected internal async ValueTask ForwardOnErrorResume(Exception exception, CancellationToken cancellationToken)
         {
+            if (DisposalHelper.IsDisposed(_disposed))
+            {
+                return;
+            }
+
             using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, DisposedCancellationToken);
             using (await _onSomethingGate.LockAsync())
             {
@@ -252,7 +257,7 @@ public static partial class ObservableAsync
         /// </summary>
         /// <param name="inner">The inner observable to subscribe to.</param>
         /// <returns>A task representing the asynchronous subscribe operation.</returns>
-        protected virtual async ValueTask SubscribeInnerAsync(IObservableAsync<T> inner)
+        protected internal virtual async ValueTask SubscribeInnerAsync(IObservableAsync<T> inner)
         {
             try
             {
@@ -269,14 +274,14 @@ public static partial class ObservableAsync
         /// Creates a new inner observer for subscribing to an inner observable sequence.
         /// </summary>
         /// <returns>A new inner async observer instance.</returns>
-        protected virtual InnerAsyncObserver CreateInnerObserver() => new(this);
+        protected internal virtual InnerAsyncObserver CreateInnerObserver() => new(this);
 
         /// <summary>
         /// Completes the merged sequence, disposes all subscriptions, and optionally signals the downstream observer.
         /// </summary>
         /// <param name="result">The completion result to forward, or null if disposing without signaling completion.</param>
         /// <returns>A task representing the asynchronous completion operation.</returns>
-        protected async ValueTask CompleteAsync(Result? result)
+        protected internal async ValueTask CompleteAsync(Result? result)
         {
             if (DisposalHelper.TrySetDisposed(ref _disposed))
             {
@@ -360,7 +365,7 @@ public static partial class ObservableAsync
         private readonly SemaphoreSlim _semaphore = new(maxConcurrent, maxConcurrent);
 
         /// <inheritdoc/>
-        protected override async ValueTask SubscribeInnerAsync(IObservableAsync<T> inner)
+        protected internal override async ValueTask SubscribeInnerAsync(IObservableAsync<T> inner)
         {
             await _semaphore.WaitAsync(DisposedCancellationToken);
             try
@@ -376,7 +381,7 @@ public static partial class ObservableAsync
         }
 
         /// <inheritdoc/>
-        protected override InnerAsyncObserver CreateInnerObserver() => new InnerAsyncObserverWithSemaphore(this);
+        protected internal override InnerAsyncObserver CreateInnerObserver() => new InnerAsyncObserverWithSemaphore(this);
 
         /// <summary>
         /// Inner observer that releases a semaphore slot on disposal.
@@ -532,6 +537,11 @@ public static partial class ObservableAsync
             /// <returns>A task representing the asynchronous forward operation.</returns>
             internal async ValueTask OnNextAsync(T value, CancellationToken token)
             {
+                if (DisposalHelper.IsDisposed(_disposed))
+                {
+                    return;
+                }
+
                 using var linked = CancellationTokenSource.CreateLinkedTokenSource(_disposedCancellationToken, token);
                 using (await _onSomethingGate.LockAsync())
                 {
@@ -552,6 +562,11 @@ public static partial class ObservableAsync
             /// <returns>A task representing the asynchronous forward operation.</returns>
             internal async ValueTask OnErrorResumeAsync(Exception ex, CancellationToken token)
             {
+                if (DisposalHelper.IsDisposed(_disposed))
+                {
+                    return;
+                }
+
                 using var linked = CancellationTokenSource.CreateLinkedTokenSource(_disposedCancellationToken, token);
                 using (await _onSomethingGate.LockAsync())
                 {

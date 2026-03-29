@@ -1845,8 +1845,7 @@ public class ResultAndInfrastructureTests
 
         var completionException = new InvalidOperationException("observer completion throws");
 
-        var observer = new TestableObserverAsync(
-            onCompletedAsyncCore: _ => throw completionException);
+        var observer = new RawThrowingOnCompletedObserver<int>(completionException);
 
         await CancelableTaskSubscription<int>.CompleteWithFailureAsync(
             observer, new InvalidOperationException("original error"));
@@ -1904,5 +1903,25 @@ public class ResultAndInfrastructureTests
         /// <inheritdoc/>
         public IDisposable Schedule<TState>(TState state, DateTimeOffset dueTime, Func<IScheduler, TState, IDisposable> action) =>
             action(this, state);
+    }
+
+    /// <summary>
+    /// A raw <see cref="IObserverAsync{T}"/> that throws from <see cref="OnCompletedAsync"/>,
+    /// bypassing <see cref="ObserverAsync{T}"/> base class exception handling.
+    /// </summary>
+    /// <typeparam name="T">The element type.</typeparam>
+    private sealed class RawThrowingOnCompletedObserver<T>(Exception completionException) : IObserverAsync<T>
+    {
+        /// <inheritdoc/>
+        public ValueTask OnNextAsync(T value, CancellationToken cancellationToken) => default;
+
+        /// <inheritdoc/>
+        public ValueTask OnErrorResumeAsync(Exception error, CancellationToken cancellationToken) => default;
+
+        /// <inheritdoc/>
+        public ValueTask OnCompletedAsync(Result result) => throw completionException;
+
+        /// <inheritdoc/>
+        public ValueTask DisposeAsync() => default;
     }
 }
