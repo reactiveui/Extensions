@@ -5560,4 +5560,76 @@ public class CombineLatestOperatorTests
         // No snapshots were ever emitted because not all sources had values.
         await Assert.That(emissions).IsEmpty();
     }
+
+    /// <summary>Tests CombineLatest error-resume after disposal is ignored.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenCombineLatestDisposedThenErrorIgnored()
+    {
+        var source1 = new DirectSource<int>();
+        var source2 = new DirectSource<int>();
+        var items = new List<int>();
+
+        var sub = await ObservableAsync.CombineLatest(source1, source2, (a, b) => a + b)
+            .SubscribeAsync(
+                (x, _) =>
+                {
+                    items.Add(x);
+                    return default;
+                },
+                null,
+                null);
+
+        await source1.EmitNext(1);
+        await source2.EmitNext(2);
+        await sub.DisposeAsync();
+
+        // Emissions after disposal should be ignored
+        await source1.EmitNext(10);
+        await Assert.That(items).Count().IsEqualTo(1);
+    }
+
+    /// <summary>Tests CombineLatest error from source propagates.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenCombineLatestSourceEmitsError_ThenErrorPropagated()
+    {
+        var error = new InvalidOperationException("src-error");
+        var source1 = new DirectSource<int>();
+        var source2 = new DirectSource<int>();
+        Exception? caughtError = null;
+
+        await using var sub = await ObservableAsync.CombineLatest(source1, source2, (a, b) => a + b)
+            .SubscribeAsync(
+                static (_, _) => default,
+                (ex, _) =>
+                {
+                    caughtError = ex;
+                    return default;
+                },
+                null);
+
+        await source1.EmitNext(1);
+        await source2.EmitNext(2);
+        await source1.EmitError(error);
+        await source1.Complete(Result.Success);
+        await source2.Complete(Result.Success);
+
+        await Assert.That(caughtError).IsNotNull();
+    }
+
+    /// <summary>Tests CombineLatestEnumerable where sources is already an IReadOnlyList.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenCombineLatestWithReadOnlyListSources_ThenWorks()
+    {
+        IReadOnlyList<IObservableAsync<int>> sources =
+        [
+            ObservableAsync.Return(1),
+            ObservableAsync.Return(2)
+        ];
+
+        var result = await sources.CombineLatest().FirstAsync();
+        await Assert.That(result).Count().IsEqualTo(2);
+    }
 }

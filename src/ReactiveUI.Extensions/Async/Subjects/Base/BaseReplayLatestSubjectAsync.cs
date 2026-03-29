@@ -33,7 +33,7 @@ public abstract class BaseReplayLatestSubjectAsync<T>(Optional<T> startValue) : 
     /// <summary>
     /// The immutable list of currently subscribed observers.
     /// </summary>
-    private ImmutableList<IObserverAsync<T>> _observers = [];
+    private ImmutableArray<IObserverAsync<T>> _observers = [];
 
     /// <summary>
     /// The completion result, or <see langword="null"/> if the subject has not yet completed.
@@ -54,7 +54,7 @@ public abstract class BaseReplayLatestSubjectAsync<T>(Optional<T> startValue) : 
     /// <returns>A task that represents the asynchronous notification operation.</returns>
     public async ValueTask OnNextAsync(T value, CancellationToken cancellationToken)
     {
-        ImmutableList<IObserverAsync<T>> observers;
+        ImmutableArray<IObserverAsync<T>> observers;
         using (await _gate.LockAsync())
         {
             if (_result is not null)
@@ -79,7 +79,7 @@ public abstract class BaseReplayLatestSubjectAsync<T>(Optional<T> startValue) : 
     /// <returns>A task that represents the asynchronous notification operation.</returns>
     public async ValueTask OnErrorResumeAsync(Exception error, CancellationToken cancellationToken)
     {
-        ImmutableList<IObserverAsync<T>> observers;
+        ImmutableArray<IObserverAsync<T>> observers;
         using (await _gate.LockAsync())
         {
             if (_result is not null)
@@ -103,7 +103,7 @@ public abstract class BaseReplayLatestSubjectAsync<T>(Optional<T> startValue) : 
     /// been notified.</returns>
     public ValueTask OnCompletedAsync(Result result)
     {
-        ImmutableList<IObserverAsync<T>>? observers;
+        ImmutableArray<IObserverAsync<T>> observers;
         lock (_gate)
         {
             if (_result is not null)

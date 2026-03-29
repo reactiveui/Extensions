@@ -31,7 +31,7 @@ public abstract class BaseSubjectAsync<T> : ObservableAsync<T>, ISubjectAsync<T>
     /// <summary>
     /// The immutable list of currently subscribed observers.
     /// </summary>
-    private ImmutableList<IObserverAsync<T>> _observers = [];
+    private ImmutableArray<IObserverAsync<T>> _observers = [];
 
     /// <summary>
     /// The completion result, or <see langword="null"/> if the subject has not yet completed.
@@ -54,7 +54,7 @@ public abstract class BaseSubjectAsync<T> : ObservableAsync<T>, ISubjectAsync<T>
     /// <returns>A ValueTask that represents the asynchronous notification operation.</returns>
     public ValueTask OnNextAsync(T value, CancellationToken cancellationToken)
     {
-        ImmutableList<IObserverAsync<T>>? observers;
+        ImmutableArray<IObserverAsync<T>> observers;
 
         lock (_gate)
         {
@@ -79,7 +79,7 @@ public abstract class BaseSubjectAsync<T> : ObservableAsync<T>, ISubjectAsync<T>
     /// <returns>A ValueTask that represents the asynchronous operation of notifying observers of the error.</returns>
     public ValueTask OnErrorResumeAsync(Exception error, CancellationToken cancellationToken)
     {
-        ImmutableList<IObserverAsync<T>>? observers;
+        ImmutableArray<IObserverAsync<T>> observers;
 
         lock (_gate)
         {
@@ -104,7 +104,7 @@ public abstract class BaseSubjectAsync<T> : ObservableAsync<T>, ISubjectAsync<T>
     /// been notified.</returns>
     public ValueTask OnCompletedAsync(Result result)
     {
-        ImmutableList<IObserverAsync<T>>? observers;
+        ImmutableArray<IObserverAsync<T>> observers;
         lock (_gate)
         {
             if (_result is not null)

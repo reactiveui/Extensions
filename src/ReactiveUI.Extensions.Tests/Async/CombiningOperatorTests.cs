@@ -5527,6 +5527,123 @@ public class CombiningOperatorTests
         await failTask;
     }
 
+    /// <summary>Tests Merge inner source failure propagates error.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenMergeInnerSourceFails_ThenErrorPropagated()
+    {
+        var error = new InvalidOperationException("inner-error");
+        var inner = ObservableAsync.Throw<int>(error);
+        var outer = ObservableAsync.Return(inner);
+
+        Result? completionResult = null;
+        await using var sub = await outer.Merge()
+            .SubscribeAsync(
+                static (_, _) => default,
+                null,
+                result =>
+                {
+                    completionResult = result;
+                    return default;
+                });
+
+        await Task.Delay(100);
+
+        await Assert.That(completionResult).IsNotNull();
+        await Assert.That(completionResult!.Value.IsFailure).IsTrue();
+    }
+
+    /// <summary>Tests Merge with max concurrency inner failure propagates.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenMergeWithMaxConcurrencyInnerFails_ThenErrorPropagated()
+    {
+        var error = new InvalidOperationException("merge-fail");
+        var inner = ObservableAsync.Throw<int>(error);
+        var outer = ObservableAsync.Return(inner);
+
+        Result? completionResult = null;
+        await using var sub = await outer.Merge(1)
+            .SubscribeAsync(
+                static (_, _) => default,
+                null,
+                result =>
+                {
+                    completionResult = result;
+                    return default;
+                });
+
+        await Task.Delay(100);
+
+        await Assert.That(completionResult).IsNotNull();
+        await Assert.That(completionResult!.Value.IsFailure).IsTrue();
+    }
+
+    /// <summary>Tests Concat with observable of observables inner failure propagates.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenConcatObservablesInnerFails_ThenErrorPropagated()
+    {
+        var error = new InvalidOperationException("obs-concat-fail");
+        var outer = ObservableAsync.Return<IObservableAsync<int>>(ObservableAsync.Throw<int>(error));
+
+        await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            await outer.Concat().FirstAsync());
+    }
+
+    /// <summary>Tests Concat with enumerable source failure propagates.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenConcatEnumerableInnerFails_ThenErrorPropagated()
+    {
+        var error = new InvalidOperationException("concat-fail");
+        var sources = new IObservableAsync<int>[]
+        {
+            ObservableAsync.Return(1),
+            ObservableAsync.Throw<int>(error)
+        };
+
+        await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            await ((IEnumerable<IObservableAsync<int>>)sources).Concat().LastAsync());
+    }
+
+    /// <summary>Tests Switch emits from the latest inner observable.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenSwitchNewInnerArrives_ThenEmitsFromLatest()
+    {
+        var result = await ObservableAsync.Return<IObservableAsync<int>>(ObservableAsync.Return(42))
+            .Switch()
+            .FirstAsync();
+
+        await Assert.That(result).IsEqualTo(42);
+    }
+
+    /// <summary>Tests Switch inner failure propagates.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenSwitchInnerFails_ThenErrorPropagated()
+    {
+        var error = new InvalidOperationException("switch-inner");
+
+        await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            await ObservableAsync.Return(ObservableAsync.Throw<int>(error))
+                .Switch()
+                .FirstAsync());
+    }
+
+    /// <summary>Tests Zip completes when shorter side finishes.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenZipLeftShorter_ThenCompletesEarly()
+    {
+        var result = await ObservableAsync.Range(1, 2)
+            .Zip(ObservableAsync.Range(10, 5), (a, b) => a + b)
+            .ToListAsync();
+
+        await Assert.That(result).IsEquivalentTo([11, 13]);
+    }
+
     /// <summary>
     /// A trackable async disposable resource for verifying disposal in Using tests.
     /// </summary>

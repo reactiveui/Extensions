@@ -872,6 +872,63 @@ public class TransformationOperatorTests
         }
     }
 
+    /// <summary>Tests Do with onErrorResume callback invokes callback on error.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenDoWithOnErrorResume_ThenCallbackInvoked()
+    {
+        var directSource = new DirectSource<int>();
+        var errors = new List<Exception>();
+        var error = new InvalidOperationException("test");
+
+        await using var sub = await directSource.Do(onErrorResume: ex => errors.Add(ex)).SubscribeAsync(
+            static (_, _) => default,
+            static (_, _) => default,
+            static _ => default);
+
+        await directSource.EmitError(error);
+        await directSource.Complete(Result.Success);
+
+        await Assert.That(errors).Count().IsEqualTo(1);
+    }
+
+    /// <summary>Tests GroupBy source failure propagates.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenGroupBySourceFails_ThenErrorPropagated()
+    {
+        var error = new InvalidOperationException("group-fail");
+
+        await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            await ObservableAsync.Throw<int>(error)
+                .GroupBy(x => x % 2)
+                .FirstAsync());
+    }
+
+    /// <summary>Tests Using operator disposes resource on source failure.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenUsingSourceThrows_ThenResourceDisposed()
+    {
+        var disposed = false;
+        var error = new InvalidOperationException("test");
+
+        await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            await ObservableAsync.Using(
+                    async _ =>
+                    {
+                        return DisposableAsync.Create(() =>
+                        {
+                            disposed = true;
+                            return default;
+                        });
+                    },
+                    _ => ObservableAsync.Throw<int>(error))
+                .FirstAsync());
+
+        await Assert.That(disposed).IsTrue();
+    }
+
     /// <summary>
     /// A raw <see cref="IObserverAsync{T}"/> implementation that throws a specified exception
     /// from <see cref="OnCompletedAsync"/>. Unlike <see cref="ObserverAsync{T}"/>, this

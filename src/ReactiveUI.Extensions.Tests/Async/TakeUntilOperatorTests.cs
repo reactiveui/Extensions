@@ -2016,4 +2016,92 @@ public class TakeUntilOperatorTests
 
         await sub.DisposeAsync();
     }
+
+    /// <summary>Tests TakeUntil with sync predicate stops when predicate is true.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenTakeUntilSyncPredicate_ThenStopsWhenTrue()
+    {
+        var result = await ObservableAsync.Range(1, 10)
+            .TakeUntil(x => x >= 3)
+            .ToListAsync();
+
+        await Assert.That(result).Contains(1);
+        await Assert.That(result).Contains(2);
+        await Assert.That(result).DoesNotContain(4);
+    }
+
+    /// <summary>Tests TakeUntil with async predicate stops when predicate is true.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenTakeUntilAsyncPredicate_ThenStopsWhenTrue()
+    {
+        var result = await ObservableAsync.Range(1, 10)
+            .TakeUntil((x, _) => new ValueTask<bool>(x >= 3))
+            .ToListAsync();
+
+        await Assert.That(result).Contains(1);
+        await Assert.That(result).Contains(2);
+        await Assert.That(result).DoesNotContain(4);
+    }
+
+    /// <summary>Tests TakeUntil with CancellationToken completes when token fires.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenTakeUntilCancellationToken_ThenCompletesOnCancel()
+    {
+        var cts = new CancellationTokenSource();
+        var source = new DirectSource<int>();
+        var items = new List<int>();
+        var completed = new TaskCompletionSource();
+
+        await using var sub = await source.TakeUntil(cts.Token).SubscribeAsync(
+            (x, _) =>
+            {
+                items.Add(x);
+                return default;
+            },
+            null,
+            _ =>
+            {
+                completed.TrySetResult();
+                return default;
+            });
+
+        await source.EmitNext(1);
+        cts.Cancel();
+        await completed.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        await Assert.That(items).Contains(1);
+    }
+
+    /// <summary>Tests TakeUntil with Task completes when task finishes.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenTakeUntilTaskCompletes_ThenSourceCompletes()
+    {
+        var tcs = new TaskCompletionSource();
+        var source = new DirectSource<int>();
+        var items = new List<int>();
+        var completed = new TaskCompletionSource();
+
+        await using var sub = await source.TakeUntil(tcs.Task).SubscribeAsync(
+            (x, _) =>
+            {
+                items.Add(x);
+                return default;
+            },
+            null,
+            _ =>
+            {
+                completed.TrySetResult();
+                return default;
+            });
+
+        await source.EmitNext(1);
+        tcs.SetResult();
+        await completed.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        await Assert.That(items).Contains(1);
+    }
 }

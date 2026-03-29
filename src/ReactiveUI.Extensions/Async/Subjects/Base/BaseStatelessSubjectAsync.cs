@@ -21,9 +21,9 @@ namespace ReactiveUI.Extensions.Async.Subjects;
 public abstract class BaseStatelessSubjectAsync<T> : ObservableAsync<T>, ISubjectAsync<T>
 {
     /// <summary>
-    /// The immutable list of currently subscribed observers.
+    /// The immutable array of currently subscribed observers.
     /// </summary>
-    private ImmutableList<IObserverAsync<T>> _observers = [];
+    private ImmutableArray<IObserverAsync<T>> _observers = [];
 
     /// <summary>
     /// Gets an observable sequence that represents the current and future values of the subject.
@@ -40,7 +40,7 @@ public abstract class BaseStatelessSubjectAsync<T> : ObservableAsync<T>, ISubjec
     /// <param name="cancellationToken">A cancellation token that can be used to cancel the notification operation.</param>
     /// <returns>A ValueTask that represents the asynchronous notification operation.</returns>
     public ValueTask OnNextAsync(T value, CancellationToken cancellationToken) =>
-        OnNextAsyncCore(Volatile.Read(ref _observers), value, cancellationToken);
+        OnNextAsyncCore(_observers, value, cancellationToken);
 
     /// <summary>
     /// Handles an error by resuming the asynchronous operation, allowing observers to continue receiving notifications
@@ -50,14 +50,14 @@ public abstract class BaseStatelessSubjectAsync<T> : ObservableAsync<T>, ISubjec
     /// <param name="cancellationToken">A cancellation token that can be used to cancel the resume operation.</param>
     /// <returns>A ValueTask that represents the asynchronous resume operation.</returns>
     public ValueTask OnErrorResumeAsync(Exception error, CancellationToken cancellationToken) =>
-        OnErrorResumeAsyncCore(Volatile.Read(ref _observers), error, cancellationToken);
+        OnErrorResumeAsyncCore(_observers, error, cancellationToken);
 
     /// <summary>
     /// Notifies all registered observers that the operation has completed and provides the final result asynchronously.
     /// </summary>
     /// <param name="result">The result to deliver to observers upon completion. Cannot be null.</param>
     /// <returns>A ValueTask that represents the asynchronous notification operation.</returns>
-    public ValueTask OnCompletedAsync(Result result) => OnCompletedAsyncCore(Volatile.Read(ref _observers), result);
+    public ValueTask OnCompletedAsync(Result result) => OnCompletedAsyncCore(_observers, result);
 
     /// <summary>
     /// Asynchronously releases resources used by the current instance.
@@ -67,7 +67,7 @@ public abstract class BaseStatelessSubjectAsync<T> : ObservableAsync<T>, ISubjec
     /// <returns>A ValueTask that represents the asynchronous dispose operation.</returns>
     public ValueTask DisposeAsync()
     {
-        Volatile.Write(ref _observers, ImmutableList<IObserverAsync<T>>.Empty);
+        ImmutableInterlocked.Update(ref _observers, static observers => observers.Clear());
         GC.SuppressFinalize(this);
         return default;
     }

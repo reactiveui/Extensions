@@ -81,17 +81,9 @@ public static partial class ObservableAsync
         protected override async ValueTask<IAsyncDisposable> SubscribeAsyncCore(IObserverAsync<T> observer, CancellationToken cancellationToken)
         {
             var subscription = new MergeSubscription<T>(observer);
-            try
-            {
-                await subscription.SubscribeAsync(sources, cancellationToken);
-            }
-            catch
-            {
-                await subscription.DisposeAsync();
-                throw;
-            }
-
-            return subscription;
+            return await SubscriptionHelper.SubscribeAndDisposeOnFailureAsync(
+                subscription,
+                () => subscription.SubscribeAsync(sources, cancellationToken));
         }
     }
 
@@ -105,17 +97,9 @@ public static partial class ObservableAsync
         protected override async ValueTask<IAsyncDisposable> SubscribeAsyncCore(IObserverAsync<T> observer, CancellationToken cancellationToken)
         {
             var subscription = new MergeSubscriptionWithMaxConcurrency<T>(observer, maxConcurrent);
-            try
-            {
-                await subscription.SubscribeAsync(sources, cancellationToken);
-            }
-            catch
-            {
-                await subscription.DisposeAsync();
-                throw;
-            }
-
-            return subscription;
+            return await SubscriptionHelper.SubscribeAndDisposeOnFailureAsync(
+                subscription,
+                () => subscription.SubscribeAsync(sources, cancellationToken));
         }
     }
 

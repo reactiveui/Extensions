@@ -27,10 +27,7 @@ public static class DisposableAsync
     /// <returns>An <see cref="IAsyncDisposable"/> instance that invokes the specified delegate when disposed asynchronously.</returns>
     public static IAsyncDisposable Create(Func<ValueTask> disposeAsync)
     {
-        if (disposeAsync == null)
-        {
-            throw new ArgumentNullException(nameof(disposeAsync), "Cannot create an IAsyncDisposable with a null dispose delegate.");
-        }
+        ArgumentExceptionHelper.ThrowIfNull(disposeAsync, nameof(disposeAsync));
 
         return new AnonymousAsyncDisposable(disposeAsync);
     }

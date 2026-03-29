@@ -26,7 +26,7 @@ public static partial class ObservableAsync
         /// <typeparam name="TKey">The type of the key returned by the key selector function. Must be non-nullable.</typeparam>
         /// <param name="keySelector">A function to extract the key for each element in the source sequence.</param>
         /// <returns>An asynchronous observable sequence of grouped observables, each containing elements that share a common key.</returns>
-        /// <exception cref="ArgumentNullException">Thrown if <paramref name="source"/> or <paramref name="keySelector"/> is null.</exception>
+        /// <exception cref="ArgumentNullException">Thrown if <paramref name="keySelector"/> is null.</exception>
         public IObservableAsync<GroupedAsyncObservable<TKey, TValue>> GroupBy<TKey>(Func<TValue, TKey> keySelector)
         where TKey : notnull
         {
@@ -50,7 +50,7 @@ public static partial class ObservableAsync
         /// within each group.</param>
         /// <returns>An asynchronous observable sequence containing grouped observables, each representing a collection of elements
         /// that share a common key.</returns>
-        /// <exception cref="ArgumentNullException">Thrown if <paramref name="source"/> or <paramref name="keySelector"/> is null.</exception>
+        /// <exception cref="ArgumentNullException">Thrown if <paramref name="keySelector"/> is null.</exception>
         public IObservableAsync<GroupedAsyncObservable<TKey, TValue>> GroupBy<TKey>(Func<TValue, TKey> keySelector, Func<TKey, ISubjectAsync<TValue>> groupSubjectSelector)
             where TKey : notnull
         {
@@ -99,14 +99,14 @@ public static partial class ObservableAsync
         /// <returns>An async disposable that tears down the subscription when disposed.</returns>
         protected override async ValueTask<IAsyncDisposable> SubscribeAsyncCore(IObserverAsync<GroupedAsyncObservable<TKey, TValue>> observer, CancellationToken cancellationToken)
         {
-            var subscrption = new Subscription(this, observer);
+            var subscription = new Subscription(this, observer);
             try
             {
-                return await subscrption.SubscribeAsync(cancellationToken);
+                return await subscription.SubscribeAsync(cancellationToken);
             }
             catch
             {
-                await subscrption.DisposeAsync();
+                await subscription.DisposeAsync();
                 throw;
             }
         }
