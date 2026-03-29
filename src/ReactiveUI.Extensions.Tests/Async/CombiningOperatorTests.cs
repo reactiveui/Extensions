@@ -452,7 +452,7 @@ public class CombiningOperatorTests
     [Test]
     public async Task WhenCombineLatestEmptySources_ThenCompletesImmediately()
     {
-        var sources = Array.Empty<IObservableAsync<int>>();
+        IObservableAsync<int>[] sources = [];
 
         Result? completionResult = null;
         await using var sub = await sources.CombineLatest()
@@ -983,8 +983,6 @@ public class CombiningOperatorTests
         // Just verify no exception was thrown - the disposal was clean
     }
 
-    // Merge – MergeObservableObservables exception during subscription
-
     /// <summary>
     /// Verifies that when the outer source throws synchronously during subscribe in the
     /// observable-of-observables Merge overload, the subscription is disposed and the
@@ -1038,8 +1036,6 @@ public class CombiningOperatorTests
         await Assert.ThrowsAsync<InvalidOperationException>(act);
     }
 
-    // Merge – inner subscription throws (SubscribeInnerAsync catch path)
-
     /// <summary>
     /// Verifies that when an inner observable throws during subscription in the
     /// observable-of-observables Merge, the error is propagated via completion.
@@ -1074,8 +1070,6 @@ public class CombiningOperatorTests
 
         await outer.DisposeAsync();
     }
-
-    // Merge – ForwardOnNext / ForwardOnErrorResume disposed guard
 
     /// <summary>
     /// Verifies that when the merge subscription is disposed while an inner source is still
@@ -1164,8 +1158,6 @@ public class CombiningOperatorTests
         await innerSubject.DisposeAsync();
         await outer.DisposeAsync();
     }
-
-    // MergeEnumerable – exception during enumeration in StartAsync
 
     /// <summary>
     /// Verifies that when the enumerable itself throws during iteration in MergeEnumerable,
@@ -1367,8 +1359,6 @@ public class CombiningOperatorTests
         await innerSubject.DisposeAsync();
     }
 
-    // Switch – SubscribeAsyncCore exception path
-
     /// <summary>
     /// Verifies that when the outer source throws synchronously during subscription in Switch,
     /// the subscription is disposed and the exception propagates.
@@ -1394,8 +1384,6 @@ public class CombiningOperatorTests
 
         await Assert.ThrowsAsync<InvalidOperationException>(act);
     }
-
-    // Switch – inner completes when outer already completed
 
     /// <summary>
     /// Verifies that when the outer source completes while an inner source is still active,
@@ -1445,8 +1433,6 @@ public class CombiningOperatorTests
         await outer.DisposeAsync();
     }
 
-    // Switch – error disposing previous inner subscription
-
     /// <summary>
     /// Verifies that when disposing the previous inner subscription throws during a switch,
     /// the error is propagated via completion.
@@ -1485,8 +1471,6 @@ public class CombiningOperatorTests
         await outer.DisposeAsync();
     }
 
-    // Switch – outer observer OnErrorResumeAsyncCore
-
     /// <summary>
     /// Verifies that error-resume events from the outer source in Switch are forwarded
     /// to the downstream observer.
@@ -1524,8 +1508,6 @@ public class CombiningOperatorTests
         await Assert.That(errors).Count().IsEqualTo(1);
         await Assert.That(errors[0].Message).IsEqualTo("outer warning");
     }
-
-    // Switch – inner error-resume forwarding
 
     /// <summary>
     /// Verifies that error-resume events from the inner source in Switch are forwarded
@@ -1571,8 +1553,6 @@ public class CombiningOperatorTests
         await outer.DisposeAsync();
     }
 
-    // Switch – outer completes with no active inner (immediate completion)
-
     /// <summary>
     /// Verifies that when the outer source in Switch completes successfully with no active
     /// inner subscription, the switch completes immediately with success.
@@ -1603,8 +1583,6 @@ public class CombiningOperatorTests
         await outer.DisposeAsync();
     }
 
-    // ConcatObservablesObservable – exception during subscription
-
     /// <summary>
     /// Verifies that when the outer source throws synchronously during subscription in
     /// ConcatObservablesObservable, the subscription is disposed and the exception propagates.
@@ -1630,8 +1608,6 @@ public class CombiningOperatorTests
 
         await Assert.ThrowsAsync<InvalidOperationException>(act);
     }
-
-    // ConcatObservablesObservable – inner error/completion paths
 
     /// <summary>
     /// Verifies that when the inner subscription throws during SubscribeToInnerLoop in
@@ -1704,8 +1680,6 @@ public class CombiningOperatorTests
 
         await outer.DisposeAsync();
     }
-
-    // ConcatObservablesObservable – outer/inner observer error-resume
 
     /// <summary>
     /// Verifies that error-resume events from the outer source in ConcatObservablesObservable
@@ -1836,8 +1810,6 @@ public class CombiningOperatorTests
         await innerSubject.DisposeAsync();
         await outer.DisposeAsync();
     }
-
-    // ConcatEnumerableObservable – exception during subscription
 
     /// <summary>
     /// Verifies that when the first inner observable in ConcatEnumerableObservable throws during
@@ -2762,7 +2734,7 @@ public class CombiningOperatorTests
     [Test]
     public async Task WhenConcatEnumerableEmpty_ThenReturnsEmpty()
     {
-        var sources = Array.Empty<IObservableAsync<int>>();
+        IObservableAsync<int>[] sources = [];
         var result = await sources.Concat().ToListAsync();
 
         await Assert.That(result).IsEmpty();
@@ -2842,7 +2814,7 @@ public class CombiningOperatorTests
     [Test]
     public async Task WhenMergeEmptyEnumerable_ThenReturnsEmpty()
     {
-        var sources = Array.Empty<IObservableAsync<int>>();
+        IObservableAsync<int>[] sources = [];
         var result = await sources.Merge().ToListAsync();
 
         await Assert.That(result).IsEmpty();
@@ -2998,7 +2970,7 @@ public class CombiningOperatorTests
     }
 
     /// <summary>
-    /// Verifies that Merge ForwardOnNext returns early when disposed (line 268).
+    /// Verifies that Merge ForwardOnNext returns early when disposed.
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
@@ -3032,7 +3004,7 @@ public class CombiningOperatorTests
     }
 
     /// <summary>
-    /// Verifies that MergeEnumerable forwards errors from a source that throws during subscribe (lines 495-497, 523-524).
+    /// Verifies that MergeEnumerable forwards errors from a source that throws during subscribe.
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
@@ -3072,7 +3044,7 @@ public class CombiningOperatorTests
     }
 
     /// <summary>
-    /// Verifies that MergeEnumerable OnNextAsync returns early when disposed (line 546).
+    /// Verifies that MergeEnumerable OnNextAsync returns early when disposed.
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
@@ -3107,7 +3079,7 @@ public class CombiningOperatorTests
     }
 
     /// <summary>
-    /// Verifies that MergeEnumerable OnErrorResumeAsync returns early when disposed (line 566).
+    /// Verifies that MergeEnumerable OnErrorResumeAsync returns early when disposed.
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
@@ -3139,7 +3111,7 @@ public class CombiningOperatorTests
     }
 
     /// <summary>
-    /// Verifies that MergeEnumerable CompleteAsync handles second error after disposal (line 604).
+    /// Verifies that MergeEnumerable CompleteAsync handles second error after disposal.
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
@@ -3161,7 +3133,7 @@ public class CombiningOperatorTests
         // First source fails - triggers CompleteAsync
         await subject1.OnCompletedAsync(Result.Failure(new InvalidOperationException("first")));
 
-        // Second source fails - already disposed, error goes to UnhandledExceptionHandler (line 604)
+        // Second source fails - already disposed, error goes to UnhandledExceptionHandler
         await subject2.OnCompletedAsync(Result.Failure(new InvalidOperationException("second")));
 
         await AsyncTestHelpers.WaitForConditionAsync(
@@ -3172,7 +3144,7 @@ public class CombiningOperatorTests
     }
 
     /// <summary>
-    /// Verifies that Prepend cancellation during prepended values returns early (line 53).
+    /// Verifies that Prepend cancellation during prepended values returns early.
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
@@ -3206,7 +3178,7 @@ public class CombiningOperatorTests
     }
 
     /// <summary>
-    /// Verifies that Prepend handles source subscription errors (lines 65-74).
+    /// Verifies that Prepend handles source subscription errors.
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
@@ -3242,7 +3214,7 @@ public class CombiningOperatorTests
     }
 
     /// <summary>
-    /// Verifies that Prepend handles OperationCanceledException during source subscription (line 62-64).
+    /// Verifies that Prepend handles OperationCanceledException during source subscription.
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
@@ -3291,7 +3263,7 @@ public class CombiningOperatorTests
 
     /// <summary>
     /// Tests that Switch completes with failure when the inner subscription throws during subscribe,
-    /// exercising the outer catch at lines 263-265 of SwitchObservable.
+    /// exercising the outer catch in SwitchObservable.
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
@@ -3308,7 +3280,7 @@ public class CombiningOperatorTests
 
     /// <summary>
     /// Tests Concat with an enumerable source that throws during first subscription,
-    /// exercising the catch/dispose path at lines 42/44-45 of ConcatEnumerableObservable.
+    /// exercising the catch/dispose path in ConcatEnumerableObservable.
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
@@ -3326,7 +3298,7 @@ public class CombiningOperatorTests
 
     /// <summary>
     /// Tests Concat idempotent dispose: when inner fails after already-disposed,
-    /// exercising line 169 of ConcatEnumerableObservable (UnhandledExceptionHandler path).
+    /// exercising the UnhandledExceptionHandler path in ConcatEnumerableObservable.
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
@@ -3362,7 +3334,7 @@ public class CombiningOperatorTests
 
     /// <summary>
     /// Tests Zip where the first source completes before the second with no queued items,
-    /// exercising the shouldComplete path at line 213 when queue1 is empty.
+    /// exercising the shouldComplete path when queue1 is empty.
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
@@ -3393,7 +3365,7 @@ public class CombiningOperatorTests
     }
 
     /// <summary>
-    /// Tests Zip where first source is empty, exercising the _done early return at line 148.
+    /// Tests Zip where first source is empty, exercising the _done early return.
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
@@ -3406,8 +3378,6 @@ public class CombiningOperatorTests
 
         await Assert.That(result).IsEmpty();
     }
-
-    // MergeSubscription (observable-of-observables) – disposed guard paths
 
     /// <summary>
     /// Verifies that ForwardOnNext in MergeSubscription returns early (pre-gate check)
@@ -3506,8 +3476,6 @@ public class CombiningOperatorTests
 
         await Assert.That(errors).IsEmpty();
     }
-
-    // MergeEnumerable – disposed guard paths using DirectSource
 
     /// <summary>
     /// Verifies that MergeEnumerable OnNextAsync returns early when the subscription
@@ -3632,8 +3600,6 @@ public class CombiningOperatorTests
         await Assert.That(unhandledException).IsNotNull();
     }
 
-    // MergeEnumerable – TaskCanceledException during inner subscribe
-
     /// <summary>
     /// Verifies that when an inner source throws TaskCanceledException during subscribe
     /// in MergeEnumerable StartAsync, the cancellation is handled gracefully.
@@ -3677,8 +3643,6 @@ public class CombiningOperatorTests
         await Assert.That(items).IsEmpty();
     }
 
-    // MergeEnumerable – outer catch in StartAsync (lines 523-524)
-
     /// <summary>
     /// Verifies that when the completion handler itself throws in MergeEnumerable StartAsync,
     /// the outer catch routes the exception to UnhandledExceptionHandler.
@@ -3693,7 +3657,7 @@ public class CombiningOperatorTests
         // Use a single Return source that completes synchronously during subscription.
         // The sentinel decrement triggers CompleteAsync(Result.Success), and we make the
         // observer's OnCompletedAsync throw, which escapes the inner try/finally and is
-        // caught by the outer try at lines 523-524.
+        // caught by the outer try in StartAsync.
         var sources = new IObservableAsync<int>[] { ObservableAsync.Return(1) };
 
         await using var sub = await sources.Merge()
@@ -3727,7 +3691,7 @@ public class CombiningOperatorTests
 
     /// <summary>
     /// Verifies that when ConcatObservablesObservable is completed then disposed again with an error,
-    /// the error is routed to UnhandledExceptionHandler (line 226).
+    /// the error is routed to UnhandledExceptionHandler.
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
@@ -3767,7 +3731,7 @@ public class CombiningOperatorTests
     }
 
     /// <summary>
-    /// Verifies that Zip OnNext returns early after one source has already completed and set _done (line 148).
+    /// Verifies that Zip OnNext returns early after one source has already completed and set _done.
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
@@ -3800,14 +3764,14 @@ public class CombiningOperatorTests
             () => completionResult.HasValue,
             TimeSpan.FromSeconds(5));
 
-        // Now emit on source2 – should be ignored because _done = true (line 209 early return)
+        // Now emit on source2 - should be ignored because _done = true
         await source2.OnNextAsync("after", CancellationToken.None);
 
         await Assert.That(items).IsEmpty();
     }
 
     /// <summary>
-    /// Verifies that Zip OnNext1 returns early after done (line 148).
+    /// Verifies that Zip OnNext1 returns early after done.
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
@@ -3840,14 +3804,14 @@ public class CombiningOperatorTests
             () => completionResult.HasValue,
             TimeSpan.FromSeconds(5));
 
-        // Now emit on source1 – should be ignored because _done = true (line 148 early return)
+        // Now emit on source1 - should be ignored because _done = true
         await source1.OnNextAsync(42, CancellationToken.None);
 
         await Assert.That(items).IsEmpty();
     }
 
     /// <summary>
-    /// Verifies that Zip OnCompleted1Async returns early when _done is already true (line 209).
+    /// Verifies that Zip OnCompleted1Async returns early when _done is already true.
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
@@ -3876,17 +3840,15 @@ public class CombiningOperatorTests
         // Complete source2 with failure → sets _done = true
         await src2.Complete(Result.Failure(new InvalidOperationException("done")));
 
-        // Now complete source1 → OnCompleted1Async checks _done → returns early (line 209)
+        // Now complete source1 - OnCompleted1Async checks _done and returns early
         await src1.Complete(Result.Success);
 
         await Assert.That(items).IsEmpty();
     }
 
-    // MulticastObservableAsync – connection null check in cleanup (line 60)
-
     /// <summary>
     /// Verifies that disposing the disconnect handle twice is safe because the second
-    /// call hits the null check (connection is null) at line 58-60 and returns early.
+    /// call hits the null check (connection is null) and returns early.
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
@@ -3902,16 +3864,13 @@ public class CombiningOperatorTests
         // First dispose clears the connection
         await disconnectHandle.DisposeAsync();
 
-        // Second dispose hits the null check at line 58-60, returning early
+        // Second dispose hits the null check, returning early
         await disconnectHandle.DisposeAsync();
     }
-
-    // ConcatEnumerableObservable – catch/dispose/throw on subscribe failure (lines 42, 44-45)
 
     /// <summary>
     /// Verifies that when the first observable in a ConcatEnumerable throws during
     /// subscribe, the subscription is disposed and the exception propagates.
-    /// Covers ConcatEnumerableObservable lines 42-45 (catch block in SubscribeAsyncCore).
     /// </summary>
     [Test]
     public async Task WhenConcatEnumerableSubscribeThrows_ThenDisposesAndRethrows()
@@ -3930,13 +3889,9 @@ public class CombiningOperatorTests
             async () => await sources.Concat().ToListAsync());
     }
 
-    // ConcatObservablesObservable – unhandled exception on already-disposed completion (line 226)
-
-    // MergeSubscription – post-gate disposed guard (line 223)
-
     /// <summary>
     /// Verifies that ForwardOnNext in MergeSubscription returns early at the post-gate
-    /// disposed check (line 223) when disposal occurs while waiting for the gate.
+    /// disposed check when disposal occurs while waiting for the gate.
     /// A slow observer holds the gate while a second emission waits; disposal happens
     /// before the second emission acquires the gate.
     /// </summary>
@@ -4013,7 +3968,7 @@ public class CombiningOperatorTests
 
     /// <summary>
     /// Verifies that ForwardOnErrorResume in MergeSubscription returns early at the
-    /// post-gate disposed check (line 243) when disposal occurs while waiting for the gate.
+    /// post-gate disposed check when disposal occurs while waiting for the gate.
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
@@ -4082,8 +4037,6 @@ public class CombiningOperatorTests
         // The error should not have been forwarded because the post-gate disposed check caught it
         await Assert.That(errors).IsEmpty();
     }
-
-    // MergeEnumerable – exception during inner SubscribeAsync (lines 499-503)
 
     /// <summary>
     /// Verifies that when an inner source throws a non-cancellation exception during
@@ -4162,8 +4115,6 @@ public class CombiningOperatorTests
         await Assert.That(completionResult.Value.Exception!.Message).Contains("second subscribe boom");
     }
 
-    // MergeEnumerable – SubscribeAsyncCore catch block (lines 414, 416-417)
-
     /// <summary>
     /// Verifies that when the enumerable throws during iteration in MergeEnumerable,
     /// the exception propagates through the StartAsync outer catch and is routed to
@@ -4194,13 +4145,9 @@ public class CombiningOperatorTests
         await Assert.That(unhandledException!.Message).Contains("enumerable boom");
     }
 
-    // MergeEnumerable – second completion routes to UnhandledExceptionHandler (line 604)
-
-    // MergeEnumerable – post-gate disposed guard paths using DirectSource
-
     /// <summary>
     /// Verifies that MergeEnumerable OnNextAsync returns early at the post-gate disposed
-    /// check (line 546) when disposal occurs while waiting for the serialization gate.
+    /// check when disposal occurs while waiting for the serialization gate.
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
@@ -4263,7 +4210,7 @@ public class CombiningOperatorTests
 
     /// <summary>
     /// Verifies that MergeEnumerable OnErrorResumeAsync returns early at the post-gate
-    /// disposed check (line 566) when disposal occurs while waiting for the serialization gate.
+    /// disposed check when disposal occurs while waiting for the serialization gate.
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
@@ -4322,6 +4269,784 @@ public class CombiningOperatorTests
         await errorTask;
 
         await Assert.That(errors).IsEmpty();
+    }
+
+    /// <summary>Tests Using creates resource, emits values, and disposes resource on completion.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenUsingHappyPath_ThenResourceIsDisposedAfterCompletion()
+    {
+        var trackingResource = new TrackingAsyncDisposable();
+
+        var result = await ObservableAsync.Using(
+            _ => new ValueTask<TrackingAsyncDisposable>(trackingResource),
+            static _ => ObservableAsync.Return(99)).ToListAsync();
+
+        await Assert.That(result).Count().IsEqualTo(1);
+        await Assert.That(result[0]).IsEqualTo(99);
+        await Assert.That(trackingResource.IsDisposed).IsTrue();
+    }
+
+    /// <summary>Tests Using disposes resource when observable factory throws.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenUsingObservableFactoryThrows_ThenResourceIsDisposed()
+    {
+        var trackingResource = new TrackingAsyncDisposable();
+
+        var observable = ObservableAsync.Using<int, TrackingAsyncDisposable>(
+            _ => new ValueTask<TrackingAsyncDisposable>(trackingResource),
+            static _ => throw new InvalidOperationException("factory boom"));
+
+        var errors = new List<Exception>();
+        await observable.CatchIgnore().ForEachAsync(static _ => { });
+
+        await Assert.That(trackingResource.IsDisposed).IsTrue();
+    }
+
+    /// <summary>Tests Using forwards cancellation token to resource factory.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenUsingWithCancellation_ThenTokenIsForwardedToResourceFactory()
+    {
+        var receivedToken = CancellationToken.None;
+
+        var observable = ObservableAsync.Using<int, TrackingAsyncDisposable>(
+            token =>
+            {
+                receivedToken = token;
+                return new ValueTask<TrackingAsyncDisposable>(new TrackingAsyncDisposable());
+            },
+            static _ => ObservableAsync.Return(1));
+
+        await observable.ToListAsync();
+
+        // The token should have been set (not the default None)
+        await Assert.That(receivedToken).IsNotEqualTo(CancellationToken.None);
+    }
+
+    /// <summary>Tests Using emits multiple values and still disposes resource.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenUsingWithMultipleValues_ThenAllEmittedAndResourceDisposed()
+    {
+        var trackingResource = new TrackingAsyncDisposable();
+
+        var result = await ObservableAsync.Using(
+            _ => new ValueTask<TrackingAsyncDisposable>(trackingResource),
+            static _ => ObservableAsync.Range(1, 3)).ToListAsync();
+
+        await Assert.That(result).Count().IsEqualTo(3);
+        await Assert.That(result[0]).IsEqualTo(1);
+        await Assert.That(result[1]).IsEqualTo(2);
+        await Assert.That(result[2]).IsEqualTo(3);
+        await Assert.That(trackingResource.IsDisposed).IsTrue();
+    }
+
+    /// <summary>
+    /// Verifies that the synchronous OnDispose overload forwards OnNext values to the downstream observer.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenOnDisposeSyncOnNext_ThenForwardsValues()
+    {
+        var items = new List<int>();
+        var disposed = false;
+
+        var source = ObservableAsync.Create<int>(async (observer, ct) =>
+        {
+            await observer.OnNextAsync(1, ct);
+            await observer.OnNextAsync(2, ct);
+            await observer.OnCompletedAsync(Result.Success);
+            return DisposableAsync.Empty;
+        });
+
+        await using var sub = await source
+            .OnDispose(() => disposed = true)
+            .SubscribeAsync(
+                (x, _) =>
+                {
+                    items.Add(x);
+                    return default;
+                },
+                null,
+                null);
+
+        await Assert.That(items).IsEquivalentTo([1, 2]);
+        await Assert.That(disposed).IsTrue();
+    }
+
+    /// <summary>
+    /// Verifies that the synchronous OnDispose overload forwards OnErrorResume to the downstream observer.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenOnDisposeSyncOnErrorResume_ThenForwardsError()
+    {
+        var errors = new List<Exception>();
+
+        var source = ObservableAsync.Create<int>(async (observer, ct) =>
+        {
+            await observer.OnErrorResumeAsync(new InvalidOperationException("resume"), ct);
+            await observer.OnCompletedAsync(Result.Success);
+            return DisposableAsync.Empty;
+        });
+
+        await using var sub = await source
+            .OnDispose(() => { })
+            .SubscribeAsync(
+                (x, _) => default,
+                (ex, _) =>
+                {
+                    errors.Add(ex);
+                    return default;
+                },
+                null);
+
+        await Assert.That(errors).Count().IsEqualTo(1);
+        await Assert.That(errors[0].Message).IsEqualTo("resume");
+    }
+
+    /// <summary>
+    /// Verifies that the synchronous OnDispose overload forwards OnCompleted with failure to the downstream observer.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenOnDisposeSyncOnCompletedFailure_ThenForwardsFailure()
+    {
+        Result? completionResult = null;
+
+        var source = ObservableAsync.Create<int>(async (observer, ct) =>
+        {
+            await observer.OnCompletedAsync(Result.Failure(new InvalidOperationException("fail")));
+            return DisposableAsync.Empty;
+        });
+
+        await using var sub = await source
+            .OnDispose(() => { })
+            .SubscribeAsync(
+                (x, _) => default,
+                null,
+                result =>
+                {
+                    completionResult = result;
+                    return default;
+                });
+
+        await Assert.That(completionResult).IsNotNull();
+        await Assert.That(completionResult!.Value.IsFailure).IsTrue();
+    }
+
+    /// <summary>
+    /// Verifies that the synchronous OnDispose action is invoked when the subscription is explicitly disposed.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenOnDisposeSyncExplicitDispose_ThenActionInvoked()
+    {
+        var disposed = false;
+        var subject = SubjectAsync.Create<int>();
+
+        var sub = await subject.Values
+            .OnDispose(() => disposed = true)
+            .SubscribeAsync(
+                (x, _) => default,
+                null,
+                null);
+
+        await Assert.That(disposed).IsFalse();
+
+        await sub.DisposeAsync();
+
+        await Assert.That(disposed).IsTrue();
+
+        await subject.DisposeAsync();
+    }
+
+    /// <summary>
+    /// Verifies that the asynchronous OnDispose overload forwards OnNext values to the downstream observer.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenOnDisposeAsyncOnNext_ThenForwardsValues()
+    {
+        var items = new List<int>();
+        var disposed = false;
+
+        var source = ObservableAsync.Create<int>(async (observer, ct) =>
+        {
+            await observer.OnNextAsync(1, ct);
+            await observer.OnNextAsync(2, ct);
+            await observer.OnCompletedAsync(Result.Success);
+            return DisposableAsync.Empty;
+        });
+
+        await using var sub = await source
+            .OnDispose(() =>
+            {
+                disposed = true;
+                return default;
+            })
+            .SubscribeAsync(
+                (x, _) =>
+                {
+                    items.Add(x);
+                    return default;
+                },
+                null,
+                null);
+
+        await Assert.That(items).IsEquivalentTo([1, 2]);
+        await Assert.That(disposed).IsTrue();
+    }
+
+    /// <summary>
+    /// Verifies that the asynchronous OnDispose overload forwards OnErrorResume to the downstream observer.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenOnDisposeAsyncOnErrorResume_ThenForwardsError()
+    {
+        var errors = new List<Exception>();
+
+        var source = ObservableAsync.Create<int>(async (observer, ct) =>
+        {
+            await observer.OnErrorResumeAsync(new InvalidOperationException("async resume"), ct);
+            await observer.OnCompletedAsync(Result.Success);
+            return DisposableAsync.Empty;
+        });
+
+        await using var sub = await source
+            .OnDispose(() => default(ValueTask))
+            .SubscribeAsync(
+                (x, _) => default,
+                (ex, _) =>
+                {
+                    errors.Add(ex);
+                    return default;
+                },
+                null);
+
+        await Assert.That(errors).Count().IsEqualTo(1);
+        await Assert.That(errors[0].Message).IsEqualTo("async resume");
+    }
+
+    /// <summary>
+    /// Verifies that the asynchronous OnDispose overload forwards OnCompleted with failure to the downstream observer.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenOnDisposeAsyncOnCompletedFailure_ThenForwardsFailure()
+    {
+        Result? completionResult = null;
+
+        var source = ObservableAsync.Create<int>(async (observer, ct) =>
+        {
+            await observer.OnCompletedAsync(Result.Failure(new InvalidOperationException("async fail")));
+            return DisposableAsync.Empty;
+        });
+
+        await using var sub = await source
+            .OnDispose(() => default(ValueTask))
+            .SubscribeAsync(
+                (x, _) => default,
+                null,
+                result =>
+                {
+                    completionResult = result;
+                    return default;
+                });
+
+        await Assert.That(completionResult).IsNotNull();
+        await Assert.That(completionResult!.Value.IsFailure).IsTrue();
+    }
+
+    /// <summary>
+    /// Verifies that the asynchronous OnDispose callback is invoked when the subscription is explicitly disposed.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenOnDisposeAsyncExplicitDispose_ThenCallbackInvoked()
+    {
+        var disposed = false;
+        var subject = SubjectAsync.Create<int>();
+
+        var sub = await subject.Values
+            .OnDispose(() =>
+            {
+                disposed = true;
+                return default;
+            })
+            .SubscribeAsync(
+                (x, _) => default,
+                null,
+                null);
+
+        await Assert.That(disposed).IsFalse();
+
+        await sub.DisposeAsync();
+
+        await Assert.That(disposed).IsTrue();
+
+        await subject.DisposeAsync();
+    }
+
+    /// <summary>
+    /// Verifies that Publish creates a connectable observable that emits all source items
+    /// to subscribers after ConnectAsync is called.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenPublish_ThenEmitsToSubscribersAfterConnect()
+    {
+        var source = ObservableAsync.Range(1, 3);
+        var connectable = source.Publish();
+
+        var items = new List<int>();
+        await using var sub = await connectable.SubscribeAsync(
+            (x, _) =>
+            {
+                items.Add(x);
+                return default;
+            },
+            null,
+            null);
+
+        await using var conn = await connectable.ConnectAsync(CancellationToken.None);
+
+        await Assert.That(items).IsEquivalentTo([1, 2, 3]);
+    }
+
+    /// <summary>
+    /// Verifies that Publish with SubjectCreationOptions creates a connectable observable
+    /// that emits all source items to subscribers.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenPublishWithOptions_ThenEmitsToSubscribers()
+    {
+        var source = ObservableAsync.Range(1, 3);
+        var connectable = source.Publish(SubjectCreationOptions.Default);
+
+        var items = new List<int>();
+        await using var sub = await connectable.SubscribeAsync(
+            (x, _) =>
+            {
+                items.Add(x);
+                return default;
+            },
+            null,
+            null);
+
+        await using var conn = await connectable.ConnectAsync(CancellationToken.None);
+
+        await Assert.That(items).IsEquivalentTo([1, 2, 3]);
+    }
+
+    /// <summary>
+    /// Verifies that StatelessPublish creates a connectable observable that emits all
+    /// source items without retaining state between subscriptions.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenStatelessPublish_ThenEmitsToSubscribers()
+    {
+        var source = ObservableAsync.Range(1, 3);
+        var connectable = source.StatelessPublish();
+
+        var items = new List<int>();
+        await using var sub = await connectable.SubscribeAsync(
+            (x, _) =>
+            {
+                items.Add(x);
+                return default;
+            },
+            null,
+            null);
+
+        await using var conn = await connectable.ConnectAsync(CancellationToken.None);
+
+        await Assert.That(items).IsEquivalentTo([1, 2, 3]);
+    }
+
+    /// <summary>
+    /// Verifies that Publish with an initial value creates a connectable observable that
+    /// replays the initial value to new subscribers and then emits source items.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenPublishWithInitialValue_ThenSubscriberReceivesInitialValueAndSourceItems()
+    {
+        var source = ObservableAsync.Range(1, 2);
+        var connectable = source.Publish(0);
+
+        var items = new List<int>();
+        await using var sub = await connectable.SubscribeAsync(
+            (x, _) =>
+            {
+                items.Add(x);
+                return default;
+            },
+            null,
+            null);
+
+        await using var conn = await connectable.ConnectAsync(CancellationToken.None);
+
+        await Assert.That(items).Contains(0);
+        await Assert.That(items).Contains(1);
+        await Assert.That(items).Contains(2);
+    }
+
+    /// <summary>
+    /// Verifies that Publish with an initial value and BehaviorSubjectCreationOptions creates
+    /// a connectable observable that replays the initial value and source items.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenPublishWithInitialValueAndOptions_ThenSubscriberReceivesInitialValueAndSourceItems()
+    {
+        var source = ObservableAsync.Range(1, 2);
+        var connectable = source.Publish(0, BehaviorSubjectCreationOptions.Default);
+
+        var items = new List<int>();
+        await using var sub = await connectable.SubscribeAsync(
+            (x, _) =>
+            {
+                items.Add(x);
+                return default;
+            },
+            null,
+            null);
+
+        await using var conn = await connectable.ConnectAsync(CancellationToken.None);
+
+        await Assert.That(items).Contains(0);
+        await Assert.That(items).Contains(1);
+        await Assert.That(items).Contains(2);
+    }
+
+    /// <summary>
+    /// Verifies that StatelessPublish with an initial value creates a connectable observable
+    /// that replays the initial value and does not retain state between connections.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenStatelessPublishWithInitialValue_ThenSubscriberReceivesInitialValueAndSourceItems()
+    {
+        var source = ObservableAsync.Range(1, 2);
+        var connectable = source.StatelessPublish(0);
+
+        var items = new List<int>();
+        await using var sub = await connectable.SubscribeAsync(
+            (x, _) =>
+            {
+                items.Add(x);
+                return default;
+            },
+            null,
+            null);
+
+        await using var conn = await connectable.ConnectAsync(CancellationToken.None);
+
+        await Assert.That(items).Contains(0);
+        await Assert.That(items).Contains(1);
+        await Assert.That(items).Contains(2);
+    }
+
+    /// <summary>
+    /// Verifies that ReplayLatestPublish creates a connectable observable that replays
+    /// the most recent item to new subscribers.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenReplayLatestPublish_ThenEmitsToSubscribers()
+    {
+        var source = ObservableAsync.Range(1, 3);
+        var connectable = source.ReplayLatestPublish();
+
+        var items = new List<int>();
+        await using var sub = await connectable.SubscribeAsync(
+            (x, _) =>
+            {
+                items.Add(x);
+                return default;
+            },
+            null,
+            null);
+
+        await using var conn = await connectable.ConnectAsync(CancellationToken.None);
+
+        await Assert.That(items).IsEquivalentTo([1, 2, 3]);
+    }
+
+    /// <summary>
+    /// Verifies that ReplayLatestPublish with ReplayLatestSubjectCreationOptions creates
+    /// a connectable observable that emits source items to subscribers.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenReplayLatestPublishWithOptions_ThenEmitsToSubscribers()
+    {
+        var source = ObservableAsync.Range(1, 3);
+        var connectable = source.ReplayLatestPublish(ReplayLatestSubjectCreationOptions.Default);
+
+        var items = new List<int>();
+        await using var sub = await connectable.SubscribeAsync(
+            (x, _) =>
+            {
+                items.Add(x);
+                return default;
+            },
+            null,
+            null);
+
+        await using var conn = await connectable.ConnectAsync(CancellationToken.None);
+
+        await Assert.That(items).IsEquivalentTo([1, 2, 3]);
+    }
+
+    /// <summary>
+    /// Verifies that StatelessReplayLatestPublish creates a connectable observable that
+    /// replays the latest item and does not retain state between connections.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenStatelessReplayLatestPublish_ThenEmitsToSubscribers()
+    {
+        var source = ObservableAsync.Range(1, 3);
+        var connectable = source.StatelessReplayLatestPublish();
+
+        var items = new List<int>();
+        await using var sub = await connectable.SubscribeAsync(
+            (x, _) =>
+            {
+                items.Add(x);
+                return default;
+            },
+            null,
+            null);
+
+        await using var conn = await connectable.ConnectAsync(CancellationToken.None);
+
+        await Assert.That(items).IsEquivalentTo([1, 2, 3]);
+    }
+
+    /// <summary>
+    /// Verifies that Merge ForwardOnNext returns early at the pre-gate disposed check.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenMergeObservableDisposed_ThenForwardOnNextReturnsEarly()
+    {
+        var outer = SubjectAsync.Create<IObservableAsync<int>>();
+        var inner = new DirectSource<int>();
+        var items = new List<int>();
+
+        var sub = await outer.Values.Merge().SubscribeAsync(
+            (x, _) =>
+            {
+                items.Add(x);
+                return default;
+            },
+            null,
+            null);
+
+        await outer.OnNextAsync(inner, CancellationToken.None);
+        await inner.EmitNext(1);
+        await sub.DisposeAsync();
+        await inner.EmitNext(99);
+
+        await Assert.That(items).Count().IsEqualTo(1);
+    }
+
+    /// <summary>
+    /// Verifies that Merge ForwardOnErrorResume returns early when disposed.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenMergeObservableDisposed_ThenForwardOnErrorResumeReturnsEarly()
+    {
+        var outer = SubjectAsync.Create<IObservableAsync<int>>();
+        var inner = new DirectSource<int>();
+        var errors = new List<Exception>();
+
+        var sub = await outer.Values.Merge().SubscribeAsync(
+            (_, _) => default,
+            (ex, _) =>
+            {
+                errors.Add(ex);
+                return default;
+            },
+            null);
+
+        await outer.OnNextAsync(inner, CancellationToken.None);
+        await sub.DisposeAsync();
+        await inner.EmitError(new InvalidOperationException("post-dispose"));
+
+        await Assert.That(errors).IsEmpty();
+    }
+
+    /// <summary>
+    /// Verifies that Merge ForwardOnNext post-gate disposed guard returns early
+    /// when disposal happens while waiting for the gate.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenMergeObservableDisposedWhileGateHeld_ThenForwardOnNextReturnsPostGate()
+    {
+        var outer = SubjectAsync.Create<IObservableAsync<int>>();
+        var inner = new DirectSource<int>();
+        var items = new List<int>();
+        var completionBlocked = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var allowCompletion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        var sub = await outer.Values.Merge().SubscribeAsync(
+            (x, _) =>
+            {
+                items.Add(x);
+                return default;
+            },
+            null,
+            async _ =>
+            {
+                completionBlocked.TrySetResult();
+                await allowCompletion.Task;
+            });
+
+        await outer.OnNextAsync(inner, CancellationToken.None);
+        await inner.EmitNext(1);
+
+        var failTask = Task.Run(() => outer.OnCompletedAsync(Result.Failure(new InvalidOperationException("fail"))));
+        await completionBlocked.Task;
+
+        await inner.EmitNext(99);
+
+        await Assert.That(items).Count().IsEqualTo(1);
+
+        allowCompletion.TrySetResult();
+        await failTask;
+    }
+
+    /// <summary>
+    /// Verifies that MergeEnumerable catch/dispose/throw path fires
+    /// when a source throws during subscribe.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenMergeEnumerableSourceThrowsDuringSubscribe_ThenDisposesAndRethrows()
+    {
+        var throwing = ObservableAsync.Create<int>((_, _) =>
+            throw new InvalidOperationException("subscribe boom"));
+
+        var sources = new IObservableAsync<int>[] { throwing };
+
+        await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            await sources.Merge().SubscribeAsync((_, _) => default, null, null));
+    }
+
+    /// <summary>
+    /// Verifies that MergeEnumerable outer catch routes exception
+    /// to UnhandledExceptionHandler when StartAsync itself throws.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenMergeEnumerableStartAsyncThrows_ThenRoutesToUnhandled()
+    {
+        Exception? unhandled = null;
+        UnhandledExceptionHandler.Register(ex => unhandled = ex);
+
+        var sources = new ThrowingEnumerable<int>();
+
+        await using var sub = await sources.Merge().SubscribeAsync(
+            (_, _) => default,
+            null,
+            null);
+
+        await AsyncTestHelpers.WaitForConditionAsync(
+            () => unhandled is not null,
+            TimeSpan.FromSeconds(5));
+
+        await Assert.That(unhandled).IsNotNull();
+    }
+
+    /// <summary>
+    /// Verifies MergeEnumerable OnNextAsync post-gate disposed guard.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenMergeEnumerableDisposed_ThenOnNextReturnsEarly()
+    {
+        var src1 = new DirectSource<int>();
+        var src2 = new DirectSource<int>();
+        var sources = new IObservableAsync<int>[] { src1, src2 };
+        var items = new List<int>();
+
+        var sub = await sources.Merge().SubscribeAsync(
+            (x, _) =>
+            {
+                items.Add(x);
+                return default;
+            },
+            null,
+            null);
+
+        await src1.EmitNext(1);
+        await sub.DisposeAsync();
+        await src1.EmitNext(99);
+
+        await Assert.That(items).Count().IsEqualTo(1);
+    }
+
+    /// <summary>
+    /// Verifies MergeEnumerable routes exception to UnhandledExceptionHandler
+    /// when already disposed and completion has an exception.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenMergeEnumerableAlreadyDisposedWithFailure_ThenRoutesToUnhandled()
+    {
+        Exception? unhandled = null;
+        UnhandledExceptionHandler.Register(ex => unhandled = ex);
+
+        var src1 = new DirectSource<int>();
+        var sources = new IObservableAsync<int>[] { src1 };
+
+        var sub = await sources.Merge().SubscribeAsync(
+            (_, _) => default,
+            null,
+            null);
+
+        await sub.DisposeAsync();
+        await src1.Complete(Result.Failure(new InvalidOperationException("post-dispose error")));
+
+        await AsyncTestHelpers.WaitForConditionAsync(
+            () => unhandled is not null,
+            TimeSpan.FromSeconds(5));
+
+        await Assert.That(unhandled).IsNotNull();
+    }
+
+    /// <summary>
+    /// A trackable async disposable resource for verifying disposal in Using tests.
+    /// </summary>
+    private sealed class TrackingAsyncDisposable : IAsyncDisposable
+    {
+        /// <summary>
+        /// Gets a value indicating whether this resource has been disposed.
+        /// </summary>
+        public bool IsDisposed { get; private set; }
+
+        /// <summary>
+        /// Gets or sets an arbitrary tag for tracking usage.
+        /// </summary>
+        public string? Tag { get; set; }
+
+        /// <inheritdoc/>
+        public ValueTask DisposeAsync()
+        {
+            IsDisposed = true;
+            return ValueTask.CompletedTask;
+        }
     }
 
     /// <summary>

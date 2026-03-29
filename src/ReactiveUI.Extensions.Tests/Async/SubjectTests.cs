@@ -523,6 +523,194 @@ public class SubjectTests
         await Assert.That(items[0]).IsEqualTo(77);
     }
 
+    /// <summary>Tests that OnNextAsync on a serial stateless replay-last subject replays the value to a late subscriber.</summary>
+    [Test]
+    public async Task WhenStatelessReplayLastOnNext_ThenLateSubscriberReceivesReplayedValue()
+    {
+        var options = new ReplayLatestSubjectCreationOptions
+        {
+            PublishingOption = PublishingOption.Serial,
+            IsStateless = true
+        };
+        var subject = SubjectAsync.CreateReplayLatest<int>(options);
+
+        await subject.OnNextAsync(42, CancellationToken.None);
+
+        var items = new List<int>();
+        await using var sub = await subject.Values.SubscribeAsync(
+            (x, _) =>
+            {
+                items.Add(x);
+                return default;
+            },
+            null,
+            null);
+
+        await subject.OnNextAsync(99, CancellationToken.None);
+
+        await Assert.That(items).IsEquivalentTo(new[] { 42, 99 });
+    }
+
+    /// <summary>Tests that OnErrorResumeAsync on a serial stateless replay-last subject delivers the error to observers.</summary>
+    [Test]
+    public async Task WhenStatelessReplayLastOnErrorResume_ThenObserverReceivesError()
+    {
+        var options = new ReplayLatestSubjectCreationOptions
+        {
+            PublishingOption = PublishingOption.Serial,
+            IsStateless = true
+        };
+        var subject = SubjectAsync.CreateReplayLatest<int>(options);
+        var errorTcs = new TaskCompletionSource<Exception>();
+
+        await using var sub = await subject.Values.SubscribeAsync(
+            static (_, _) => default,
+            (ex, _) =>
+            {
+                errorTcs.TrySetResult(ex);
+                return default;
+            },
+            null);
+
+        var expected = new InvalidOperationException("stateless-error");
+        await subject.OnErrorResumeAsync(expected, CancellationToken.None);
+
+        var received = await errorTcs.Task;
+        await Assert.That(received).IsEqualTo(expected);
+    }
+
+    /// <summary>Tests that OnErrorResumeAsync on a concurrent stateless replay-last subject delivers the error to observers.</summary>
+    [Test]
+    public async Task WhenConcurrentStatelessReplayLastOnErrorResume_ThenObserverReceivesError()
+    {
+        var options = new ReplayLatestSubjectCreationOptions
+        {
+            PublishingOption = PublishingOption.Concurrent,
+            IsStateless = true
+        };
+        var subject = SubjectAsync.CreateReplayLatest<int>(options);
+        var errorTcs = new TaskCompletionSource<Exception>();
+
+        await using var sub = await subject.Values.SubscribeAsync(
+            static (_, _) => default,
+            (ex, _) =>
+            {
+                errorTcs.TrySetResult(ex);
+                return default;
+            },
+            null);
+
+        var expected = new InvalidOperationException("concurrent-stateless-error");
+        await subject.OnErrorResumeAsync(expected, CancellationToken.None);
+
+        var received = await errorTcs.Task;
+        await Assert.That(received).IsEqualTo(expected);
+    }
+
+    /// <summary>Tests that OnCompletedAsync on a serial stateless replay-last subject delivers completion and resets state.</summary>
+    [Test]
+    public async Task WhenStatelessReplayLastOnCompleted_ThenObserverReceivesCompletionAndStateResets()
+    {
+        var options = new ReplayLatestSubjectCreationOptions
+        {
+            PublishingOption = PublishingOption.Serial,
+            IsStateless = true
+        };
+        var subject = SubjectAsync.CreateReplayLatest<int>(options);
+        var resultTcs = new TaskCompletionSource<Result>();
+
+        await using var sub = await subject.Values.SubscribeAsync(
+            static (_, _) => default,
+            null,
+            result =>
+            {
+                resultTcs.TrySetResult(result);
+                return default;
+            });
+
+        await subject.OnNextAsync(10, CancellationToken.None);
+        await subject.OnCompletedAsync(Result.Success);
+
+        var received = await resultTcs.Task;
+        await Assert.That(received.IsSuccess).IsTrue();
+
+        // After completion, a new subscriber should NOT receive a replayed value since state was reset.
+        var lateItems = new List<int>();
+        await using var lateSub = await subject.Values.SubscribeAsync(
+            (x, _) =>
+            {
+                lateItems.Add(x);
+                return default;
+            },
+            null,
+            null);
+
+        await Assert.That(lateItems).Count().IsEqualTo(0);
+    }
+
+    /// <summary>Tests that OnCompletedAsync on a concurrent stateless replay-last subject delivers completion to observers.</summary>
+    [Test]
+    public async Task WhenConcurrentStatelessReplayLastOnCompleted_ThenObserverReceivesCompletion()
+    {
+        var options = new ReplayLatestSubjectCreationOptions
+        {
+            PublishingOption = PublishingOption.Concurrent,
+            IsStateless = true
+        };
+        var subject = SubjectAsync.CreateReplayLatest<int>(options);
+        var resultTcs = new TaskCompletionSource<Result>();
+
+        await using var sub = await subject.Values.SubscribeAsync(
+            static (_, _) => default,
+            null,
+            result =>
+            {
+                resultTcs.TrySetResult(result);
+                return default;
+            });
+
+        await subject.OnCompletedAsync(Result.Success);
+
+        var received = await resultTcs.Task;
+        await Assert.That(received.IsSuccess).IsTrue();
+    }
+
+    /// <summary>Tests that DisposeAsync on a serial stateless replay-last subject completes without error.</summary>
+    [Test]
+    public async Task WhenStatelessReplayLastDispose_ThenCompletesSuccessfully()
+    {
+        var options = new ReplayLatestSubjectCreationOptions
+        {
+            PublishingOption = PublishingOption.Serial,
+            IsStateless = true
+        };
+        var subject = SubjectAsync.CreateReplayLatest<int>(options);
+
+        await subject.OnNextAsync(1, CancellationToken.None);
+        await subject.DisposeAsync();
+
+        // Verify dispose completed without throwing.
+        await Assert.That(true).IsTrue();
+    }
+
+    /// <summary>Tests that DisposeAsync on a concurrent stateless replay-last subject completes without error.</summary>
+    [Test]
+    public async Task WhenConcurrentStatelessReplayLastDispose_ThenCompletesSuccessfully()
+    {
+        var options = new ReplayLatestSubjectCreationOptions
+        {
+            PublishingOption = PublishingOption.Concurrent,
+            IsStateless = true
+        };
+        var subject = SubjectAsync.CreateReplayLatest<int>(options);
+
+        await subject.OnNextAsync(1, CancellationToken.None);
+        await subject.DisposeAsync();
+
+        // Verify dispose completed without throwing.
+        await Assert.That(true).IsTrue();
+    }
+
     /// <summary>Tests concurrent stateless behavior emits start value.</summary>
     [Test]
     public async Task WhenConcurrentStatelessBehavior_ThenEmitsStartValue()
@@ -552,5 +740,357 @@ public class SubjectTests
 
         await Assert.That(items).Count().IsGreaterThanOrEqualTo(1);
         await Assert.That(items[0]).IsEqualTo(55);
+    }
+
+    /// <summary>Tests that OnErrorResumeAsync is ignored after the subject has already completed.</summary>
+    [Test]
+    public async Task WhenOnErrorResumeAsyncCalledAfterCompletion_ThenIsIgnored()
+    {
+        var subject = SubjectAsync.Create<int>();
+        var errors = new List<Exception>();
+        var completionTcs = new TaskCompletionSource();
+
+        await using var sub = await subject.Values.SubscribeAsync(
+            static (_, _) => default,
+            (ex, _) =>
+            {
+                errors.Add(ex);
+                return default;
+            },
+            _ =>
+            {
+                completionTcs.TrySetResult();
+                return default;
+            });
+
+        await subject.OnCompletedAsync(Result.Success);
+        await completionTcs.Task;
+
+        await subject.OnErrorResumeAsync(new InvalidOperationException("should be ignored"), CancellationToken.None);
+
+        await Assert.That(errors).IsEmpty();
+    }
+
+    /// <summary>Tests that OnCompletedAsync is ignored on the second call after the subject has already completed.</summary>
+    [Test]
+    public async Task WhenOnCompletedAsyncCalledTwice_ThenSecondCallIsIgnored()
+    {
+        var subject = SubjectAsync.Create<int>();
+        var completionCount = 0;
+        var completionTcs = new TaskCompletionSource();
+
+        await using var sub = await subject.Values.SubscribeAsync(
+            static (_, _) => default,
+            null,
+            _ =>
+            {
+                Interlocked.Increment(ref completionCount);
+                completionTcs.TrySetResult();
+                return default;
+            });
+
+        await subject.OnCompletedAsync(Result.Success);
+        await completionTcs.Task;
+
+        await subject.OnCompletedAsync(Result.Failure(new InvalidOperationException("second")));
+
+        await Assert.That(completionCount).IsEqualTo(1);
+    }
+
+    /// <summary>Tests that subscribing to an already-completed subject immediately delivers the completion result.</summary>
+    [Test]
+    public async Task WhenSubscribingToAlreadyCompletedSubject_ThenObserverReceivesCompletionImmediately()
+    {
+        var subject = SubjectAsync.Create<int>();
+        var firstCompletionTcs = new TaskCompletionSource();
+
+        await using var firstSub = await subject.Values.SubscribeAsync(
+            static (_, _) => default,
+            null,
+            _ =>
+            {
+                firstCompletionTcs.TrySetResult();
+                return default;
+            });
+
+        await subject.OnCompletedAsync(Result.Success);
+        await firstCompletionTcs.Task;
+
+        Result? lateResult = null;
+        var lateTcs = new TaskCompletionSource();
+
+        await using var lateSub = await subject.Values.SubscribeAsync(
+            static (_, _) => default,
+            null,
+            result =>
+            {
+                lateResult = result;
+                lateTcs.TrySetResult();
+                return default;
+            });
+
+        await lateTcs.Task;
+
+        await Assert.That(lateResult).IsNotNull();
+        await Assert.That(lateResult!.Value.IsSuccess).IsTrue();
+    }
+
+    /// <summary>Tests that OnNextAsync is ignored after the subject has already completed.</summary>
+    [Test]
+    public async Task WhenOnNextAsyncCalledAfterCompletion_ThenIsIgnored()
+    {
+        var subject = SubjectAsync.Create<int>();
+        var items = new List<int>();
+        var completionTcs = new TaskCompletionSource();
+
+        await using var sub = await subject.Values.SubscribeAsync(
+            (x, _) =>
+            {
+                items.Add(x);
+                return default;
+            },
+            null,
+            _ =>
+            {
+                completionTcs.TrySetResult();
+                return default;
+            });
+
+        await subject.OnNextAsync(1, CancellationToken.None);
+        await subject.OnCompletedAsync(Result.Success);
+        await completionTcs.Task;
+
+        await subject.OnNextAsync(2, CancellationToken.None);
+
+        await Assert.That(items).IsEquivalentTo(new[] { 1 });
+    }
+
+    /// <summary>Tests that OnErrorResumeAsync forwards the error to observers when the subject has not completed.</summary>
+    [Test]
+    public async Task WhenOnErrorResumeAsyncCalledBeforeCompletion_ThenErrorIsForwarded()
+    {
+        var subject = SubjectAsync.Create<int>();
+        var errorTcs = new TaskCompletionSource<Exception>();
+
+        await using var sub = await subject.Values.SubscribeAsync(
+            static (_, _) => default,
+            (ex, _) =>
+            {
+                errorTcs.TrySetResult(ex);
+                return default;
+            },
+            null);
+
+        var expected = new InvalidOperationException("forwarded");
+        await subject.OnErrorResumeAsync(expected, CancellationToken.None);
+
+        var received = await errorTcs.Task;
+
+        await Assert.That(received).IsEqualTo(expected);
+    }
+
+    /// <summary>Tests that OnCompletedAsync forwards the result to observers and clears the observer list.</summary>
+    [Test]
+    public async Task WhenOnCompletedAsyncCalled_ThenResultIsForwardedToObservers()
+    {
+        var subject = SubjectAsync.Create<int>();
+        var resultTcs = new TaskCompletionSource<Result>();
+
+        await using var sub = await subject.Values.SubscribeAsync(
+            static (_, _) => default,
+            null,
+            result =>
+            {
+                resultTcs.TrySetResult(result);
+                return default;
+            });
+
+        var failure = Result.Failure(new InvalidOperationException("done"));
+        await subject.OnCompletedAsync(failure);
+
+        var received = await resultTcs.Task;
+
+        await Assert.That(received.IsFailure).IsTrue();
+    }
+
+    /// <summary>Tests that OnNextAsync on a replay-latest subject is ignored after the subject has completed.</summary>
+    [Test]
+    public async Task WhenReplayLatestOnNextAfterCompleted_ThenValueIsIgnored()
+    {
+        var subject = SubjectAsync.CreateReplayLatest<int>();
+        var items = new List<int>();
+        var completionTcs = new TaskCompletionSource();
+
+        await using var sub = await subject.Values.SubscribeAsync(
+            (x, _) =>
+            {
+                items.Add(x);
+                return default;
+            },
+            null,
+            _ =>
+            {
+                completionTcs.TrySetResult();
+                return default;
+            });
+
+        await subject.OnNextAsync(1, CancellationToken.None);
+        await subject.OnCompletedAsync(Result.Success);
+        await completionTcs.Task;
+
+        await subject.OnNextAsync(2, CancellationToken.None);
+
+        await Assert.That(items).IsEquivalentTo(new[] { 1 });
+    }
+
+    /// <summary>Tests that OnErrorResumeAsync on a replay-latest subject delivers the error to observers.</summary>
+    [Test]
+    public async Task WhenReplayLatestOnErrorResume_ThenObserverReceivesError()
+    {
+        var subject = SubjectAsync.CreateReplayLatest<int>();
+        var errorTcs = new TaskCompletionSource<Exception>();
+
+        await using var sub = await subject.Values.SubscribeAsync(
+            static (_, _) => default,
+            (ex, _) =>
+            {
+                errorTcs.TrySetResult(ex);
+                return default;
+            },
+            null);
+
+        var expected = new InvalidOperationException("replay-error");
+        await subject.OnErrorResumeAsync(expected, CancellationToken.None);
+
+        var received = await errorTcs.Task;
+        await Assert.That(received).IsEqualTo(expected);
+    }
+
+    /// <summary>Tests that OnErrorResumeAsync on a replay-latest subject is ignored after completion.</summary>
+    [Test]
+    public async Task WhenReplayLatestOnErrorResumeAfterCompleted_ThenErrorIsIgnored()
+    {
+        var subject = SubjectAsync.CreateReplayLatest<int>();
+        var errors = new List<Exception>();
+        var completionTcs = new TaskCompletionSource();
+
+        await using var sub = await subject.Values.SubscribeAsync(
+            static (_, _) => default,
+            (ex, _) =>
+            {
+                errors.Add(ex);
+                return default;
+            },
+            _ =>
+            {
+                completionTcs.TrySetResult();
+                return default;
+            });
+
+        await subject.OnCompletedAsync(Result.Success);
+        await completionTcs.Task;
+
+        await subject.OnErrorResumeAsync(new InvalidOperationException("ignored"), CancellationToken.None);
+
+        await Assert.That(errors).IsEmpty();
+    }
+
+    /// <summary>Tests that OnCompletedAsync on a replay-latest subject delivers completion to observers.</summary>
+    [Test]
+    public async Task WhenReplayLatestOnCompleted_ThenObserverReceivesCompletion()
+    {
+        var subject = SubjectAsync.CreateReplayLatest<int>();
+        var completionTcs = new TaskCompletionSource<Result>();
+
+        await using var sub = await subject.Values.SubscribeAsync(
+            static (_, _) => default,
+            null,
+            result =>
+            {
+                completionTcs.TrySetResult(result);
+                return default;
+            });
+
+        await subject.OnCompletedAsync(Result.Success);
+
+        var completionResult = await completionTcs.Task;
+        await Assert.That(completionResult.IsSuccess).IsTrue();
+    }
+
+    /// <summary>Tests that calling OnCompletedAsync twice on a replay-latest subject ignores the second call.</summary>
+    [Test]
+    public async Task WhenReplayLatestOnCompletedCalledTwice_ThenSecondCallIsIgnored()
+    {
+        var subject = SubjectAsync.CreateReplayLatest<int>();
+        var completionCount = 0;
+        var completionTcs = new TaskCompletionSource();
+
+        await using var sub = await subject.Values.SubscribeAsync(
+            static (_, _) => default,
+            null,
+            _ =>
+            {
+                Interlocked.Increment(ref completionCount);
+                completionTcs.TrySetResult();
+                return default;
+            });
+
+        await subject.OnCompletedAsync(Result.Success);
+        await completionTcs.Task;
+
+        await subject.OnCompletedAsync(Result.Failure(new InvalidOperationException("second")));
+
+        await Assert.That(completionCount).IsEqualTo(1);
+    }
+
+    /// <summary>Tests that DisposeAsync on a replay-latest subject completes without error.</summary>
+    [Test]
+    public async Task WhenReplayLatestDisposeAsync_ThenCompletesSuccessfully()
+    {
+        var subject = SubjectAsync.CreateReplayLatest<int>();
+        await subject.OnNextAsync(42, CancellationToken.None);
+
+        await subject.DisposeAsync();
+
+        await Assert.That(true).IsTrue();
+    }
+
+    /// <summary>Tests that subscribing to an already-completed replay-latest subject immediately delivers completion.</summary>
+    [Test]
+    public async Task WhenSubscribeToCompletedReplayLatest_ThenObserverReceivesImmediateCompletion()
+    {
+        var subject = SubjectAsync.CreateReplayLatest<int>();
+        var firstCompletionTcs = new TaskCompletionSource();
+
+        await using var firstSub = await subject.Values.SubscribeAsync(
+            static (_, _) => default,
+            null,
+            _ =>
+            {
+                firstCompletionTcs.TrySetResult();
+                return default;
+            });
+
+        await subject.OnNextAsync(99, CancellationToken.None);
+        await subject.OnCompletedAsync(Result.Success);
+        await firstCompletionTcs.Task;
+
+        Result? lateResult = null;
+        var lateTcs = new TaskCompletionSource();
+
+        await using var lateSub = await subject.Values.SubscribeAsync(
+            static (_, _) => default,
+            null,
+            result =>
+            {
+                lateResult = result;
+                lateTcs.TrySetResult();
+                return default;
+            });
+
+        await lateTcs.Task;
+
+        await Assert.That(lateResult).IsNotNull();
+        await Assert.That(lateResult!.Value.IsSuccess).IsTrue();
     }
 }

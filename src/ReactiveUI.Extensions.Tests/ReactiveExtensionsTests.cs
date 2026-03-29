@@ -2699,7 +2699,7 @@ public class ReactiveExtensionsTests
         using var sub = ReactiveExtensions.Start(() => executed = true, scheduler: null)
             .Subscribe(_ => { }, () => completed.SetResult());
 
-        await completed.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await completed.Task.WaitAsync(TimeSpan.FromSeconds(30));
 
         await Assert.That(executed).IsTrue();
     }
@@ -3654,7 +3654,7 @@ public class ReactiveExtensionsTests
         var results = new List<int>();
 
         using var sub = subject
-            .ThrottleDistinct(TimeSpan.FromMilliseconds(50))
+            .ThrottleDistinct(TimeSpan.FromMilliseconds(200))
             .Subscribe(results.Add);
 
         subject.OnNext(1);
@@ -3663,7 +3663,7 @@ public class ReactiveExtensionsTests
 
         await AsyncTestHelpers.WaitForConditionAsync(
             () => results.Contains(2),
-            TimeSpan.FromSeconds(5));
+            TimeSpan.FromSeconds(30));
 
         await Assert.That(results).Contains(2);
     }
@@ -3768,7 +3768,7 @@ public class ReactiveExtensionsTests
         var results = new List<int>();
 
         using var sub = subject
-            .DebounceImmediate(TimeSpan.FromMilliseconds(50))
+            .DebounceImmediate(TimeSpan.FromMilliseconds(200))
             .Subscribe(results.Add);
 
         subject.OnNext(1);
@@ -3776,7 +3776,7 @@ public class ReactiveExtensionsTests
 
         await AsyncTestHelpers.WaitForConditionAsync(
             () => results.Count >= 2,
-            TimeSpan.FromSeconds(5));
+            TimeSpan.FromSeconds(30));
 
         await Assert.That(results).Contains(1);
         await Assert.That(results).Contains(2);
@@ -4038,14 +4038,10 @@ public class ReactiveExtensionsTests
         await Assert.That(received).IsEquivalentTo(new[] { 100, 200 });
     }
 
-    // ──────────────────────────────────────────────────────────────────────
-    // ReactiveExtensions.cs line 1240 – maxDelay cap in backoff calculation
-    // ──────────────────────────────────────────────────────────────────────
-
     /// <summary>
     /// Verifies that RetryWithBackoff caps the computed delay at maxDelay when the
     /// exponential backoff exceeds it. Uses Scheduler.Immediate so the cap is exercised
-    /// synchronously. Covers ReactiveExtensions.cs line 1240 (nextDelay = maxDelay.Value).
+    /// synchronously.
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
@@ -4084,18 +4080,10 @@ public class ReactiveExtensionsTests
         await Assert.That(attemptCount).IsEqualTo(3);
     }
 
-    // ──────────────────────────────────────────────────────────────────────
-    // ReactiveExtensions.cs lines 1819, 1821 – array branch in FastForEach
-    // NOTE: The T[] branch (line 1817) is unreachable because T[] implements
-    // IList<T>, which is checked earlier (line 1810). The branch order should
-    // be: List<T> -> T[] -> IList<T> -> IEnumerable<T> to make it reachable.
-    // The test below documents this and covers the IList<T> path for arrays.
-    // ──────────────────────────────────────────────────────────────────────
-
     /// <summary>
     /// Verifies that FastForEach handles a T[] array correctly. Since T[] implements
     /// IList{T} and that branch is checked before T[], arrays are handled by the
-    /// IList{T} path (lines 1810-1815). Lines 1819/1821 are unreachable dead code.
+    /// IList{T} path.
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]

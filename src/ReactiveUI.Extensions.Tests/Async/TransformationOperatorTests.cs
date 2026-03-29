@@ -278,4 +278,145 @@ public class TransformationOperatorTests
         await Assert.That(handlerExceptions[0]).IsTypeOf<InvalidOperationException>();
         await Assert.That(handlerExceptions[0].Message).IsEqualTo("completion failed");
     }
+
+    /// <summary>
+    /// Verifies that async Do with an onErrorResume callback invokes the callback
+    /// when the source emits a resumable error, and forwards the error downstream.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenDoAsyncWithOnErrorResume_ThenInvokesCallbackAndForwardsError()
+    {
+        var resumedErrors = new List<Exception>();
+        var downstreamErrors = new List<Exception>();
+        var tcs = new TaskCompletionSource();
+
+        var source = ObservableAsync.Create<int>(async (observer, ct) =>
+        {
+            await observer.OnNextAsync(1, ct);
+            await observer.OnErrorResumeAsync(new InvalidOperationException("test error"), ct);
+            await observer.OnNextAsync(2, ct);
+            await observer.OnCompletedAsync(Result.Success);
+            return DisposableAsync.Empty;
+        });
+
+        await using var sub = await source
+            .Do(
+                onNext: null,
+                onErrorResume: async (ex, ct) =>
+                {
+                    await Task.Yield();
+                    resumedErrors.Add(ex);
+                })
+            .SubscribeAsync(
+                (_, _) => default,
+                (ex, _) =>
+                {
+                    downstreamErrors.Add(ex);
+                    return default;
+                },
+                _ =>
+                {
+                    tcs.TrySetResult();
+                    return default;
+                });
+
+        await AsyncTestHelpers.WaitForConditionAsync(
+            () => tcs.Task.IsCompleted,
+            TimeSpan.FromSeconds(5));
+
+        await Assert.That(resumedErrors).Count().IsEqualTo(1);
+        await Assert.That(resumedErrors[0].Message).IsEqualTo("test error");
+        await Assert.That(downstreamErrors).Count().IsEqualTo(1);
+    }
+
+    /// <summary>
+    /// Verifies that async Do with an onCompleted callback invokes the callback
+    /// when the source sequence completes.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenDoAsyncWithOnCompleted_ThenInvokesCallback()
+    {
+        Result? capturedResult = null;
+        var tcs = new TaskCompletionSource();
+
+        var source = ObservableAsync.Create<int>(async (observer, ct) =>
+        {
+            await observer.OnNextAsync(42, ct);
+            await observer.OnCompletedAsync(Result.Success);
+            return DisposableAsync.Empty;
+        });
+
+        await using var sub = await source
+            .Do(
+                onNext: null,
+                onCompleted: async result =>
+                {
+                    await Task.Yield();
+                    capturedResult = result;
+                })
+            .SubscribeAsync(
+                (_, _) => default,
+                null,
+                _ =>
+                {
+                    tcs.TrySetResult();
+                    return default;
+                });
+
+        await AsyncTestHelpers.WaitForConditionAsync(
+            () => tcs.Task.IsCompleted,
+            TimeSpan.FromSeconds(5));
+
+        await Assert.That(capturedResult).IsNotNull();
+        await Assert.That(capturedResult!.Value.IsSuccess).IsTrue();
+    }
+
+    /// <summary>
+    /// Verifies that sync Do with an onErrorResume callback invokes the callback
+    /// when the source emits a resumable error, and forwards the error downstream.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenDoSyncWithOnErrorResume_ThenInvokesCallbackAndForwardsError()
+    {
+        var resumedErrors = new List<Exception>();
+        var downstreamErrors = new List<Exception>();
+        var tcs = new TaskCompletionSource();
+
+        var source = ObservableAsync.Create<int>(async (observer, ct) =>
+        {
+            await observer.OnNextAsync(1, ct);
+            await observer.OnErrorResumeAsync(new InvalidOperationException("sync error"), ct);
+            await observer.OnNextAsync(2, ct);
+            await observer.OnCompletedAsync(Result.Success);
+            return DisposableAsync.Empty;
+        });
+
+        await using var sub = await source
+            .Do(
+                onNext: null,
+                onErrorResume: ex => resumedErrors.Add(ex))
+            .SubscribeAsync(
+                (_, _) => default,
+                (ex, _) =>
+                {
+                    downstreamErrors.Add(ex);
+                    return default;
+                },
+                _ =>
+                {
+                    tcs.TrySetResult();
+                    return default;
+                });
+
+        await AsyncTestHelpers.WaitForConditionAsync(
+            () => tcs.Task.IsCompleted,
+            TimeSpan.FromSeconds(5));
+
+        await Assert.That(resumedErrors).Count().IsEqualTo(1);
+        await Assert.That(resumedErrors[0].Message).IsEqualTo("sync error");
+        await Assert.That(downstreamErrors).Count().IsEqualTo(1);
+    }
 }

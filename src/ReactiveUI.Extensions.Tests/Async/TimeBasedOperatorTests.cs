@@ -202,7 +202,7 @@ public class TimeBasedOperatorTests
     /// <summary>
     /// Verifies that when two values are emitted quickly to a throttled sequence,
     /// only the last value is forwarded after the debounce period (the first value is superseded).
-    /// This covers the early return at Throttle.cs line 150 where <c>_id != id</c>.
+    /// This covers the early return where <c>_id != id</c>.
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
@@ -241,7 +241,7 @@ public class TimeBasedOperatorTests
     /// Verifies that when the downstream observer throws a non-cancellation exception
     /// during OnNext from a throttled delay callback, the exception is routed to the
     /// <see cref="UnhandledExceptionHandler"/>.
-    /// This covers Throttle.cs lines 162-163.
+    /// This covers the Throttle exception routing path.
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
@@ -273,7 +273,7 @@ public class TimeBasedOperatorTests
     /// Verifies that when the downstream observer throws a non-cancellation exception
     /// during OnCompleted from a timeout callback, the exception is routed to the
     /// <see cref="UnhandledExceptionHandler"/>.
-    /// This covers Timeout.cs lines 197-198.
+    /// This covers the Timeout OnCompleted exception routing path.
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
@@ -301,7 +301,7 @@ public class TimeBasedOperatorTests
     /// <summary>
     /// Verifies that <see cref="ObservableAsync.Interval(TimeSpan, TimeProvider?)"/>
     /// uses the custom <see cref="TimeProvider"/> path when a non-system provider is supplied.
-    /// This covers Interval.cs lines 39-43.
+    /// This covers the Interval TimeProvider code path.
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
@@ -332,7 +332,7 @@ public class TimeBasedOperatorTests
     /// <summary>
     /// Verifies that a periodic <see cref="ObservableAsync.Timer(TimeSpan, TimeSpan, TimeProvider?)"/>
     /// stops emitting values once the subscription is disposed.
-    /// This covers Timer.cs line 90 (the cancellation loop exit).
+    /// This covers the cancellation loop exit in the periodic timer.
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
@@ -368,6 +368,224 @@ public class TimeBasedOperatorTests
     }
 
     /// <summary>
+    /// Verifies that <see cref="ObservableAsync.Throttle"/> uses the non-system
+    /// <see cref="TimeProvider"/> code path in <c>DelayAsync</c> when a
+    /// custom provider is supplied, and still correctly debounces values.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenThrottleWithCustomTimeProvider_ThenUsesTimerPath()
+    {
+        var customProvider = new CustomTimeProvider();
+        var subject = SubjectAsync.Create<int>();
+        var results = new List<int>();
+        var resultReceived = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        await using var sub = await subject.Values
+            .Throttle(TimeSpan.FromMilliseconds(50), customProvider)
+            .SubscribeAsync(
+                (x, _) =>
+                {
+                    results.Add(x);
+                    resultReceived.TrySetResult(true);
+                    return default;
+                },
+                null,
+                null);
+
+        await subject.OnNextAsync(1, CancellationToken.None);
+        await subject.OnNextAsync(2, CancellationToken.None);
+        await subject.OnNextAsync(3, CancellationToken.None);
+
+        await resultReceived.Task.WaitAsync(TimeSpan.FromSeconds(10));
+
+        await subject.OnCompletedAsync(Result.Success);
+
+        await Assert.That(results).Count().IsEqualTo(1);
+        await Assert.That(results[0]).IsEqualTo(3);
+    }
+
+    /// <summary>
+    /// Verifies that when two values are emitted in quick succession with a custom
+    /// <see cref="TimeProvider"/>, the first value is superseded and only
+    /// the second is forwarded, exercising the non-system <c>DelayAsync</c> path.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenThrottleWithCustomTimeProviderValueSuperseded_ThenOlderValueDropped()
+    {
+        var customProvider = new CustomTimeProvider();
+        var subject = SubjectAsync.Create<int>();
+        var results = new List<int>();
+        var resultReceived = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        await using var sub = await subject.Values
+            .Throttle(TimeSpan.FromMilliseconds(80), customProvider)
+            .SubscribeAsync(
+                (x, _) =>
+                {
+                    results.Add(x);
+                    resultReceived.TrySetResult(true);
+                    return default;
+                },
+                null,
+                null);
+
+        // Emit two values rapidly; first should be superseded
+        await subject.OnNextAsync(10, CancellationToken.None);
+        await subject.OnNextAsync(20, CancellationToken.None);
+
+        await resultReceived.Task.WaitAsync(TimeSpan.FromSeconds(10));
+
+        await subject.OnCompletedAsync(Result.Success);
+
+        await Assert.That(results).Count().IsEqualTo(1);
+        await Assert.That(results[0]).IsEqualTo(20);
+    }
+
+    /// <summary>
+    /// Verifies that when the downstream observer throws during a throttled emission
+    /// with a custom <see cref="TimeProvider"/>, the exception is routed to
+    /// <see cref="UnhandledExceptionHandler"/>.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenThrottleWithCustomTimeProviderOnNextThrows_ThenRoutedToUnhandledExceptionHandler()
+    {
+        var caught = new List<Exception>();
+        UnhandledExceptionHandler.Register(ex => caught.Add(ex));
+
+        var customProvider = new CustomTimeProvider();
+        var subject = SubjectAsync.Create<int>();
+
+        await using var sub = await subject.Values
+            .Throttle(TimeSpan.FromMilliseconds(50), customProvider)
+            .SubscribeAsync(
+                (x, _) => throw new InvalidOperationException("custom provider observer exploded"),
+                null,
+                null);
+
+        await subject.OnNextAsync(1, CancellationToken.None);
+
+        var handlerCalled = await AsyncTestHelpers.WaitForConditionAsync(
+            () => caught.Count >= 1,
+            TimeSpan.FromSeconds(10));
+
+        await Assert.That(handlerCalled).IsTrue();
+        await Assert.That(caught[0]).IsTypeOf<InvalidOperationException>();
+    }
+
+    /// <summary>
+    /// Verifies that when <c>OnErrorResumeAsync</c> is called on a throttled sequence,
+    /// the pending timer is cancelled and the error is forwarded to the downstream observer
+    /// in the Throttle operator.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenThrottleOnErrorResume_ThenCancelsTimerAndForwardsError()
+    {
+        var subject = SubjectAsync.Create<int>();
+        var results = new List<int>();
+        var errors = new List<Exception>();
+        var errorReceived = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        await using var sub = await subject.Values
+            .Throttle(TimeSpan.FromMilliseconds(500))
+            .SubscribeAsync(
+                (x, _) =>
+                {
+                    results.Add(x);
+                    return default;
+                },
+                (ex, _) =>
+                {
+                    errors.Add(ex);
+                    errorReceived.TrySetResult(true);
+                    return default;
+                },
+                null);
+
+        // Emit a value (starts a 500ms timer)
+        await subject.OnNextAsync(1, CancellationToken.None);
+
+        // Immediately send an error before the throttle timer fires
+        await subject.OnErrorResumeAsync(new InvalidOperationException("test error"), CancellationToken.None);
+
+        await errorReceived.Task.WaitAsync(TimeSpan.FromSeconds(10));
+
+        // Error should be forwarded, and the pending value should NOT be emitted
+        await Assert.That(errors).Count().IsEqualTo(1);
+        await Assert.That(errors[0]).IsTypeOf<InvalidOperationException>();
+        await Assert.That(results).Count().IsEqualTo(0);
+    }
+
+    /// <summary>
+    /// Verifies that when the <see cref="TimeProvider"/> throws a non-cancellation exception
+    /// during the delay inside <c>OnTimeoutAsync</c>, the exception is routed to the
+    /// <see cref="UnhandledExceptionHandler"/>.
+    /// This covers the Timeout delay exception routing path.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenTimeoutDelayThrowsNonCancellation_ThenRoutedToUnhandledExceptionHandler()
+    {
+        var caught = new List<Exception>();
+        UnhandledExceptionHandler.Register(ex => caught.Add(ex));
+
+        var throwingProvider = new ThrowingTimeProvider();
+        var source = AsyncTestHelpers.CreateDirectSource<int>();
+
+        await using var sub = await source
+            .Timeout(TimeSpan.FromMilliseconds(100), throwingProvider)
+            .SubscribeAsync(
+                static (_, _) => default,
+                null,
+                null);
+
+        var handlerCalled = await AsyncTestHelpers.WaitForConditionAsync(
+            () => caught.Count >= 1,
+            TimeSpan.FromSeconds(10));
+
+        await Assert.That(handlerCalled).IsTrue();
+        await Assert.That(caught[0]).IsTypeOf<InvalidOperationException>();
+    }
+
+    /// <summary>
+    /// Verifies that when the source emits an error via <c>OnErrorResumeAsync</c>,
+    /// the <c>TimeoutObserver</c> cancels the timer and forwards the error downstream.
+    /// This covers the <c>OnErrorResumeAsyncCore</c> path in the Timeout operator.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenTimeoutSourceEmitsErrorResume_ThenForwardsAndCancelsTimer()
+    {
+        var errors = new List<Exception>();
+        var errorReceived = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var source = AsyncTestHelpers.CreateDirectSource<int>();
+
+        await using var sub = await source
+            .Timeout(TimeSpan.FromSeconds(30))
+            .SubscribeAsync(
+                static (_, _) => default,
+                (ex, _) =>
+                {
+                    errors.Add(ex);
+                    errorReceived.TrySetResult(true);
+                    return default;
+                },
+                null);
+
+        var testError = new InvalidOperationException("test error");
+        await source.EmitError(testError);
+
+        await errorReceived.Task.WaitAsync(TimeSpan.FromSeconds(10));
+
+        await Assert.That(errors).Count().IsEqualTo(1);
+        await Assert.That(errors[0]).IsTypeOf<InvalidOperationException>();
+        await Assert.That(errors[0].Message).IsEqualTo("test error");
+    }
+
+    /// <summary>
     /// A custom <see cref="TimeProvider"/> that delegates timer creation to the system provider.
     /// Used to exercise the non-system <see cref="TimeProvider"/> code paths in Interval and Timer operators.
     /// </summary>
@@ -383,5 +601,24 @@ public class TimeBasedOperatorTests
         /// <returns>An <see cref="ITimer"/> instance.</returns>
         public override ITimer CreateTimer(TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period) =>
             System.CreateTimer(callback, state, dueTime, period);
+    }
+
+    /// <summary>
+    /// A <see cref="TimeProvider"/> that throws an <see cref="InvalidOperationException"/>
+    /// from <see cref="CreateTimer"/>. Used to test the non-cancellation catch block in timeout observers.
+    /// </summary>
+    private sealed class ThrowingTimeProvider : TimeProvider
+    {
+        /// <summary>
+        /// Throws an <see cref="InvalidOperationException"/> instead of creating a timer.
+        /// </summary>
+        /// <param name="callback">The callback (unused).</param>
+        /// <param name="state">The state (unused).</param>
+        /// <param name="dueTime">The due time (unused).</param>
+        /// <param name="period">The period (unused).</param>
+        /// <returns>Never returns; always throws.</returns>
+        /// <exception cref="InvalidOperationException">Always thrown.</exception>
+        public override ITimer CreateTimer(TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period) =>
+            throw new InvalidOperationException("timer creation failed");
     }
 }

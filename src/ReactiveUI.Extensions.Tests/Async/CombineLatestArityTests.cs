@@ -15,7 +15,6 @@ namespace ReactiveUI.Extensions.Tests.Async;
 /// </summary>
 public class CombineLatestArityTests
 {
-    // =============================== Arity 2 ===============================
 
     /// <summary>
     /// Verifies that CombineLatest2 disposes on subscription failure (catch block).
@@ -122,8 +121,6 @@ public class CombineLatestArityTests
         await s1.OnCompletedAsync(Result.Success);
         await s2.OnCompletedAsync(Result.Success);
     }
-
-    // =============================== Arity 3 ===============================
 
     /// <summary>
     /// Verifies that CombineLatest3 disposes on subscription failure (catch block).
@@ -340,8 +337,6 @@ public class CombineLatestArityTests
         await s2.OnCompletedAsync(Result.Success);
         await s3.OnCompletedAsync(Result.Success);
     }
-
-    // =============================== Arity 4 ===============================
 
     /// <summary>
     /// Verifies that CombineLatest4 disposes on subscription failure (catch block).
@@ -612,8 +607,6 @@ public class CombineLatestArityTests
         await s3.OnCompletedAsync(Result.Success);
         await s4.OnCompletedAsync(Result.Success);
     }
-
-    // =============================== Arity 5 ===============================
 
     /// <summary>
     /// Verifies that CombineLatest5 disposes on subscription failure (catch block).
@@ -944,8 +937,6 @@ public class CombineLatestArityTests
         await s4.OnCompletedAsync(Result.Success);
         await s5.OnCompletedAsync(Result.Success);
     }
-
-    // =============================== Arity 6 ===============================
 
     /// <summary>
     /// Verifies that CombineLatest6 disposes on subscription failure (catch block).
@@ -1342,8 +1333,6 @@ public class CombineLatestArityTests
         await s5.OnCompletedAsync(Result.Success);
         await s6.OnCompletedAsync(Result.Success);
     }
-
-    // =============================== Arity 7 ===============================
 
     /// <summary>
     /// Verifies that CombineLatest7 disposes on subscription failure (catch block).
@@ -1812,8 +1801,6 @@ public class CombineLatestArityTests
         await s6.OnCompletedAsync(Result.Success);
         await s7.OnCompletedAsync(Result.Success);
     }
-
-    // =============================== Arity 8 ===============================
 
     /// <summary>
     /// Verifies that CombineLatest8 disposes on subscription failure (catch block).
@@ -2360,8 +2347,6 @@ public class CombineLatestArityTests
         await s7.OnCompletedAsync(Result.Success);
         await s8.OnCompletedAsync(Result.Success);
     }
-
-    // ==================== Disposed guard via error-triggered CompleteAsync (Arity 2-8) ====================
 
     /// <summary>
     /// Verifies that CombineLatest2 OnNextCombined guard returns early when disposal is triggered

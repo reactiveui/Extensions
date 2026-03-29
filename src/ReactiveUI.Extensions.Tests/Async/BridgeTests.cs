@@ -393,7 +393,6 @@ public class BridgeTests
         // Wait until observer callback is entered for item 1
         await firstItemStarted.Task;
 
-        // Second OnNext enqueues while drain is busy (covers line 167: early return).
         // Since the drain loop is blocked, Enqueue sees _busy==true and returns immediately,
         // so this call completes without blocking.
         var secondEnqueued = new TaskCompletionSource();
@@ -437,7 +436,7 @@ public class BridgeTests
             var sub = rxObs.Subscribe(_ => { });
 
             // Disposing triggers cancellation path that throws OperationCanceledException
-            // This should be caught and swallowed (lines 240, 243)
+            // This should be caught and swallowed
             sub.Dispose();
 
             await Assert.That(handlerCalled).IsFalse();

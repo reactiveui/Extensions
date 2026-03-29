@@ -1557,7 +1557,7 @@ public class TakeUntilOperatorTests
                                                                                      ObservableAsync.Return(1).TakeUntil((Func<int, CancellationToken, ValueTask<bool>>)null!));
 
     /// <summary>
-    /// Verifies that TakeUntil(CompletionObservableDelegate) forwards error resume when SourceFailsWhenOtherFails is false (lines 501, 504, 512).
+    /// Verifies that TakeUntil(CompletionObservableDelegate) forwards error resume when SourceFailsWhenOtherFails is false.
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
@@ -1601,7 +1601,7 @@ public class TakeUntilOperatorTests
     }
 
     /// <summary>
-    /// Verifies that TakeUntil(CompletionObservableDelegate) forwards failure when SourceFailsWhenOtherFails is true (line 508).
+    /// Verifies that TakeUntil(CompletionObservableDelegate) forwards failure when SourceFailsWhenOtherFails is true.
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
@@ -1636,7 +1636,7 @@ public class TakeUntilOperatorTests
     }
 
     /// <summary>
-    /// Verifies that TakeUntil(Task) forwards error resume when task fails and SourceFailsWhenOtherFails is false (lines 700, 704, 707).
+    /// Verifies that TakeUntil(Task) forwards error resume when task fails and SourceFailsWhenOtherFails is false.
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
@@ -1669,7 +1669,7 @@ public class TakeUntilOperatorTests
     }
 
     /// <summary>
-    /// Verifies that TakeUntil(Task) forwards failure when task fails and SourceFailsWhenOtherFails is true (lines 696).
+    /// Verifies that TakeUntil(Task) forwards failure when task fails and SourceFailsWhenOtherFails is true.
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
@@ -1699,7 +1699,7 @@ public class TakeUntilOperatorTests
     }
 
     /// <summary>
-    /// Verifies that TakeUntil(Task) SourceObserver forwards error resume and completion through parent (line 767).
+    /// Verifies that TakeUntil(Task) SourceObserver forwards error resume and completion through parent.
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
@@ -1746,7 +1746,7 @@ public class TakeUntilOperatorTests
     }
 
     /// <summary>
-    /// Verifies that TakeUntil(CompletionObservableDelegate) disposes during wait (lines 516, 519).
+    /// Verifies that TakeUntil(CompletionObservableDelegate) disposes during wait.
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
@@ -1786,7 +1786,7 @@ public class TakeUntilOperatorTests
             storedNotifyStop = notifyStop;
             return DisposableAsync.Create(() =>
             {
-                // This dispose throws to exercise the catch block at line 501
+                // This dispose throws to exercise the catch block
                 throw new InvalidOperationException("dispose boom");
             });
         };
@@ -1858,7 +1858,7 @@ public class TakeUntilOperatorTests
 
     /// <summary>
     /// Verifies that when the delegate stop signal fires and forwarding completion throws,
-    /// the outer catch block swallows the exception (lines 516, 519).
+    /// the outer catch block swallows the exception.
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
@@ -1894,7 +1894,7 @@ public class TakeUntilOperatorTests
 
     /// <summary>
     /// Verifies that when TakeUntil(Task) forwarding completion throws,
-    /// the outer catch block swallows the exception (lines 704, 707).
+    /// the outer catch block swallows the exception.
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]

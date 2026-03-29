@@ -398,12 +398,9 @@ public class ResultAndInfrastructureTests
         await Assert.That(items).IsNotEmpty();
     }
 
-    // MulticastObservableAsync – Dispose lifecycle (lines 60, 79-81, 102-112)
-
     /// <summary>
     /// Verifies that disposing the disconnect handle sets the internal connection to null
     /// and allows a subsequent reconnection.
-    /// Covers MulticastObservableAsync lines 56-67 (disconnect lambda).
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
@@ -441,7 +438,7 @@ public class ResultAndInfrastructureTests
     /// <summary>
     /// Verifies that disposing the MulticastObservableAsync via IDisposable disposes the
     /// connection and gate.
-    /// Covers MulticastObservableAsync lines 79-81, 102-112 (Dispose(bool)).
+    /// Covers the Dispose(bool) path.
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
@@ -471,7 +468,7 @@ public class ResultAndInfrastructureTests
     /// <summary>
     /// Verifies that disposing the MulticastObservableAsync without an active connection
     /// is safe and disposes the gate.
-    /// Covers MulticastObservableAsync lines 102-112 (Dispose with null connection).
+    /// Covers the Dispose path when no connection is active.
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
@@ -489,7 +486,7 @@ public class ResultAndInfrastructureTests
     /// <summary>
     /// Verifies that subscribing to a MulticastObservableAsync works and items flow
     /// through the subject when connected.
-    /// Covers MulticastObservableAsync line 91 (SubscribeAsyncCore).
+    /// Covers SubscribeAsyncCore.
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
@@ -529,12 +526,9 @@ public class ResultAndInfrastructureTests
         await Assert.That(items).IsEquivalentTo([10, 20]);
     }
 
-    // TaskObserverAsyncBase – cancellation token registration (lines 38-40)
-
     /// <summary>
     /// Verifies that when the cancellation token is cancelled before the observer completes,
     /// WaitValueAsync throws OperationCanceledException.
-    /// Covers TaskObserverAsyncBase lines 35-41 (cancellation registration callback).
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
@@ -567,13 +561,10 @@ public class ResultAndInfrastructureTests
         await Assert.ThrowsAsync<OperationCanceledException>(async () => await task);
     }
 
-    // CancelableTaskSubscription{T} – exception in RunAsyncCore (lines 89-90)
-
     /// <summary>
     /// Verifies that when RunAsyncCore throws an exception during the catch block's
     /// OnCompletedAsync call, the secondary exception is forwarded to the
     /// UnhandledExceptionHandler.
-    /// Covers CancelableTaskSubscription lines 87-90.
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
@@ -598,8 +589,6 @@ public class ResultAndInfrastructureTests
         await Assert.That(result).IsSameReferenceAs(completedError);
     }
 
-    // Continuation coverage
-
     /// <summary>
     /// Tests Continuation.Lock when already locked returns immediately.
     /// </summary>
@@ -615,7 +604,7 @@ public class ResultAndInfrastructureTests
         // First Lock starts a task waiting on barrier
         var lockTask = continuation.Lock(1, observer);
 
-        // Second Lock while already locked should return completed immediately (line 57)
+        // Second Lock while already locked should return completed immediately
         var secondLockTask = continuation.Lock(2, observer);
         await Assert.That(secondLockTask.IsCompleted).IsTrue();
 
@@ -655,8 +644,6 @@ public class ResultAndInfrastructureTests
 
         await Assert.That(lockTask.IsCompleted).IsTrue();
     }
-
-    // ConcurrencyLimiter coverage
 
     /// <summary>
     /// Tests ConcurrencyLimiter ProcessTaskCompletion when task is faulted.
@@ -743,7 +730,7 @@ public class ResultAndInfrastructureTests
     [Test]
     public async Task WhenConcurrencyLimiterNoOutstandingAndExhausted_ThenCompletes()
     {
-        var tasks = Array.Empty<Task<int>>();
+        Task<int>[] tasks = [];
         var limiter = new ConcurrencyLimiter<int>(tasks, 1);
 
         var completed = false;
@@ -780,8 +767,6 @@ public class ResultAndInfrastructureTests
         await Assert.That(completedOk).IsTrue();
         await Assert.That(results).Count().IsEqualTo(3);
     }
-
-    // EnumerableIList coverage
 
     /// <summary>
     /// Tests EnumerableIList indexer set path.
@@ -1033,7 +1018,7 @@ public class ResultAndInfrastructureTests
 
     /// <summary>
     /// Tests sync SubscribeAsync with null onErrorResume handler: error is silently ignored,
-    /// exercising line 103 of SubscribeAsync.cs (return default when onErrorResume is null).
+    /// exercising the return default path when onErrorResume is null.
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
@@ -1063,7 +1048,7 @@ public class ResultAndInfrastructureTests
 
     /// <summary>
     /// Tests sync SubscribeAsync with null onCompleted handler: completion is silently ignored,
-    /// exercising line 114 of SubscribeAsync.cs (return default when onCompleted is null).
+    /// exercising the return default path when onCompleted is null.
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
@@ -1309,7 +1294,7 @@ public class ResultAndInfrastructureTests
     }
 
     /// <summary>
-    /// Verifies that IsDefaultContext returns true for a default AsyncContext (line 53).
+    /// Verifies that IsDefaultContext returns true for a default AsyncContext.
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
@@ -1322,7 +1307,7 @@ public class ResultAndInfrastructureTests
 
     /// <summary>
     /// Verifies that From(IScheduler) with a scheduler that is a SynchronizationContext
-    /// delegates to From(SynchronizationContext) (line 108).
+    /// delegates to From(SynchronizationContext).
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
@@ -1336,7 +1321,7 @@ public class ResultAndInfrastructureTests
     }
 
     /// <summary>
-    /// Verifies that From(IScheduler) with a plain scheduler wraps it in SchedulerTaskScheduler (lines 219, 230).
+    /// Verifies that From(IScheduler) with a plain scheduler wraps it in SchedulerTaskScheduler.
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
@@ -1363,7 +1348,7 @@ public class ResultAndInfrastructureTests
 
     /// <summary>
     /// Verifies that when RunAsyncCore throws and OnCompletedAsync also throws,
-    /// the exception is routed to UnhandledExceptionHandler (lines 91-92).
+    /// the exception is routed to UnhandledExceptionHandler.
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
@@ -1388,13 +1373,9 @@ public class ResultAndInfrastructureTests
         await Assert.That(unhandled!.Message).IsEqualTo("completion throws too");
     }
 
-    // AsyncContext.SchedulerTaskScheduler – GetScheduledTasks (line 219),
-    //   TryExecuteTaskInline (line 230)
-
     /// <summary>
     /// Verifies that SchedulerTaskScheduler.QueueTask delegates to the IScheduler,
     /// and that TryExecuteTaskInline always returns false.
-    /// Covers AsyncContext.cs lines 219 (GetScheduledTasks) and 230 (TryExecuteTaskInline).
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
@@ -1424,12 +1405,9 @@ public class ResultAndInfrastructureTests
         await Assert.That(executed).IsTrue();
     }
 
-    // EnumerableIList{T} – IEnumerable<T>.GetEnumerator() (line 78)
-
     /// <summary>
     /// Verifies that EnumerableIList{T}.IEnumerable{T}.GetEnumerator() returns a
-    /// working enumerator. Covers EnumerableIList{T}.cs line 78 (the explicit
-    /// IEnumerable{T}.GetEnumerator implementation).
+    /// working enumerator (the explicit IEnumerable{T}.GetEnumerator implementation).
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
@@ -1449,12 +1427,10 @@ public class ResultAndInfrastructureTests
         await Assert.That(items).IsEquivalentTo([10, 20, 30]);
     }
 
-    // CancelableTaskSubscription{T} – CompleteWithFailureAsync from RunAsync catch (lines 86-87, 102-104)
-
     /// <summary>
     /// Verifies that when RunAsyncCore throws, CompleteWithFailureAsync is called from
-    /// the RunAsync catch block (CancelableTaskSubscription{T}.cs lines 102-104),
-    /// which routes the error to the observer via OnCompletedAsync with Result.Failure.
+    /// the RunAsync catch block, which routes the error to the observer via
+    /// OnCompletedAsync with Result.Failure.
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
@@ -1486,6 +1462,226 @@ public class ResultAndInfrastructureTests
         await Assert.That(completionResult!.Value.IsFailure).IsTrue();
         await Assert.That(completionResult!.Value.Exception).IsTypeOf<InvalidOperationException>();
         await Assert.That(completionResult!.Value.Exception!.Message).IsEqualTo("run-async-failure");
+    }
+
+    /// <summary>
+    /// Verifies that when OnNextAsyncCore throws OperationCanceledException the
+    /// exception is silently swallowed.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenOnNextAsyncCoreThrowsOce_ThenSwallowed()
+    {
+        var completed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        var source = ObservableAsync.Create<int>(async (observer, ct) =>
+        {
+            await observer.OnNextAsync(1, ct);
+            await observer.OnCompletedAsync(Result.Success);
+            return DisposableAsync.Empty;
+        });
+
+        await using var sub = await source.SubscribeAsync(
+            (_, _) => throw new OperationCanceledException(),
+            null,
+            _ =>
+            {
+                completed.TrySetResult();
+                return default;
+            });
+
+        await completed.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        // If the OCE was not swallowed the test would have thrown before reaching here
+        await Assert.That(completed.Task.IsCompletedSuccessfully).IsTrue();
+    }
+
+    /// <summary>
+    /// Verifies that when the source subscription throws during DisposeAsync the
+    /// exception is routed to UnhandledExceptionHandler.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenSourceSubscriptionDisposeThrows_ThenRoutedToUnhandled()
+    {
+        var received = new TaskCompletionSource<Exception>(TaskCreationOptions.RunContinuationsAsynchronously);
+        UnhandledExceptionHandler.Register(ex => received.TrySetResult(ex));
+
+        var expectedError = new ArithmeticException("source-dispose-failure");
+        var observer = new TestableObserverAsync();
+
+        // Set a source subscription that throws on disposal
+        await observer.SetSourceSubscriptionAsync(
+            DisposableAsync.Create(() => throw expectedError));
+
+        await observer.DisposeAsync();
+
+        var result = await received.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await Assert.That(result).IsSameReferenceAs(expectedError);
+    }
+
+    /// <summary>
+    /// Verifies that SetSourceSubscriptionAsync can be called to set a source
+    /// subscription on an observer.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenSetSourceSubscriptionAsync_ThenSubscriptionIsSet()
+    {
+        var disposed = false;
+        var observer = new TestableObserverAsync();
+
+        var disposable = DisposableAsync.Create(() =>
+        {
+            disposed = true;
+            return default;
+        });
+
+        await observer.SetSourceSubscriptionAsync(disposable);
+
+        // Disposing the observer should also dispose the source subscription
+        await observer.DisposeAsync();
+
+        await Assert.That(disposed).IsTrue();
+    }
+
+    /// <summary>
+    /// Verifies that TryEnterOnSomethingCall detects concurrent observer calls from
+    /// different async contexts and reports via UnhandledExceptionHandler.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenConcurrentObserverCalls_ThenDetectedAndReported()
+    {
+        var received = new TaskCompletionSource<Exception>(TaskCreationOptions.RunContinuationsAsynchronously);
+        UnhandledExceptionHandler.Register(ex => received.TrySetResult(ex));
+
+        var blockFirstCall = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseFirstCall = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        var source = ObservableAsync.Create<int>(async (observer, ct) =>
+        {
+            // Start first OnNextAsync call from a separate async context via Task.Run
+            var firstCall = Task.Run(async () => await observer.OnNextAsync(1, ct), ct);
+
+            // Wait for the first call to enter OnNextAsyncCore
+            await blockFirstCall.Task.WaitAsync(TimeSpan.FromSeconds(5), ct);
+
+            // Second call from a different async context while first is in progress
+            await observer.OnNextAsync(2, ct);
+
+            // Release the blocked first call so it can exit
+            releaseFirstCall.TrySetResult();
+
+            await observer.OnCompletedAsync(Result.Success);
+            return DisposableAsync.Empty;
+        });
+
+        await using var sub = await source.SubscribeAsync(
+            async (_, ct) =>
+            {
+                blockFirstCall.TrySetResult();
+
+                // Block until the concurrent call detection has completed
+                await releaseFirstCall.Task.WaitAsync(TimeSpan.FromSeconds(5), ct);
+            },
+            null,
+            null);
+
+        var result = await received.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await Assert.That(result).IsTypeOf<ConcurrentObserverCallsException>();
+    }
+
+    /// <summary>
+    /// Verifies that OnErrorResumeAsync_Private routes the original error to
+    /// UnhandledExceptionHandler when the cancellation token is already cancelled
+    /// and the token is already cancelled.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenOnErrorResumePrivateWithCancelledToken_ThenOriginalErrorRoutedToUnhandled()
+    {
+        var received = new TaskCompletionSource<Exception>(TaskCreationOptions.RunContinuationsAsynchronously);
+        UnhandledExceptionHandler.Register(ex => received.TrySetResult(ex));
+
+        var expectedError = new InvalidOperationException("original-error");
+        var observer = new TestableObserverAsync();
+
+        // Call the internal method directly with a pre-cancelled token
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        await observer.OnErrorResumeAsync_Private(expectedError, cts.Token);
+
+        var result = await received.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await Assert.That(result).IsSameReferenceAs(expectedError);
+    }
+
+    /// <summary>
+    /// Verifies that when OnErrorResumeAsyncCore throws OperationCanceledException the
+    /// original error is routed to UnhandledExceptionHandler.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenOnErrorResumeAsyncCoreThrowsOce_ThenOriginalErrorRoutedToUnhandled()
+    {
+        var received = new TaskCompletionSource<Exception>(TaskCreationOptions.RunContinuationsAsynchronously);
+        UnhandledExceptionHandler.Register(ex => received.TrySetResult(ex));
+
+        var originalError = new InvalidOperationException("original-error-oce-path");
+        var observer = new TestableObserverAsync(
+            onErrorResumeAsyncCore: (_, _) => throw new OperationCanceledException());
+
+        await observer.OnErrorResumeAsync_Private(originalError, CancellationToken.None);
+
+        var result = await received.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await Assert.That(result).IsSameReferenceAs(originalError);
+    }
+
+    /// <summary>
+    /// Verifies that when OnErrorResumeAsyncCore throws a non-cancellation exception
+    /// the secondary exception is routed to UnhandledExceptionHandler.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenOnErrorResumeAsyncCoreThrowsGenericException_ThenSecondaryRoutedToUnhandled()
+    {
+        var received = new TaskCompletionSource<Exception>(TaskCreationOptions.RunContinuationsAsynchronously);
+        UnhandledExceptionHandler.Register(ex => received.TrySetResult(ex));
+
+        var secondaryError = new ArithmeticException("handler-failed");
+        var observer = new TestableObserverAsync(
+            onErrorResumeAsyncCore: (_, _) => throw secondaryError);
+
+        await observer.OnErrorResumeAsync_Private(new InvalidOperationException("original"), CancellationToken.None);
+
+        var result = await received.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await Assert.That(result).IsSameReferenceAs(secondaryError);
+    }
+
+    /// <summary>
+    /// A concrete <see cref="ObserverAsync{T}"/> implementation for testing, with
+    /// configurable behavior for each virtual method.
+    /// </summary>
+    /// <param name="onNextAsyncCore">Optional delegate for <see cref="ObserverAsync{T}.OnNextAsyncCore"/>.</param>
+    /// <param name="onErrorResumeAsyncCore">Optional delegate for <see cref="ObserverAsync{T}.OnErrorResumeAsyncCore"/>.</param>
+    /// <param name="onCompletedAsyncCore">Optional delegate for <see cref="ObserverAsync{T}.OnCompletedAsyncCore"/>.</param>
+    internal sealed class TestableObserverAsync(
+        Func<int, CancellationToken, ValueTask>? onNextAsyncCore = null,
+        Func<Exception, CancellationToken, ValueTask>? onErrorResumeAsyncCore = null,
+        Func<Result, ValueTask>? onCompletedAsyncCore = null) : ObserverAsync<int>
+    {
+        /// <inheritdoc/>
+        protected override ValueTask OnNextAsyncCore(int value, CancellationToken cancellationToken) =>
+            onNextAsyncCore is not null ? onNextAsyncCore(value, cancellationToken) : default;
+
+        /// <inheritdoc/>
+        protected override ValueTask OnErrorResumeAsyncCore(Exception error, CancellationToken cancellationToken) =>
+            onErrorResumeAsyncCore is not null ? onErrorResumeAsyncCore(error, cancellationToken) : default;
+
+        /// <inheritdoc/>
+        protected override ValueTask OnCompletedAsyncCore(Result result) =>
+            onCompletedAsyncCore is not null ? onCompletedAsyncCore(result) : default;
     }
 
     /// <summary>

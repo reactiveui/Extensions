@@ -242,4 +242,182 @@ public class ErrorHandlingOperatorTests
         await Assert.That(completionResult.IsFailure).IsTrue();
         await Assert.That(attempt).IsEqualTo(2);
     }
+
+    /// <summary>Tests that Catch handler throwing an exception routes to OnCompletedAsync with failure.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenCatchHandlerThrows_ThenCompletesWithHandlerException()
+    {
+        var completed = new TaskCompletionSource<Result>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var source = ObservableAsync.Throw<int>(new InvalidOperationException("source error"));
+
+        await using var sub = await source
+            .Catch<int>(new Func<Exception, IObservableAsync<int>>(_ => throw new ArithmeticException("handler error")))
+            .SubscribeAsync(
+                (_, _) => default,
+                null,
+                result =>
+                {
+                    completed.TrySetResult(result);
+                    return default;
+                });
+
+        var completionResult = await completed.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await Assert.That(completionResult.IsFailure).IsTrue();
+        await Assert.That(completionResult.Exception).IsTypeOf<ArithmeticException>();
+    }
+
+    /// <summary>Tests that Catch disposes both source and handler subscriptions when the outer subscription is disposed.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenCatchDisposed_ThenDisposesSourceAndHandler()
+    {
+        var handlerItemReceived = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        var source = ObservableAsync.Throw<int>(new InvalidOperationException("fail"));
+        var handlerObservable = ObservableAsync.Create<int>(async (observer, ct) =>
+        {
+            await observer.OnNextAsync(1, ct);
+            handlerItemReceived.TrySetResult(true);
+            return DisposableAsync.Empty;
+        });
+
+        var sub = await source
+            .Catch(_ => handlerObservable)
+            .SubscribeAsync(
+                (_, _) => default,
+                null,
+                _ => default);
+
+        await handlerItemReceived.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        // Disposing should dispose both source and handler disposables
+        await sub.DisposeAsync();
+    }
+
+    /// <summary>Tests that CatchAndIgnoreErrorResume invokes the unhandled exception handler for error resumes.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenCatchAndIgnoreErrorResume_ThenReportsToUnhandledExceptionHandler()
+    {
+        var reportedExceptions = new List<Exception>();
+        UnhandledExceptionHandler.Register(ex => reportedExceptions.Add(ex));
+
+        var source = ObservableAsync.Create<int>(async (observer, ct) =>
+        {
+            await observer.OnErrorResumeAsync(new InvalidOperationException("resume error"), ct);
+            await observer.OnCompletedAsync(Result.Failure(new InvalidOperationException("fatal")));
+            return DisposableAsync.Empty;
+        });
+
+        var result = await source.CatchAndIgnoreErrorResume(_ => ObservableAsync.Return(99)).ToListAsync();
+
+        await Assert.That(result).IsEquivalentTo(new[] { 99 });
+        await Assert.That(reportedExceptions).Count().IsEqualTo(1);
+        await Assert.That(reportedExceptions[0].Message).IsEqualTo("resume error");
+    }
+
+    /// <summary>Tests that Retry catches OperationCanceledException during re-subscription without propagating.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenRetryResubscriptionCancelled_ThenSwallowsCancellation()
+    {
+        var attempt = 0;
+        var completed = new TaskCompletionSource<Result>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        var source = ObservableAsync.Create<int>(async (observer, ct) =>
+        {
+            attempt++;
+            if (attempt == 1)
+            {
+                // First subscription: complete with failure to trigger retry
+                await observer.OnCompletedAsync(Result.Failure(new InvalidOperationException("fail")));
+                return DisposableAsync.Empty;
+            }
+
+            // Second subscription: throw OperationCanceledException from SubscribeAsync itself
+            throw new OperationCanceledException("cancelled during resubscribe");
+        });
+
+        await using var sub = await source
+            .Retry(3)
+            .SubscribeAsync(
+                (_, _) => default,
+                null,
+                result =>
+                {
+                    completed.TrySetResult(result);
+                    return default;
+                });
+
+        // The OperationCanceledException is swallowed, so completion should not fire.
+        // Give a short window to verify no completion occurs.
+        var completedInTime = completed.Task.WaitAsync(TimeSpan.FromMilliseconds(500));
+        await Assert.ThrowsAsync<TimeoutException>(async () => await completedInTime);
+        await Assert.That(attempt).IsEqualTo(2);
+    }
+
+    /// <summary>Tests that Retry catches generic exceptions during re-subscription and completes with failure.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenRetryResubscriptionThrows_ThenCompletesWithFailure()
+    {
+        var attempt = 0;
+        var completed = new TaskCompletionSource<Result>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        var source = ObservableAsync.Create<int>(async (observer, ct) =>
+        {
+            attempt++;
+            if (attempt == 1)
+            {
+                // First subscription: complete with failure to trigger retry
+                await observer.OnCompletedAsync(Result.Failure(new InvalidOperationException("fail")));
+                return DisposableAsync.Empty;
+            }
+
+            // Second subscription: throw a generic exception from SubscribeAsync itself
+            throw new ArithmeticException("resubscribe failed");
+        });
+
+        await using var sub = await source
+            .Retry(3)
+            .SubscribeAsync(
+                (_, _) => default,
+                null,
+                result =>
+                {
+                    completed.TrySetResult(result);
+                    return default;
+                });
+
+        var completionResult = await completed.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await Assert.That(completionResult.IsFailure).IsTrue();
+        await Assert.That(completionResult.Exception).IsTypeOf<ArithmeticException>();
+        await Assert.That(attempt).IsEqualTo(2);
+    }
+
+    /// <summary>Tests that parameterless Retry retries indefinitely until success (covers the int.MaxValue path).</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenRetryParameterless_ThenRetriesUntilSuccess()
+    {
+        var attempt = 0;
+        var source = ObservableAsync.CreateAsBackgroundJob<int>(async (obs, ct) =>
+        {
+            attempt++;
+            if (attempt < 5)
+            {
+                await obs.OnCompletedAsync(Result.Failure(new InvalidOperationException($"attempt {attempt}")));
+                return;
+            }
+
+            await obs.OnNextAsync(100, ct);
+            await obs.OnCompletedAsync(Result.Success);
+        });
+
+        var result = await source.Retry().ToListAsync();
+
+        await Assert.That(result).IsEquivalentTo(new[] { 100 });
+        await Assert.That(attempt).IsEqualTo(5);
+    }
 }

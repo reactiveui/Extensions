@@ -332,8 +332,6 @@ public class DisposableTests
         await serial.DisposeAsync();
     }
 
-    // CompositeDisposableAsync – Remove shrinking (lines 174-184)
-
     /// <summary>
     /// Verifies that removing items from a CompositeDisposableAsync with capacity
     /// above the shrink threshold causes the internal list to shrink when count
@@ -373,8 +371,6 @@ public class DisposableTests
 
         await composite.DisposeAsync();
     }
-
-    // CompositeDisposableAsync – CopyTo after dispose and bounds check (lines 281, 286)
 
     /// <summary>
     /// Verifies that CopyTo on a disposed CompositeDisposableAsync returns without copying.
@@ -430,8 +426,6 @@ public class DisposableTests
         await Assert.That(composite.IsDisposed).IsTrue();
     }
 
-    // SerialDisposableAsync – SetDisposableAsync after dispose (lines 38, 47)
-
     /// <summary>
     /// Verifies that setting a null disposable after disposing SerialDisposableAsync
     /// completes without error (hits the null check on the disposed path).
@@ -444,7 +438,7 @@ public class DisposableTests
         var serial = new SerialDisposableAsync();
         await serial.DisposeAsync();
 
-        // Set null after disposal - should complete without error (line 47: return default)
+        // Set null after disposal - should complete without error
         await serial.SetDisposableAsync(null);
 
         // Verify it is still disposed
@@ -453,7 +447,7 @@ public class DisposableTests
     /// <summary>
     /// Verifies that setting a non-null disposable after disposing SerialDisposableAsync
     /// immediately disposes the provided value.
-    /// Covers lines 38 (ReferenceEquals sentinel check) and 42-44.
+    /// Covers the ReferenceEquals sentinel check and immediate disposal path.
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
@@ -472,12 +466,9 @@ public class DisposableTests
         await Assert.That(disposed).IsTrue();
     }
 
-    // SerialDisposableAsync – CAS retry path (line 61) and dispose-when-empty (line 101)
-
     /// <summary>
     /// Verifies that concurrent SetDisposableAsync calls on a SerialDisposableAsync
     /// correctly handle the CAS retry loop by setting and disposing values properly.
-    /// Covers line 61 (field = exchangedCurrent retry loop).
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
@@ -508,7 +499,7 @@ public class DisposableTests
     /// <summary>
     /// Verifies that disposing SerialDisposableAsync when no disposable has been set
     /// completes without error.
-    /// Covers line 75 (field is not sentinel and field is null path) and line 101.
+    /// Covers the null field path and the empty dispose path.
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
@@ -524,11 +515,9 @@ public class DisposableTests
         await serial.DisposeAsync();
     }
 
-    // SingleAssignmentDisposableAsync – set after dispose with non-null (lines 88, 91-92)
-
     /// <summary>
     /// Verifies that setting null after disposing a SingleAssignmentDisposableAsync
-    /// completes without error (covers the null check in the disposed path, line 88).
+    /// completes without error (covers the null check in the disposed path).
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
@@ -537,18 +526,15 @@ public class DisposableTests
         var sad = new SingleAssignmentDisposableAsync();
         await sad.DisposeAsync();
 
-        // Set null after disposal - should return default (line 88)
+        // Set null after disposal - should return default
         await sad.SetDisposableAsync(null);
 
         await Assert.That(sad.IsDisposed).IsTrue();
     }
 
-    // SingleAssignmentDisposableAsync – double assignment throw (line 120)
-    // and dispose sentinel (line 133)
-
     /// <summary>
     /// Verifies that double assignment on the static SetDisposableAsync helper throws
-    /// InvalidOperationException. This covers line 91 (ThrowAlreadyAssignment) and line 120.
+    /// InvalidOperationException.
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
@@ -567,7 +553,7 @@ public class DisposableTests
 
     /// <summary>
     /// Verifies that the dispose sentinel DisposeAsync method returns a completed ValueTask.
-    /// Covers line 133 (DisposedSentinel.DisposeAsync).
+    /// Covers the DisposedSentinel.DisposeAsync path.
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
@@ -587,7 +573,7 @@ public class DisposableTests
 
     /// <summary>
     /// Verifies that setting a non-null disposable after dispose triggers immediate disposal
-    /// of the provided value. Covers lines 83-85 (value.DisposeAsync in disposed+non-null path).
+    /// of the provided value.
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
@@ -874,10 +860,8 @@ public class DisposableTests
     public void WhenToDisposableAsyncNull_ThenThrowsArgumentNull() =>
         Assert.Throws<ArgumentNullException>(() => ((IDisposable)null!).ToDisposableAsync());
 
-    // SerialDisposableAsync – CAS retry loop (line 61)
-
     /// <summary>
-    /// Verifies that the CAS retry loop in SetDisposableAsync (line 61) is exercised
+    /// Verifies that the CAS retry loop in SetDisposableAsync is exercised
     /// when another thread mutates _current between the Volatile.Read and the
     /// CompareExchange, forcing the loop to re-read and retry.
     /// </summary>
@@ -894,7 +878,7 @@ public class DisposableTests
             return default;
         });
 
-        // Hammer concurrent sets to maximize chance of CAS retry (line 61: field = exchangedCurrent)
+        // Hammer concurrent sets to maximize chance of CAS retry
         var barrier = new Barrier(20);
         var tasks = Enumerable.Range(0, 20).Select(_ =>
             Task.Run(async () =>
@@ -913,11 +897,9 @@ public class DisposableTests
         await Assert.That(disposedCount).IsEqualTo(200);
     }
 
-    // SerialDisposableAsync.DisposedSentinel – DisposeAsync (line 101)
-
     /// <summary>
     /// Verifies that the DisposedSentinel.DisposeAsync returns a completed ValueTask
-    /// without throwing. Covers line 101.
+    /// without throwing.
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
@@ -930,11 +912,9 @@ public class DisposableTests
         await Assert.That(task.IsCompleted).IsTrue();
     }
 
-    // SingleAssignmentDisposableAsync – ThrowAlreadyAssignment on re-assign (line 92)
-
     /// <summary>
     /// Verifies that re-assigning a non-null value to a field that already holds a
-    /// non-null value throws InvalidOperationException via ThrowAlreadyAssignment (line 91-92).
+    /// non-null value throws InvalidOperationException via ThrowAlreadyAssignment.
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
@@ -947,7 +927,7 @@ public class DisposableTests
         // First set succeeds
         await SingleAssignmentDisposableAsync.SetDisposableAsync(ref field, first);
 
-        // Second set with a different non-null value triggers ThrowAlreadyAssignment (line 92)
+        // Second set with a different non-null value triggers ThrowAlreadyAssignment
         await Assert.That(async () =>
             await SingleAssignmentDisposableAsync.SetDisposableAsync(ref field, second))
             .ThrowsExactly<InvalidOperationException>();

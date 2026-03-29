@@ -16,8 +16,6 @@ namespace ReactiveUI.Extensions.Tests.Async;
 /// </summary>
 public class CombineLatestOperatorTests
 {
-    // ???????????????????????????? 2-source ????????????????????????????
-
     /// <summary>No emission until both sources have produced a value.</summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
@@ -289,8 +287,6 @@ public class CombineLatestOperatorTests
         await Assert.That(errors[0]).IsEquivalentTo(expected);
     }
 
-    // ???????????????????????????? 3-source ????????????????????????????
-
     /// <summary>Tests CombineLatest with 3 sources combines correctly.</summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
@@ -432,8 +428,6 @@ public class CombineLatestOperatorTests
         await Assert.That(errors[0]).IsEquivalentTo(expected);
     }
 
-    // ???????????????????????????? 4-source ????????????????????????????
-
     /// <summary>Error propagation in 4-source variant.</summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
@@ -530,8 +524,6 @@ public class CombineLatestOperatorTests
         await Assert.That(errors).Count().IsEqualTo(1);
         await Assert.That(errors[0]).IsEquivalentTo(expected);
     }
-
-    // ???????????????????????????? 5-source ????????????????????????????
 
     /// <summary>Error propagation in 5-source variant.</summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
@@ -632,8 +624,6 @@ public class CombineLatestOperatorTests
         await Assert.That(errors).Count().IsEqualTo(1);
         await Assert.That(errors[0]).IsEquivalentTo(expected);
     }
-
-    // ???????????????????????????? 6-source ????????????????????????????
 
     /// <summary>Error propagation in 6-source variant.</summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
@@ -737,8 +727,6 @@ public class CombineLatestOperatorTests
         await Assert.That(errors).Count().IsEqualTo(1);
         await Assert.That(errors[0]).IsEquivalentTo(expected);
     }
-
-    // ???????????????????????????? 7-source ????????????????????????????
 
     /// <summary>Error propagation in 7-source variant.</summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
@@ -845,8 +833,6 @@ public class CombineLatestOperatorTests
         await Assert.That(errors).Count().IsEqualTo(1);
         await Assert.That(errors[0]).IsEquivalentTo(expected);
     }
-
-    // ???????????????????????????? 8-source ????????????????????????????
 
     /// <summary>Error propagation in 8-source variant.</summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
@@ -956,8 +942,6 @@ public class CombineLatestOperatorTests
         await Assert.That(errors).Count().IsEqualTo(1);
         await Assert.That(errors[0]).IsEquivalentTo(expected);
     }
-
-    // ???????????????????????? Cross-cutting ????????????????????????
 
     /// <summary>Error resume after disposal is ignored.</summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
@@ -1119,8 +1103,6 @@ public class CombineLatestOperatorTests
         await Assert.That(results).Count().IsEqualTo(countBefore);
     }
 
-    // ═══════════════════ Coverage gap tests: disposed-during-emission ═══════════════════
-
     /// <summary>OnNextCombined returns early when subscription is disposed mid-stream (2-source).</summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
@@ -1190,8 +1172,6 @@ public class CombineLatestOperatorTests
         await Assert.That(results).Count().IsEqualTo(countBefore);
     }
 
-    // ═══════════════════ Coverage gap tests: error resume after disposal ═══════════════════
-
     /// <summary>OnErrorResume returns early when subscription is disposed (3-source).</summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
@@ -1221,8 +1201,6 @@ public class CombineLatestOperatorTests
 
         await Assert.That(errors).IsEmpty();
     }
-
-    // ═══════════════════ Coverage gap tests: error from specific sources (3-source) ═══════════════════
 
     /// <summary>Error from source 1 in 3-source variant triggers completion with failure.</summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
@@ -1279,8 +1257,6 @@ public class CombineLatestOperatorTests
         await Assert.That(completionResult!.Value.IsFailure).IsTrue();
         await Assert.That(completionResult.Value.Exception is InvalidOperationException).IsTrue();
     }
-
-    // ═══════════════════ Coverage gap tests: individual source completion ordering ═══════════════════
 
     /// <summary>Two-source: source 2 completes first, then source 1 completes the combined sequence.</summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
@@ -1402,8 +1378,6 @@ public class CombineLatestOperatorTests
         await Assert.That(completionResult!.Value.IsSuccess).IsTrue();
     }
 
-    // ═══════════════════ Coverage gap tests: error resume from each source (2-source and 3-source) ═══════════════════
-
     /// <summary>Error resume from source 1 is forwarded in 3-source variant.</summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
@@ -1460,8 +1434,6 @@ public class CombineLatestOperatorTests
         await Assert.That(errors[0]).IsEquivalentTo(expected);
     }
 
-    // ═══════════════════ Coverage gap tests: double disposal (3-source) ═══════════════════
-
     /// <summary>Double disposal is safe and does not throw for 3-source variant.</summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
@@ -1481,8 +1453,6 @@ public class CombineLatestOperatorTests
         await sub.DisposeAsync();
         await sub.DisposeAsync();
     }
-
-    // ═══════════════════ Coverage gap tests: error from source 2 (2-source completion path) ═══════════════════
 
     /// <summary>Error from source 1 in 2-source variant while other source already completed triggers failure.</summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
@@ -1543,8 +1513,6 @@ public class CombineLatestOperatorTests
         await Assert.That(completionResult).IsNotNull();
         await Assert.That(completionResult!.Value.IsFailure).IsTrue();
     }
-
-    // ═══════════════════ Coverage gap tests: emission continues after partial completion ═══════════════════
 
     /// <summary>Two-source: emissions continue after one source completes successfully.</summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
@@ -4805,7 +4773,8 @@ public class CombineLatestOperatorTests
     [Test]
     public async Task WhenCombineLatestValuesAreAllFalseWithNoSources_ThenReturnsTrue()
     {
-        var result = await Array.Empty<IObservableAsync<bool>>()
+        IObservableAsync<bool>[] sources = [];
+        var result = await sources
             .CombineLatestValuesAreAllFalse()
             .FirstAsync();
 
@@ -5021,7 +4990,7 @@ public class CombineLatestOperatorTests
 
     /// <summary>
     /// Tests CombineLatest enumerable returns early from SubscribeAsync when disposed during subscribe,
-    /// exercising line 186 of CombineLatestEnumerable.
+    /// exercising the early return path in CombineLatestEnumerable.
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
@@ -5044,7 +5013,7 @@ public class CombineLatestOperatorTests
 
     /// <summary>
     /// Tests CombineLatest enumerable OnNextAsync returns early when disposed,
-    /// exercising line 215 of CombineLatestEnumerable.
+    /// exercising the OnNextAsync disposed guard in CombineLatestEnumerable.
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
@@ -5076,7 +5045,7 @@ public class CombineLatestOperatorTests
 
     /// <summary>
     /// Tests CombineLatest enumerable OnErrorResumeAsync returns early when disposed,
-    /// exercising line 240 of CombineLatestEnumerable.
+    /// exercising the OnErrorResumeAsync disposed guard in CombineLatestEnumerable.
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
@@ -5106,7 +5075,7 @@ public class CombineLatestOperatorTests
 
     /// <summary>
     /// Tests CombineLatest enumerable OnCompletedAsync returns early when already completed for same index,
-    /// exercising line 266 of CombineLatestEnumerable.
+    /// exercising the already-completed guard in CombineLatestEnumerable.
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
@@ -5139,7 +5108,7 @@ public class CombineLatestOperatorTests
 
     /// <summary>
     /// Tests CombineLatest enumerable completes when a source completes without emitting a value,
-    /// exercising the shouldComplete path at line 275 of CombineLatestEnumerable.
+    /// exercising the shouldComplete path in CombineLatestEnumerable.
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
@@ -5169,7 +5138,7 @@ public class CombineLatestOperatorTests
     }
 
     /// <summary>
-    /// Verifies that CombineLatestEnumerable OnNextAsync returns early when disposed (line 217).
+    /// Verifies that CombineLatestEnumerable OnNextAsync returns early when disposed.
     /// Uses the blocking-OnCompletedAsync technique to keep the gate alive while _disposed is set.
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
@@ -5215,7 +5184,7 @@ public class CombineLatestOperatorTests
     }
 
     /// <summary>
-    /// Verifies that CombineLatestEnumerable OnErrorResumeAsync returns early when disposed (line 242).
+    /// Verifies that CombineLatestEnumerable OnErrorResumeAsync returns early when disposed.
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
@@ -5258,7 +5227,7 @@ public class CombineLatestOperatorTests
     }
 
     /// <summary>
-    /// Verifies that CombineLatestEnumerable OnCompleted returns early for an already-completed index (line 268).
+    /// Verifies that CombineLatestEnumerable OnCompleted returns early for an already-completed index.
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
@@ -5285,7 +5254,7 @@ public class CombineLatestOperatorTests
         // Complete src1 (has emitted, src2 still active → no overall completion)
         await src1.Complete(Result.Success);
 
-        // Complete src1 again → already completed[0] = true → returns early (line 268)
+        // Complete src1 again - already completed[0] = true, returns early
         await src1.Complete(Result.Success);
 
         // Now complete src2 → overall completion
@@ -5295,7 +5264,7 @@ public class CombineLatestOperatorTests
     }
 
     /// <summary>
-    /// Verifies that CombineLatestEnumerable completes when a source completes without emitting (line 277).
+    /// Verifies that CombineLatestEnumerable completes when a source completes without emitting.
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
@@ -5316,7 +5285,7 @@ public class CombineLatestOperatorTests
                     return default;
                 });
 
-        // src1 completes without ever emitting → shouldComplete = !_values[0].HasValue = true (line 277)
+        // src1 completes without ever emitting, so shouldComplete = !_values[0].HasValue = true
         await src1.Complete(Result.Success);
 
         await Assert.That(completionResult).IsNotNull();
@@ -5324,7 +5293,7 @@ public class CombineLatestOperatorTests
     }
 
     /// <summary>
-    /// Verifies that CombineLatestEnumerable returns early when disposed during subscribe loop (line 188).
+    /// Verifies that CombineLatestEnumerable returns early when disposed during subscribe loop.
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
