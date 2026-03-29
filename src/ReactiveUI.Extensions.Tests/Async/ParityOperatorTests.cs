@@ -3,8 +3,6 @@
 // See the LICENSE file in the project root for full license information.
 
 using ReactiveUI.Extensions.Async;
-using ReactiveUI.Extensions.Async.Disposables;
-using ReactiveUI.Extensions.Async.Internals;
 using ReactiveUI.Extensions.Async.Subjects;
 using AsyncObs = ReactiveUI.Extensions.Async.ObservableAsync;
 
@@ -167,7 +165,7 @@ public class ParityOperatorTests
         await subject.OnNextAsync(4, CancellationToken.None);
         await subject.OnNextAsync(5, CancellationToken.None);
         await subject.OnNextAsync(6, CancellationToken.None);
-        await subject.OnCompletedAsync(ReactiveUI.Extensions.Async.Internals.Result.Success);
+        await subject.OnCompletedAsync(Result.Success);
 
         await Task.WhenAll(trueTask, falseTask);
 
@@ -384,7 +382,7 @@ public class ParityOperatorTests
 
         // Emit value 4 after the action finishes - this should go through
         await subject.OnNextAsync(4, CancellationToken.None);
-        await subject.OnCompletedAsync(ReactiveUI.Extensions.Async.Internals.Result.Success);
+        await subject.OnCompletedAsync(Result.Success);
 
         await completed.Task;
 
@@ -473,7 +471,7 @@ public class ParityOperatorTests
         var testError = new InvalidOperationException("logged error");
         await source.EmitError(testError);
         await source.EmitNext(2);
-        await source.Complete(ReactiveUI.Extensions.Async.Internals.Result.Success);
+        await source.Complete(Result.Success);
 
         await completed.Task;
 
@@ -663,7 +661,7 @@ public class ParityOperatorTests
             () => results.Count >= 1,
             TimeSpan.FromSeconds(5));
 
-        await subject.OnCompletedAsync(ReactiveUI.Extensions.Async.Internals.Result.Success);
+        await subject.OnCompletedAsync(Result.Success);
 
         await Assert.That(received).IsTrue();
         await Assert.That(results[0]).IsEqualTo(1);
@@ -737,7 +735,7 @@ public class ParityOperatorTests
             () => results.Count >= 1,
             TimeSpan.FromSeconds(5));
 
-        await subject.OnCompletedAsync(ReactiveUI.Extensions.Async.Internals.Result.Success);
+        await subject.OnCompletedAsync(Result.Success);
 
         await Assert.That(received).IsTrue();
         await Assert.That(results[0]).IsEqualTo(1);
@@ -1109,7 +1107,7 @@ public class ParityOperatorTests
 
         // Emit value 3 after the action finishes - this should pass through.
         await source.EmitNext(3);
-        await source.Complete(ReactiveUI.Extensions.Async.Internals.Result.Success);
+        await source.Complete(Result.Success);
 
         await completed.Task;
 

@@ -2,6 +2,7 @@
 // ReactiveUI Association Incorporated licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
+using ReactiveUI.Extensions.Async;
 using ReactiveUI.Extensions.Async.Disposables;
 
 using ReactiveUI.Extensions.Async.Internals;
@@ -77,7 +78,7 @@ public static partial class ObservableAsync
         {
             if (_sources.Count == 0)
             {
-                await observer.OnCompletedAsync(ReactiveUI.Extensions.Async.Internals.Result.Success);
+                await observer.OnCompletedAsync(Result.Success);
                 return DisposableAsync.Empty;
             }
 
@@ -106,7 +107,7 @@ public static partial class ObservableAsync
             /// <summary>
             /// Gate that serializes observer callbacks to ensure thread-safe emission.
             /// </summary>
-            private readonly ReactiveUI.Extensions.Async.Internals.AsyncGate _gate = new();
+            private readonly AsyncGate _gate = new();
 
             /// <summary>
             /// Cancellation token source used to signal disposal of the subscription.
@@ -253,7 +254,7 @@ public static partial class ObservableAsync
             /// <param name="index">The index of the source that completed.</param>
             /// <param name="result">The completion result from the source.</param>
             /// <returns>A task representing the asynchronous operation.</returns>
-            internal ValueTask OnCompletedAsync(int index, ReactiveUI.Extensions.Async.Internals.Result result)
+            internal ValueTask OnCompletedAsync(int index, Async.Result result)
             {
                 if (result.IsFailure)
                 {
@@ -273,7 +274,7 @@ public static partial class ObservableAsync
                     shouldComplete = !_values[index].HasValue || _completedCount == _sources.Count;
                 }
 
-                return shouldComplete ? CompleteAsync(ReactiveUI.Extensions.Async.Internals.Result.Success) : default;
+                return shouldComplete ? CompleteAsync(Result.Success) : default;
             }
 
             /// <summary>
@@ -282,7 +283,7 @@ public static partial class ObservableAsync
             /// </summary>
             /// <param name="result">The completion result to forward, or <see langword="null"/> if disposing without signaling completion.</param>
             /// <returns>A task representing the asynchronous operation.</returns>
-            internal async ValueTask CompleteAsync(ReactiveUI.Extensions.Async.Internals.Result? result)
+            internal async ValueTask CompleteAsync(Async.Result? result)
             {
                 if (DisposalHelper.TrySetDisposed(ref _disposed))
                 {

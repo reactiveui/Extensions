@@ -4,7 +4,6 @@
 
 using System.Collections.Immutable;
 using ReactiveUI.Extensions.Async.Disposables;
-using ReactiveUI.Extensions.Async.Internals;
 
 namespace ReactiveUI.Extensions.Async.Subjects;
 

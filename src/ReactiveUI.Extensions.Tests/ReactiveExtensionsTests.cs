@@ -1172,34 +1172,31 @@ public class ReactiveExtensionsTests
     [Test]
     public async Task SubscribeAsync_WithOnNextAndOnError_HandlesError()
     {
-        var subject = new Subject<int>();
         var results = new List<int>();
         Exception? caughtException = null;
+        var errorSource = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var source = Observable.Create<int>(observer =>
+        {
+            observer.OnNext(1);
+            observer.OnError(new InvalidOperationException());
+            return System.Reactive.Disposables.Disposable.Empty;
+        });
 
-        using var sub = subject.SubscribeAsync(
-            x =>
+        using var sub = source.SubscribeAsync(
+            async x =>
             {
                 results.Add(x);
-                return Task.CompletedTask;
             },
-            ex => caughtException = ex);
+            ex =>
+            {
+                caughtException = ex;
+                errorSource.TrySetResult(true);
+            });
 
-        subject.OnNext(1);
-
-        var onNextProcessed = await AsyncTestHelpers.WaitForConditionAsync(
-            () => results.Count == 1,
-            TimeSpan.FromSeconds(5));
-
-        subject.OnError(new InvalidOperationException());
-
-        var errorReceived = await AsyncTestHelpers.WaitForConditionAsync(
-            () => caughtException != null,
-            TimeSpan.FromSeconds(5));
+        await errorSource.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
         using (Assert.Multiple())
         {
-            await Assert.That(onNextProcessed).IsTrue();
-            await Assert.That(errorReceived).IsTrue();
             await Assert.That(results).IsEquivalentTo([1]);
             await Assert.That(caughtException).IsNotNull();
         }
@@ -2045,12 +2042,18 @@ public class ReactiveExtensionsTests
     [Test]
     public async Task SubscribeAsync_WithOnNextAndOnCompleted_CompletesCorrectly()
     {
-        var subject = new Subject<int>();
         var results = new List<int>();
         var completed = false;
         var completionSource = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var source = Observable.Create<int>(observer =>
+        {
+            observer.OnNext(1);
+            observer.OnNext(2);
+            observer.OnCompleted();
+            return System.Reactive.Disposables.Disposable.Empty;
+        });
 
-        using var subscription = subject.SubscribeAsync(
+        using var subscription = source.SubscribeAsync(
             async v =>
             {
                 await Task.Delay(1);
@@ -2061,10 +2064,6 @@ public class ReactiveExtensionsTests
                 completed = true;
                 completionSource.TrySetResult(true);
             });
-
-        subject.OnNext(1);
-        subject.OnNext(2);
-        subject.OnCompleted();
 
         await completionSource.Task.WaitAsync(TimeSpan.FromSeconds(5));
 

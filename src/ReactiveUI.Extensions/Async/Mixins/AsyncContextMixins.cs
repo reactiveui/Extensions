@@ -7,7 +7,7 @@ namespace ReactiveUI.Extensions.Async;
 /// <summary>
 /// Provides extension methods for comparing <see cref="AsyncContext"/> instances with the current async context.
 /// </summary>
-internal static class AsyncContextMixins
+public static class AsyncContextMixins
 {
     /// <summary>
     /// Determines whether the specified <see cref="AsyncContext"/> represents the current asynchronous context.
@@ -20,6 +20,8 @@ internal static class AsyncContextMixins
     /// cref="SynchronizationContext"/> or <see cref="TaskScheduler"/>; otherwise, <see langword="false"/>.</returns>
     public static bool IsSameAsCurrentAsyncContext(this AsyncContext @this)
     {
+        ArgumentExceptionHelper.ThrowIfNull(@this);
+
         if (@this.SynchronizationContext is not null)
         {
             return @this.SynchronizationContext == SynchronizationContext.Current;

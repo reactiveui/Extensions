@@ -4,7 +4,6 @@
 
 using ReactiveUI.Extensions.Async;
 using ReactiveUI.Extensions.Async.Disposables;
-using ReactiveUI.Extensions.Async.Internals;
 
 namespace ReactiveUI.Extensions.Tests.Async;
 
