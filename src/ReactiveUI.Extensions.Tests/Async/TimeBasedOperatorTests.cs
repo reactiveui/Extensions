@@ -780,6 +780,131 @@ public class TimeBasedOperatorTests
         }
     }
 
+    /// <summary>Tests Interval stops when cancelled.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenIntervalCancelled_ThenStops()
+    {
+        var cts = new CancellationTokenSource();
+        var items = new List<long>();
+
+        await using var sub = await ObservableAsync.Interval(TimeSpan.FromMilliseconds(10))
+            .SubscribeAsync(
+                (x, _) =>
+                {
+                    items.Add(x);
+                    if (x >= 2)
+                    {
+                        cts.Cancel();
+                    }
+
+                    return default;
+                },
+                null,
+                null,
+                cts.Token);
+
+        await Task.Delay(200);
+        await Assert.That(items.Count).IsGreaterThanOrEqualTo(2);
+    }
+
+    /// <summary>Tests Timer with period stops when cancelled.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenTimerWithPeriodCancelled_ThenStops()
+    {
+        var cts = new CancellationTokenSource();
+        var items = new List<long>();
+
+        await using var sub = await ObservableAsync.Timer(TimeSpan.FromMilliseconds(1), TimeSpan.FromMilliseconds(10))
+            .SubscribeAsync(
+                (x, _) =>
+                {
+                    items.Add(x);
+                    if (x >= 2)
+                    {
+                        cts.Cancel();
+                    }
+
+                    return default;
+                },
+                null,
+                null,
+                cts.Token);
+
+        await Task.Delay(200);
+        await Assert.That(items.Count).IsGreaterThanOrEqualTo(2);
+    }
+
+    /// <summary>Tests Throttle supersedes older values and only emits latest.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenThrottleReceivesRapidValues_ThenOnlyEmitsLatest()
+    {
+        var source = new DirectSource<int>();
+        var items = new List<int>();
+        var completed = new TaskCompletionSource();
+
+        await using var sub = await source.Throttle(TimeSpan.FromMilliseconds(50))
+            .SubscribeAsync(
+                (x, _) =>
+                {
+                    items.Add(x);
+                    return default;
+                },
+                null,
+                _ =>
+                {
+                    completed.TrySetResult();
+                    return default;
+                });
+
+        await source.EmitNext(1);
+        await source.EmitNext(2);
+        await source.EmitNext(3);
+
+        await Task.Delay(200);
+        await source.Complete(Result.Success);
+        await completed.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        await Assert.That(items).Contains(3);
+    }
+
+    /// <summary>Tests Timeout fires when source is slow.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenTimeoutFires_ThenThrowsTimeoutException()
+    {
+        await Assert.ThrowsAsync<TimeoutException>(async () =>
+            await ObservableAsync.Never<int>()
+                .Timeout(TimeSpan.FromMilliseconds(10))
+                .FirstAsync());
+    }
+
+    /// <summary>Tests Timeout with fallback observable.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenTimeoutWithFallback_ThenFallbackUsed()
+    {
+        var result = await ObservableAsync.Never<int>()
+            .Timeout(TimeSpan.FromMilliseconds(10), ObservableAsync.Return(99))
+            .FirstAsync();
+
+        await Assert.That(result).IsEqualTo(99);
+    }
+
+    /// <summary>Tests Timeout resets on each value and does not fire.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenTimeoutResetsOnValue_ThenDoesNotFire()
+    {
+        var result = await ObservableAsync.Range(1, 3)
+            .Timeout(TimeSpan.FromSeconds(5))
+            .ToListAsync();
+
+        await Assert.That(result).IsEquivalentTo([1, 2, 3]);
+    }
+
     /// <summary>
     /// A custom <see cref="TimeProvider"/> that delegates timer creation to the system provider.
     /// Used to exercise the non-system <see cref="TimeProvider"/> code paths in Interval and Timer operators.

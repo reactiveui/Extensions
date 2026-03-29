@@ -224,9 +224,9 @@ public sealed class CompositeDisposableAsync : IAsyncDisposable
 
         try
         {
-            foreach (var item in targetDisposables.Take(clearCount))
+            for (var i = 0; i < clearCount; i++)
             {
-                if (item != null)
+                if (targetDisposables[i] is { } item)
                 {
                     await item.DisposeAsync();
                 }

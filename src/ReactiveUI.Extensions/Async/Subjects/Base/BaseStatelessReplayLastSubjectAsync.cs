@@ -41,7 +41,7 @@ public abstract class BaseStatelessReplayLastSubjectAsync<T>(Optional<T> startVa
     /// <summary>
     /// The immutable list of currently subscribed observers.
     /// </summary>
-    private ImmutableList<IObserverAsync<T>> _observers = [];
+    private ImmutableArray<IObserverAsync<T>> _observers = [];
 
     /// <summary>
     /// Gets an observable sequence that represents the asynchronous values published by the subject.
@@ -56,7 +56,7 @@ public abstract class BaseStatelessReplayLastSubjectAsync<T>(Optional<T> startVa
     /// <returns>A task that represents the asynchronous notification operation.</returns>
     public async ValueTask OnNextAsync(T value, CancellationToken cancellationToken)
     {
-        ImmutableList<IObserverAsync<T>> observers;
+        ImmutableArray<IObserverAsync<T>> observers;
         using (await _gate.LockAsync())
         {
             _value = new(value);
@@ -77,7 +77,7 @@ public abstract class BaseStatelessReplayLastSubjectAsync<T>(Optional<T> startVa
     /// <returns>A task that represents the asynchronous error notification operation.</returns>
     public async ValueTask OnErrorResumeAsync(Exception error, CancellationToken cancellationToken)
     {
-        ImmutableList<IObserverAsync<T>> observers;
+        ImmutableArray<IObserverAsync<T>> observers;
         using (await _gate.LockAsync())
         {
             observers = _observers;
@@ -95,7 +95,7 @@ public abstract class BaseStatelessReplayLastSubjectAsync<T>(Optional<T> startVa
     /// <returns>A task that represents the asynchronous notification operation.</returns>
     public async ValueTask OnCompletedAsync(Result result)
     {
-        ImmutableList<IObserverAsync<T>> observers;
+        ImmutableArray<IObserverAsync<T>> observers;
         using (await _gate.LockAsync())
         {
             observers = _observers;
@@ -138,7 +138,7 @@ public abstract class BaseStatelessReplayLastSubjectAsync<T>(Optional<T> startVa
             using (await _gate.LockAsync())
             {
                 _observers = _observers.Remove(observer);
-                if (_observers.Count == 0)
+                if (_observers.IsEmpty)
                 {
                     _value = _startValue;
                 }

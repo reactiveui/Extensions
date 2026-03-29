@@ -9,7 +9,7 @@ namespace ReactiveUI.Extensions.Async.Internals;
 /// <summary>
 /// Provides an asynchronous reentrant lock that allows recursive acquisition from the same async context.
 /// </summary>
-internal class AsyncGate : IDisposable
+internal sealed class AsyncGate : IDisposable
 {
     /// <summary>
     /// Synchronization gate protecting the recursion count and semaphore access.
@@ -68,8 +68,11 @@ internal class AsyncGate : IDisposable
     /// <inheritdoc/>
     public void Dispose()
     {
-        Dispose(disposing: true);
-        GC.SuppressFinalize(this);
+        if (!_disposedValue)
+        {
+            _semaphore.Dispose();
+            _disposedValue = true;
+        }
     }
 
     /// <summary>
@@ -85,23 +88,6 @@ internal class AsyncGate : IDisposable
             {
                 _semaphore.Release();
             }
-        }
-    }
-
-    /// <summary>
-    /// Releases the resources used by the <see cref="AsyncGate"/>.
-    /// </summary>
-    /// <param name="disposing"><see langword="true"/> to release managed resources; otherwise, <see langword="false"/>.</param>
-    protected virtual void Dispose(bool disposing)
-    {
-        if (!_disposedValue)
-        {
-            if (disposing)
-            {
-                _semaphore.Dispose();
-            }
-
-            _disposedValue = true;
         }
     }
 

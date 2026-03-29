@@ -35,17 +35,9 @@ internal sealed class ConcatEnumerableObservable<T>(IEnumerable<IObservableAsync
     protected override async ValueTask<IAsyncDisposable> SubscribeAsyncCore(IObserverAsync<T> observer, CancellationToken cancellationToken)
     {
         var subscription = new ConcatEnumerableSubscription(this, observer);
-        try
-        {
-            await subscription.SubscribeNextAsync();
-        }
-        catch
-        {
-            await subscription.DisposeAsync();
-            throw;
-        }
-
-        return subscription;
+        return await SubscriptionHelper.SubscribeAndDisposeOnFailureAsync(
+            subscription,
+            subscription.SubscribeNextAsync);
     }
 
     /// <summary>

@@ -83,17 +83,9 @@ public static partial class ObservableAsync
             }
 
             var subscription = new Subscription(_sources, observer);
-            try
-            {
-                await subscription.SubscribeAsync(cancellationToken);
-            }
-            catch
-            {
-                await subscription.DisposeAsync();
-                throw;
-            }
-
-            return subscription;
+            return await SubscriptionHelper.SubscribeAndDisposeOnFailureAsync(
+                subscription,
+                () => subscription.SubscribeAsync(cancellationToken));
         }
 
         /// <summary>

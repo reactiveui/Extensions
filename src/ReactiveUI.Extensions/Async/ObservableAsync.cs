@@ -26,11 +26,8 @@ public abstract class ObservableAsync<T> : IObservableAsync<T>
     /// <param name="cancellationToken">A cancellation token that can be used to cancel the subscription operation.</param>
     /// <returns>A task that represents the asynchronous operation. The result contains an <see cref="IAsyncDisposable"/> that
     /// can be disposed to unsubscribe the observer.</returns>
-    public async ValueTask<IAsyncDisposable> SubscribeAsync(IObserverAsync<T> observer, CancellationToken cancellationToken)
-    {
-        var subscription = await SubscribeAsyncCore(observer, cancellationToken).ConfigureAwait(false);
-        return subscription;
-    }
+    public ValueTask<IAsyncDisposable> SubscribeAsync(IObserverAsync<T> observer, CancellationToken cancellationToken) =>
+        SubscribeAsyncCore(observer, cancellationToken);
 
     /// <summary>
     /// Subscribes the specified asynchronous observer to receive notifications from the observable sequence.

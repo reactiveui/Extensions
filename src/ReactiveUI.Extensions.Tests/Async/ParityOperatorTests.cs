@@ -3,6 +3,7 @@
 // See the LICENSE file in the project root for full license information.
 
 using ReactiveUI.Extensions.Async;
+using ReactiveUI.Extensions.Async.Disposables;
 using ReactiveUI.Extensions.Async.Subjects;
 using AsyncObs = ReactiveUI.Extensions.Async.ObservableAsync;
 

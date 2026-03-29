@@ -135,16 +135,9 @@ public static partial class ObservableAsync
         protected override async ValueTask<IAsyncDisposable> SubscribeAsyncCore(IObserverAsync<T> observer, CancellationToken cancellationToken)
         {
             var subscription = new TakeUntilPredicateSubscription(this, observer);
-            try
-            {
-                await subscription.SubscribeAsync(cancellationToken);
-                return subscription;
-            }
-            catch
-            {
-                await subscription.DisposeAsync();
-                throw;
-            }
+            return await SubscriptionHelper.SubscribeAndDisposeOnFailureAsync(
+                subscription,
+                () => subscription.SubscribeAsync(cancellationToken));
         }
 
         /// <summary>
@@ -208,16 +201,9 @@ public static partial class ObservableAsync
         protected override async ValueTask<IAsyncDisposable> SubscribeAsyncCore(IObserverAsync<T> observer, CancellationToken cancellationToken)
         {
             var subscription = new Subscription(this, observer);
-            try
-            {
-                await subscription.SubscribeAsync(cancellationToken);
-                return subscription;
-            }
-            catch
-            {
-                await subscription.DisposeAsync();
-                throw;
-            }
+            return await SubscriptionHelper.SubscribeAndDisposeOnFailureAsync(
+                subscription,
+                () => subscription.SubscribeAsync(cancellationToken));
         }
 
         /// <summary>
@@ -374,16 +360,9 @@ public static partial class ObservableAsync
         protected override async ValueTask<IAsyncDisposable> SubscribeAsyncCore(IObserverAsync<T> observer, CancellationToken cancellationToken)
         {
             var subscription = new Subscription(this, observer);
-            try
-            {
-                await subscription.SubscribeAsync(cancellationToken);
-                return subscription;
-            }
-            catch
-            {
-                await subscription.DisposeAsync();
-                throw;
-            }
+            return await SubscriptionHelper.SubscribeAndDisposeOnFailureAsync(
+                subscription,
+                () => subscription.SubscribeAsync(cancellationToken));
         }
 
         /// <summary>
@@ -587,16 +566,9 @@ public static partial class ObservableAsync
         protected override async ValueTask<IAsyncDisposable> SubscribeAsyncCore(IObserverAsync<T> observer, CancellationToken cancellationToken)
         {
             var subscription = new Subscription(this, observer);
-            try
-            {
-                await subscription.SubscribeAsync(cancellationToken);
-                return subscription;
-            }
-            catch
-            {
-                await subscription.DisposeAsync();
-                throw;
-            }
+            return await SubscriptionHelper.SubscribeAndDisposeOnFailureAsync(
+                subscription,
+                () => subscription.SubscribeAsync(cancellationToken));
         }
 
         /// <summary>
@@ -768,16 +740,9 @@ public static partial class ObservableAsync
         protected override async ValueTask<IAsyncDisposable> SubscribeAsyncCore(IObserverAsync<T> observer, CancellationToken cancellationToken)
         {
             var subscription = new Subscription(this, observer);
-            try
-            {
-                await subscription.SubscribeAsync(cancellationToken);
-                return subscription;
-            }
-            catch
-            {
-                await subscription.DisposeAsync();
-                throw;
-            }
+            return await SubscriptionHelper.SubscribeAndDisposeOnFailureAsync(
+                subscription,
+                async () => { await subscription.SubscribeAsync(cancellationToken); });
         }
 
         /// <summary>
@@ -956,16 +921,9 @@ public static partial class ObservableAsync
         protected override async ValueTask<IAsyncDisposable> SubscribeAsyncCore(IObserverAsync<T> observer, CancellationToken cancellationToken)
         {
             var subscription = new TakeUntilAsyncPredicateSubscription(this, observer);
-            try
-            {
-                await subscription.SubscribeAsync(cancellationToken);
-                return subscription;
-            }
-            catch
-            {
-                await subscription.DisposeAsync();
-                throw;
-            }
+            return await SubscriptionHelper.SubscribeAndDisposeOnFailureAsync(
+                subscription,
+                () => subscription.SubscribeAsync(cancellationToken));
         }
 
         /// <summary>

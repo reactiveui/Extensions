@@ -126,7 +126,11 @@ public static class ReactiveExtensions
             ? source.Publish(shared => shared.Buffer(() => shared.Throttle(idleTime)))
             : Observable.Create<IList<T>>(observer =>
             {
+#if NET9_0_OR_GREATER
+                Lock gate = new();
+#else
                 object gate = new();
+#endif
                 List<T> buffer = new();
                 SerialDisposable timer = new();
 
@@ -472,15 +476,8 @@ public static class ReactiveExtensions
     /// <param name="events">Values to push.</param>
     public static void OnNext<T>(this IObserver<T> observer, params T[] events)
     {
-        if (observer == null)
-        {
-            throw new ArgumentNullException(nameof(observer));
-        }
-
-        if (events == null)
-        {
-            throw new ArgumentNullException(nameof(events));
-        }
+        ArgumentExceptionHelper.ThrowIfNull(observer, nameof(observer));
+        ArgumentExceptionHelper.ThrowIfNull(events, nameof(events));
 
         FastForEach(observer, events);
     }

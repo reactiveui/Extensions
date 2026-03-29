@@ -976,6 +976,31 @@ public class DisposableTests
         await Assert.That(sad.IsDisposed).IsTrue();
     }
 
+    /// <summary>Tests CompositeDisposableAsync.CopyTo with negative index throws.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenCopyToWithNegativeIndex_ThenThrows()
+    {
+        await using var composite = new CompositeDisposableAsync();
+        var array = new IAsyncDisposable[1];
+        Assert.Throws<ArgumentOutOfRangeException>(() => composite.CopyTo(array, -1));
+    }
+
+    /// <summary>Tests CompositeDisposableAsync.CopyTo with insufficient space throws.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenCopyToWithInsufficientSpace_ThenThrows()
+    {
+        var composite = new CompositeDisposableAsync();
+        await composite.AddAsync(DisposableAsync.Empty);
+        await composite.AddAsync(DisposableAsync.Empty);
+
+        var array = new IAsyncDisposable[1];
+        Assert.Throws<ArgumentOutOfRangeException>(() => composite.CopyTo(array, 0));
+
+        await composite.DisposeAsync();
+    }
+
     /// <summary>
     /// Helper disposable for testing ToDisposableAsync.
     /// </summary>

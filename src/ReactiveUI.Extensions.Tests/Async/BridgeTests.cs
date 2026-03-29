@@ -739,4 +739,23 @@ public class BridgeTests
         await Assert.That(conditionMet).IsTrue();
         await Assert.That(receivedError!.Message).IsEqualTo("completion failure");
     }
+
+    /// <summary>Tests ToObservable bridge disposal when subscription task is already completed.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenBridgeToObservableDisposedAfterCompletion_ThenCleansUp()
+    {
+        var source = new DirectSource<int>();
+        var bridged = source.ToObservable();
+        var items = new List<int>();
+
+        var sub = bridged.Subscribe(x => items.Add(x));
+
+        await source.EmitNext(42);
+        await Task.Delay(50);
+
+        sub.Dispose();
+
+        await Assert.That(items).Contains(42);
+    }
 }

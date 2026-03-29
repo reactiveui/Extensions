@@ -1858,6 +1858,97 @@ public class ResultAndInfrastructureTests
         await Assert.That(handledErrors[0]).IsSameReferenceAs(completionException);
     }
 
+    /// <summary>Tests SubjectAsync.Create with invalid PublishingOption throws.</summary>
+    [Test]
+    public void WhenSubjectAsyncCreateWithInvalidOptions_ThenThrows()
+    {
+        var options = new SubjectCreationOptions
+        {
+            PublishingOption = (PublishingOption)99,
+            IsStateless = false
+        };
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => SubjectAsync.Create<int>(options));
+    }
+
+    /// <summary>Tests SubjectAsync.CreateBehavior with invalid PublishingOption throws.</summary>
+    [Test]
+    public void WhenBehaviorSubjectCreateWithInvalidOptions_ThenThrows()
+    {
+        var options = new BehaviorSubjectCreationOptions
+        {
+            PublishingOption = (PublishingOption)99,
+            IsStateless = false
+        };
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => SubjectAsync.CreateBehavior<int>(0, options));
+    }
+
+    /// <summary>Tests SubjectAsync.CreateReplayLatest with invalid PublishingOption throws.</summary>
+    [Test]
+    public void WhenReplayLatestCreateWithInvalidOptions_ThenThrows()
+    {
+        var options = new ReplayLatestSubjectCreationOptions
+        {
+            PublishingOption = (PublishingOption)99,
+            IsStateless = false
+        };
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => SubjectAsync.CreateReplayLatest<int>(options));
+    }
+
+    /// <summary>Tests AsyncContext.IsDefaultContext returns false for non-default context.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenAsyncContextIsNotDefault_ThenIsDefaultContextIsFalse()
+    {
+        var sc = new SynchronizationContext();
+        var ctx = AsyncContext.From(sc);
+        await Assert.That(ctx.IsDefaultContext).IsFalse();
+    }
+
+    /// <summary>Tests AsyncContext.SwitchContextAsync with default context and force yielding.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenSwitchContextAsyncWithDefaultContext_ThenCompletes()
+    {
+        var ctx = AsyncContext.Default;
+        await ctx.SwitchContextAsync(forceYielding: true, CancellationToken.None);
+    }
+
+    /// <summary>Tests SubscriptionHelper returns subscription on success.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenSubscriptionHelperSucceeds_ThenReturnsSubscription()
+    {
+        var disposable = DisposableAsync.Empty;
+        var result = await SubscriptionHelper.SubscribeAndDisposeOnFailureAsync(
+            disposable,
+            () => default);
+
+        await Assert.That(result).IsEqualTo(disposable);
+    }
+
+    /// <summary>Tests SubscriptionHelper disposes subscription and rethrows on failure.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenSubscriptionHelperFails_ThenDisposesAndRethrows()
+    {
+        var disposed = false;
+        var disposable = DisposableAsync.Create(() =>
+        {
+            disposed = true;
+            return default;
+        });
+
+        await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            await SubscriptionHelper.SubscribeAndDisposeOnFailureAsync(
+                disposable,
+                () => throw new InvalidOperationException("subscribe-fail")));
+
+        await Assert.That(disposed).IsTrue();
+    }
+
     /// <summary>
     /// A concrete <see cref="ObserverAsync{T}"/> implementation for testing, with
     /// configurable behavior for each virtual method.

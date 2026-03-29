@@ -239,17 +239,9 @@ public static partial class ObservableAsync
         protected override async ValueTask<IAsyncDisposable> SubscribeAsyncCore(IObserverAsync<TResult> observer, CancellationToken cancellationToken)
         {
             var subscription = new CombineLatestSubscription(observer, src1, src2, selector);
-            try
-            {
-                await subscription.SubscribeAsync(cancellationToken);
-            }
-            catch
-            {
-                await subscription.DisposeAsync();
-                throw;
-            }
-
-            return subscription;
+            return await SubscriptionHelper.SubscribeAndDisposeOnFailureAsync(
+                subscription,
+                () => subscription.SubscribeAsync(cancellationToken));
         }
 
         /// <summary>
@@ -494,17 +486,9 @@ public static partial class ObservableAsync
         protected override async ValueTask<IAsyncDisposable> SubscribeAsyncCore(IObserverAsync<TResult> observer, CancellationToken cancellationToken)
         {
             var subscription = new CombineLatestSubscription(observer, src1, src2, src3, selector);
-            try
-            {
-                await subscription.SubscribeAsync(cancellationToken);
-            }
-            catch
-            {
-                await subscription.DisposeAsync();
-                throw;
-            }
-
-            return subscription;
+            return await SubscriptionHelper.SubscribeAndDisposeOnFailureAsync(
+                subscription,
+                () => subscription.SubscribeAsync(cancellationToken));
         }
 
         /// <summary>
@@ -810,17 +794,9 @@ public static partial class ObservableAsync
         protected override async ValueTask<IAsyncDisposable> SubscribeAsyncCore(IObserverAsync<TResult> observer, CancellationToken cancellationToken)
         {
             var subscription = new CombineLatestSubscription(observer, src1, src2, src3, src4, selector);
-            try
-            {
-                await subscription.SubscribeAsync(cancellationToken);
-            }
-            catch
-            {
-                await subscription.DisposeAsync();
-                throw;
-            }
-
-            return subscription;
+            return await SubscriptionHelper.SubscribeAndDisposeOnFailureAsync(
+                subscription,
+                () => subscription.SubscribeAsync(cancellationToken));
         }
 
         /// <summary>
@@ -1187,17 +1163,9 @@ public static partial class ObservableAsync
         protected override async ValueTask<IAsyncDisposable> SubscribeAsyncCore(IObserverAsync<TResult> observer, CancellationToken cancellationToken)
         {
             var subscription = new CombineLatestSubscription(observer, src1, src2, src3, src4, src5, selector);
-            try
-            {
-                await subscription.SubscribeAsync(cancellationToken);
-            }
-            catch
-            {
-                await subscription.DisposeAsync();
-                throw;
-            }
-
-            return subscription;
+            return await SubscriptionHelper.SubscribeAndDisposeOnFailureAsync(
+                subscription,
+                () => subscription.SubscribeAsync(cancellationToken));
         }
 
         /// <summary>
@@ -1625,17 +1593,9 @@ public static partial class ObservableAsync
         protected override async ValueTask<IAsyncDisposable> SubscribeAsyncCore(IObserverAsync<TResult> observer, CancellationToken cancellationToken)
         {
             var subscription = new CombineLatestSubscription(observer, src1, src2, src3, src4, src5, src6, selector);
-            try
-            {
-                await subscription.SubscribeAsync(cancellationToken);
-            }
-            catch
-            {
-                await subscription.DisposeAsync();
-                throw;
-            }
-
-            return subscription;
+            return await SubscriptionHelper.SubscribeAndDisposeOnFailureAsync(
+                subscription,
+                () => subscription.SubscribeAsync(cancellationToken));
         }
 
         /// <summary>
@@ -2124,17 +2084,9 @@ public static partial class ObservableAsync
         protected override async ValueTask<IAsyncDisposable> SubscribeAsyncCore(IObserverAsync<TResult> observer, CancellationToken cancellationToken)
         {
             var subscription = new CombineLatestSubscription(observer, src1, src2, src3, src4, src5, src6, src7, selector);
-            try
-            {
-                await subscription.SubscribeAsync(cancellationToken);
-            }
-            catch
-            {
-                await subscription.DisposeAsync();
-                throw;
-            }
-
-            return subscription;
+            return await SubscriptionHelper.SubscribeAndDisposeOnFailureAsync(
+                subscription,
+                () => subscription.SubscribeAsync(cancellationToken));
         }
 
         /// <summary>
@@ -2684,17 +2636,9 @@ public static partial class ObservableAsync
         protected override async ValueTask<IAsyncDisposable> SubscribeAsyncCore(IObserverAsync<TResult> observer, CancellationToken cancellationToken)
         {
             var subscription = new CombineLatestSubscription(observer, src1, src2, src3, src4, src5, src6, src7, src8, selector);
-            try
-            {
-                await subscription.SubscribeAsync(cancellationToken);
-            }
-            catch
-            {
-                await subscription.DisposeAsync();
-                throw;
-            }
-
-            return subscription;
+            return await SubscriptionHelper.SubscribeAndDisposeOnFailureAsync(
+                subscription,
+                () => subscription.SubscribeAsync(cancellationToken));
         }
 
         /// <summary>

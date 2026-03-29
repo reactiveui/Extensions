@@ -33,12 +33,24 @@ public static class Concurrent
     {
         ArgumentExceptionHelper.ThrowIfNull(observers, nameof(observers));
 
-        if (observers.Count == 0)
+        var count = observers.Count;
+        if (count == 0)
         {
             return default;
         }
 
-        return new ValueTask(Task.WhenAll(observers.Select(x => x.OnNextAsync(value, cancellationToken).AsTask())));
+        if (count == 1)
+        {
+            return observers[0].OnNextAsync(value, cancellationToken);
+        }
+
+        var tasks = new Task[count];
+        for (var i = 0; i < count; i++)
+        {
+            tasks[i] = observers[i].OnNextAsync(value, cancellationToken).AsTask();
+        }
+
+        return new ValueTask(Task.WhenAll(tasks));
     }
 
     /// <summary>
@@ -59,12 +71,24 @@ public static class Concurrent
     {
         ArgumentExceptionHelper.ThrowIfNull(observers, nameof(observers));
 
-        if (observers.Count == 0)
+        var count = observers.Count;
+        if (count == 0)
         {
             return default;
         }
 
-        return new ValueTask(Task.WhenAll(observers.Select(x => x.OnErrorResumeAsync(error, cancellationToken).AsTask())));
+        if (count == 1)
+        {
+            return observers[0].OnErrorResumeAsync(error, cancellationToken);
+        }
+
+        var tasks = new Task[count];
+        for (var i = 0; i < count; i++)
+        {
+            tasks[i] = observers[i].OnErrorResumeAsync(error, cancellationToken).AsTask();
+        }
+
+        return new ValueTask(Task.WhenAll(tasks));
     }
 
     /// <summary>
@@ -85,11 +109,23 @@ public static class Concurrent
     {
         ArgumentExceptionHelper.ThrowIfNull(observers, nameof(observers));
 
-        if (observers.Count == 0)
+        var count = observers.Count;
+        if (count == 0)
         {
             return default;
         }
 
-        return new ValueTask(Task.WhenAll(observers.Select(x => x.OnCompletedAsync(result).AsTask())));
+        if (count == 1)
+        {
+            return observers[0].OnCompletedAsync(result);
+        }
+
+        var tasks = new Task[count];
+        for (var i = 0; i < count; i++)
+        {
+            tasks[i] = observers[i].OnCompletedAsync(result).AsTask();
+        }
+
+        return new ValueTask(Task.WhenAll(tasks));
     }
 }

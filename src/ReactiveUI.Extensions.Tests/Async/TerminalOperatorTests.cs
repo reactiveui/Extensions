@@ -1218,4 +1218,198 @@ public class TerminalOperatorTests
 
         await Assert.That(items).IsEquivalentTo([10, 20, 30, 40, 50]);
     }
+
+    /// <summary>Tests AggregateAsync propagates source failure.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenAggregateAsyncSourceFails_ThenThrows()
+    {
+        var error = new InvalidOperationException("test");
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            async () => await ObservableAsync.Throw<int>(error).AggregateAsync(0, (acc, x) => acc + x));
+    }
+
+    /// <summary>Tests AnyAsync propagates source failure.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenAnyAsyncSourceFails_ThenThrows()
+    {
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            async () => await ObservableAsync.Throw<int>(new InvalidOperationException("fail")).AnyAsync());
+    }
+
+    /// <summary>Tests AllAsync propagates source failure.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenAllAsyncSourceFails_ThenThrows()
+    {
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            async () => await ObservableAsync.Throw<int>(new InvalidOperationException("fail")).AllAsync(_ => true));
+    }
+
+    /// <summary>Tests ContainsAsync propagates source failure.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenContainsAsyncSourceFails_ThenThrows()
+    {
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            async () => await ObservableAsync.Throw<int>(new InvalidOperationException("fail")).ContainsAsync(1));
+    }
+
+    /// <summary>Tests CountAsync propagates source failure.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenCountAsyncSourceFails_ThenThrows()
+    {
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            async () => await ObservableAsync.Throw<int>(new InvalidOperationException("fail")).CountAsync());
+    }
+
+    /// <summary>Tests LongCountAsync propagates source failure.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenLongCountAsyncSourceFails_ThenThrows()
+    {
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            async () => await ObservableAsync.Throw<int>(new InvalidOperationException("fail")).LongCountAsync());
+    }
+
+    /// <summary>Tests SingleAsync propagates source failure.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenSingleAsyncSourceFails_ThenThrows()
+    {
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            async () => await ObservableAsync.Throw<int>(new InvalidOperationException("fail")).SingleAsync());
+    }
+
+    /// <summary>Tests FirstAsync propagates source failure.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenFirstAsyncSourceFails_ThenThrows()
+    {
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            async () => await ObservableAsync.Throw<int>(new InvalidOperationException("fail")).FirstAsync());
+    }
+
+    /// <summary>Tests FirstOrDefaultAsync propagates source failure.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenFirstOrDefaultAsyncSourceFails_ThenThrows()
+    {
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            async () => await ObservableAsync.Throw<int>(new InvalidOperationException("fail")).FirstOrDefaultAsync());
+    }
+
+    /// <summary>Tests WaitCompletionAsync propagates source failure.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenWaitCompletionAsyncSourceFails_ThenThrows()
+    {
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            async () => await ObservableAsync.Throw<int>(new InvalidOperationException("fail")).WaitCompletionAsync());
+    }
+
+    /// <summary>Tests ContainsAsync when value is not found returns false.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenContainsAsyncValueNotFound_ThenReturnsFalse()
+    {
+        var result = await ObservableAsync.Range(1, 3).ContainsAsync(99);
+        await Assert.That(result).IsFalse();
+    }
+
+    /// <summary>Tests CountAsync with predicate that filters some elements.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenCountAsyncWithPredicate_ThenCountsMatchesOnly()
+    {
+        var result = await ObservableAsync.Range(1, 5).CountAsync(x => x > 3);
+        await Assert.That(result).IsEqualTo(2);
+    }
+
+    /// <summary>Tests LongCountAsync with predicate that filters some elements.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenLongCountAsyncWithPredicate_ThenCountsMatchesOnly()
+    {
+        var result = await ObservableAsync.Range(1, 5).LongCountAsync(x => x > 3);
+        await Assert.That(result).IsEqualTo(2L);
+    }
+
+    /// <summary>Tests FirstOrDefaultAsync on empty returns default.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenFirstOrDefaultAsyncOnEmpty_ThenReturnsDefault()
+    {
+        var result = await ObservableAsync.Empty<int>().FirstOrDefaultAsync();
+        await Assert.That(result).IsEqualTo(0);
+    }
+
+    /// <summary>Tests WaitCompletionAsync on successful sequence completes without error.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenWaitCompletionAsyncOnSuccess_ThenCompletes()
+    {
+        await ObservableAsync.Return(42).WaitCompletionAsync();
+    }
+
+    /// <summary>Tests ForEachAsync with null sync action throws ArgumentNullException.</summary>
+    [Test]
+    public void WhenForEachAsyncWithNullSyncAction_ThenThrowsArgumentNullException()
+    {
+        Assert.ThrowsAsync<ArgumentNullException>(
+            async () => await ObservableAsync.Return(1).ForEachAsync((Action<int>)null!));
+    }
+
+    /// <summary>Tests ForEachAsync with null async action throws ArgumentNullException.</summary>
+    [Test]
+    public void WhenForEachAsyncWithNullAsyncAction_ThenThrowsArgumentNullException()
+    {
+        Assert.ThrowsAsync<ArgumentNullException>(
+            async () => await ObservableAsync.Return(1).ForEachAsync((Func<int, CancellationToken, ValueTask>)null!));
+    }
+
+    /// <summary>Tests async ForEachAsync propagates source failure.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenForEachAsyncSourceFails_ThenThrows()
+    {
+        var error = new InvalidOperationException("test");
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            async () => await ObservableAsync.Throw<int>(error).ForEachAsync((_, _) => default));
+    }
+
+    /// <summary>Tests sync ForEachAsync propagates source failure.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenForEachAsyncSyncOverloadSourceFails_ThenThrows()
+    {
+        var error = new InvalidOperationException("test");
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            async () => await ObservableAsync.Throw<int>(error).ForEachAsync(_ => { }));
+    }
+
+    /// <summary>Tests ToAsyncEnumerable propagates source failure.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenToAsyncEnumerableSourceFails_ThenThrows()
+    {
+        var error = new InvalidOperationException("enum-error");
+        await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+        {
+            await foreach (var item in ObservableAsync.Throw<int>(error).ToAsyncEnumerable(
+                () => Channel.CreateUnbounded<int>()))
+            {
+                _ = item;
+            }
+        });
+    }
+
+    /// <summary>Tests Wrap with a null observer throws ArgumentNullException.</summary>
+    [Test]
+    public void WhenWrapWithNullObserver_ThenThrowsArgumentNullException()
+    {
+        Assert.Throws<ArgumentNullException>(() => ObservableAsync.Wrap<int>(null!));
+    }
 }

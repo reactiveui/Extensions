@@ -31,6 +31,15 @@ public abstract class ObserverAsync<T> : IObserverAsync<T>
     private readonly CancellationTokenSource _disposeCts = new();
 
     /// <summary>
+    /// Synchronization gate protecting mutable state (_callsCount, _reentrantCallsCount, _allCallsCompletedTcs).
+    /// </summary>
+#if NET9_0_OR_GREATER
+    private readonly Lock _gate = new();
+#else
+    private readonly object _gate = new();
+#endif
+
+    /// <summary>
     /// The total number of currently executing <c>OnNext</c>, <c>OnErrorResume</c>, or <c>OnCompleted</c> calls.
     /// </summary>
     private int _callsCount;
@@ -58,26 +67,25 @@ public abstract class ObserverAsync<T> : IObserverAsync<T>
     /// <returns>A task that represents the asynchronous operation.</returns>
     public async ValueTask OnNextAsync(T value, CancellationToken cancellationToken)
     {
-        if (!TryEnterOnSomethingCall(cancellationToken, out var linkedCts))
+        if (!TryEnterOnSomethingCall(cancellationToken, out var scope))
         {
             return;
         }
 
-        var linkedToken = linkedCts.Token;
         try
         {
-            await OnNextAsyncCore(value, linkedToken);
+            await OnNextAsyncCore(value, scope.Token);
         }
         catch (OperationCanceledException)
         {
         }
         catch (Exception e)
         {
-            await OnErrorResumeAsync_Private(e, linkedToken);
+            await OnErrorResumeAsync_Private(e, scope.Token);
         }
         finally
         {
-            linkedCts.Dispose();
+            scope.Dispose();
             ExitOnSomethingCall();
         }
     }
@@ -90,18 +98,18 @@ public abstract class ObserverAsync<T> : IObserverAsync<T>
     /// <returns>A task that represents the asynchronous error handling operation.</returns>
     public async ValueTask OnErrorResumeAsync(Exception error, CancellationToken cancellationToken)
     {
-        if (!TryEnterOnSomethingCall(cancellationToken, out var linkedCts))
+        if (!TryEnterOnSomethingCall(cancellationToken, out var scope))
         {
             return;
         }
 
         try
         {
-            await OnErrorResumeAsync_Private(error, linkedCts.Token);
+            await OnErrorResumeAsync_Private(error, scope.Token);
         }
         finally
         {
-            linkedCts.Dispose();
+            scope.Dispose();
             ExitOnSomethingCall();
         }
     }
@@ -117,7 +125,7 @@ public abstract class ObserverAsync<T> : IObserverAsync<T>
     [DebuggerStepThrough]
     public async ValueTask OnCompletedAsync(Result result)
     {
-        if (!TryEnterOnSomethingCall(CancellationToken.None, out var linkedCts))
+        if (!TryEnterOnSomethingCall(CancellationToken.None, out var scope))
         {
             return;
         }
@@ -132,7 +140,7 @@ public abstract class ObserverAsync<T> : IObserverAsync<T>
         }
         finally
         {
-            linkedCts.Dispose();
+            scope.Dispose();
             if (ExitOnSomethingCall())
             {
                 await DisposeAsync();
@@ -152,7 +160,7 @@ public abstract class ObserverAsync<T> : IObserverAsync<T>
     public async ValueTask DisposeAsync()
     {
         Task? allOnSomethingCallsCompleted = null;
-        lock (_reentrantCallsCount)
+        lock (_gate)
         {
             if (_disposeCts.IsCancellationRequested)
             {
@@ -204,16 +212,16 @@ public abstract class ObserverAsync<T> : IObserverAsync<T>
     /// Attempts to enter a notification call, checking for disposal, cancellation, and concurrent access.
     /// </summary>
     /// <param name="cancellationToken">The caller-supplied cancellation token.</param>
-    /// <param name="linkedCts">When successful, a linked <see cref="CancellationTokenSource"/> combining the caller token and disposal token.</param>
+    /// <param name="scope">When successful, a <see cref="LinkedTokenScope"/> providing the effective cancellation token.</param>
     /// <returns><see langword="true"/> if the call was entered successfully; otherwise, <see langword="false"/>.</returns>
     [DebuggerStepThrough]
-    internal bool TryEnterOnSomethingCall(CancellationToken cancellationToken, [NotNullWhen(true)] out CancellationTokenSource? linkedCts)
+    internal bool TryEnterOnSomethingCall(CancellationToken cancellationToken, out LinkedTokenScope scope)
     {
-        lock (_reentrantCallsCount)
+        lock (_gate)
         {
             if (_disposeCts.IsCancellationRequested || cancellationToken.IsCancellationRequested)
             {
-                linkedCts = null;
+                scope = default;
                 return false;
             }
 
@@ -221,14 +229,24 @@ public abstract class ObserverAsync<T> : IObserverAsync<T>
             if (_callsCount != reentrantCallsCount)
             {
                 UnhandledExceptionHandler.OnUnhandledException(new ConcurrentObserverCallsException());
-                linkedCts = null;
+                scope = default;
                 return false;
             }
 
             _callsCount++;
             _reentrantCallsCount.Value = reentrantCallsCount + 1;
 
-            linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _disposeCts.Token);
+            // Avoid allocating a linked CTS when the caller token is None or already the dispose token.
+            if (cancellationToken == CancellationToken.None || cancellationToken == _disposeCts.Token)
+            {
+                scope = new LinkedTokenScope(null, _disposeCts.Token);
+            }
+            else
+            {
+                var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _disposeCts.Token);
+                scope = new LinkedTokenScope(linkedCts, linkedCts.Token);
+            }
+
             return true;
         }
     }
@@ -241,7 +259,7 @@ public abstract class ObserverAsync<T> : IObserverAsync<T>
     [DebuggerStepThrough]
     internal bool ExitOnSomethingCall()
     {
-        lock (_reentrantCallsCount)
+        lock (_gate)
         {
             _callsCount--;
             var reentrantCallsCount = --_reentrantCallsCount.Value;
@@ -321,4 +339,17 @@ public abstract class ObserverAsync<T> : IObserverAsync<T>
     /// <param name="cancellationToken">A cancellation token that can be used to cancel the asynchronous operation.</param>
     /// <returns>A ValueTask that represents the asynchronous operation.</returns>
     protected abstract ValueTask OnNextAsyncCore(T value, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// A lightweight scope that wraps an optional <see cref="CancellationTokenSource"/> and exposes the
+    /// effective <see cref="CancellationToken"/>. When no linked source is needed (e.g. the caller token
+    /// is <see cref="CancellationToken.None"/>), the scope avoids allocating a linked CTS entirely.
+    /// </summary>
+    /// <param name="Cts">The linked CTS to dispose, or <see langword="null"/> if no allocation was needed.</param>
+    /// <param name="Token">The effective cancellation token for the notification call.</param>
+    internal readonly record struct LinkedTokenScope(CancellationTokenSource? Cts, CancellationToken Token) : IDisposable
+    {
+        /// <inheritdoc/>
+        public void Dispose() => Cts?.Dispose();
+    }
 }

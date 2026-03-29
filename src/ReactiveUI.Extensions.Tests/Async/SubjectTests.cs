@@ -1542,4 +1542,131 @@ public class SubjectTests
         await Assert.That(lateResult).IsNotNull();
         await Assert.That(lateResult!.Value.IsSuccess).IsTrue();
     }
+
+    /// <summary>Tests that concurrent subject forwards OnNext to multiple observers concurrently.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenConcurrentSubjectWithMultipleObservers_ThenAllReceiveOnNext()
+    {
+        var subject = SubjectAsync.Create<int>(new SubjectCreationOptions
+        {
+            PublishingOption = PublishingOption.Concurrent,
+            IsStateless = false
+        });
+        var items1 = new List<int>();
+        var items2 = new List<int>();
+
+        await using var sub1 = await subject.Values.SubscribeAsync(
+            (x, _) =>
+            {
+                lock (items1)
+                {
+                    items1.Add(x);
+                }
+
+                return default;
+            },
+            null,
+            null);
+        await using var sub2 = await subject.Values.SubscribeAsync(
+            (x, _) =>
+            {
+                lock (items2)
+                {
+                    items2.Add(x);
+                }
+
+                return default;
+            },
+            null,
+            null);
+
+        await subject.OnNextAsync(42, CancellationToken.None);
+        await subject.OnCompletedAsync(Result.Success);
+
+        await Assert.That(items1).IsEquivalentTo([42]);
+        await Assert.That(items2).IsEquivalentTo([42]);
+    }
+
+    /// <summary>Tests that concurrent subject forwards OnErrorResume to multiple observers concurrently.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenConcurrentSubjectWithMultipleObservers_ThenAllReceiveOnErrorResume()
+    {
+        var subject = SubjectAsync.Create<int>(new SubjectCreationOptions
+        {
+            PublishingOption = PublishingOption.Concurrent,
+            IsStateless = false
+        });
+        var errors1 = new List<Exception>();
+        var errors2 = new List<Exception>();
+        var error = new InvalidOperationException("test");
+
+        await using var sub1 = await subject.Values.SubscribeAsync(
+            static (_, _) => default,
+            (ex, _) =>
+            {
+                lock (errors1)
+                {
+                    errors1.Add(ex);
+                }
+
+                return default;
+            },
+            null);
+        await using var sub2 = await subject.Values.SubscribeAsync(
+            static (_, _) => default,
+            (ex, _) =>
+            {
+                lock (errors2)
+                {
+                    errors2.Add(ex);
+                }
+
+                return default;
+            },
+            null);
+
+        await subject.OnErrorResumeAsync(error, CancellationToken.None);
+        await subject.OnCompletedAsync(Result.Success);
+
+        await Assert.That(errors1).Count().IsEqualTo(1);
+        await Assert.That(errors2).Count().IsEqualTo(1);
+    }
+
+    /// <summary>Tests that concurrent subject forwards OnCompleted to multiple observers concurrently.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenConcurrentSubjectWithMultipleObservers_ThenAllReceiveOnCompleted()
+    {
+        var subject = SubjectAsync.Create<int>(new SubjectCreationOptions
+        {
+            PublishingOption = PublishingOption.Concurrent,
+            IsStateless = false
+        });
+        var completed1 = new TaskCompletionSource();
+        var completed2 = new TaskCompletionSource();
+
+        await using var sub1 = await subject.Values.SubscribeAsync(
+            static (_, _) => default,
+            null,
+            result =>
+            {
+                completed1.TrySetResult();
+                return default;
+            });
+        await using var sub2 = await subject.Values.SubscribeAsync(
+            static (_, _) => default,
+            null,
+            result =>
+            {
+                completed2.TrySetResult();
+                return default;
+            });
+
+        await subject.OnCompletedAsync(Result.Success);
+
+        await completed1.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await completed2.Task.WaitAsync(TimeSpan.FromSeconds(5));
+    }
 }
