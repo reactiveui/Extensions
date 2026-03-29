@@ -1660,6 +1660,178 @@ public class ResultAndInfrastructureTests
     }
 
     /// <summary>
+    /// Verifies that AsyncContext.GetCurrent captures the current SynchronizationContext when one is set.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenGetCurrentWithSyncContext_ThenCapturesSyncContext()
+    {
+        var sc = new SynchronizationContext();
+        var original = SynchronizationContext.Current;
+        try
+        {
+            SynchronizationContext.SetSynchronizationContext(sc);
+            var context = AsyncContext.GetCurrent();
+
+            await Assert.That(context.SynchronizationContext).IsSameReferenceAs(sc);
+            await Assert.That(context.TaskScheduler).IsNull();
+        }
+        finally
+        {
+            SynchronizationContext.SetSynchronizationContext(original);
+        }
+    }
+
+    /// <summary>
+    /// Verifies that AsyncContext.GetCurrent falls back to TaskScheduler.Current when no SynchronizationContext is set.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenGetCurrentWithoutSyncContext_ThenFallsBackToTaskScheduler()
+    {
+        var original = SynchronizationContext.Current;
+        try
+        {
+            SynchronizationContext.SetSynchronizationContext(null);
+            var context = AsyncContext.GetCurrent();
+
+            await Assert.That(context.SynchronizationContext).IsNull();
+            await Assert.That(context.TaskScheduler).IsNotNull();
+        }
+        finally
+        {
+            SynchronizationContext.SetSynchronizationContext(original);
+        }
+    }
+
+    /// <summary>
+    /// Verifies that AsyncContextSwitcherAwaitable.OnCompleted invokes the continuation immediately
+    /// when the cancellation token is already cancelled.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenSwitchContextAsyncOnCompletedWithCancelledToken_ThenContinuationInvokedImmediately()
+    {
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        var context = AsyncContext.Default;
+        var awaitable = context.SwitchContextAsync(forceYielding: true, cts.Token);
+
+        var invoked = false;
+        awaitable.OnCompleted(() => invoked = true);
+
+        await Assert.That(invoked).IsTrue();
+    }
+
+    /// <summary>
+    /// Verifies that AsyncContextSwitcherAwaitable.OnCompleted schedules the continuation
+    /// on the TaskScheduler when no SynchronizationContext is present.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenSwitchContextAsyncOnCompletedWithTaskScheduler_ThenSchedulesContinuation()
+    {
+        var context = AsyncContext.From(TaskScheduler.Default);
+        var awaitable = context.SwitchContextAsync(forceYielding: true, CancellationToken.None);
+
+        var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        awaitable.OnCompleted(() => tcs.TrySetResult());
+
+        await tcs.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        await Assert.That(tcs.Task.IsCompletedSuccessfully).IsTrue();
+    }
+
+    /// <summary>
+    /// Verifies that SchedulerTaskScheduler.GetScheduledTasks returns null.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenSchedulerTaskSchedulerGetScheduledTasks_ThenReturnsNull()
+    {
+        var testScheduler = new TestScheduler();
+        var taskScheduler = new AsyncContext.SchedulerTaskScheduler(testScheduler);
+
+        var method = typeof(TaskScheduler).GetMethod(
+            "GetScheduledTasks",
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+
+        var result = method!.Invoke(taskScheduler, null);
+
+        await Assert.That(result).IsNull();
+    }
+
+    /// <summary>
+    /// Verifies that SchedulerTaskScheduler.TryExecuteTaskInline always returns false.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenSchedulerTaskSchedulerTryExecuteTaskInline_ThenReturnsFalse()
+    {
+        var testScheduler = new TestScheduler();
+        var taskScheduler = new AsyncContext.SchedulerTaskScheduler(testScheduler);
+
+        var method = typeof(TaskScheduler).GetMethod(
+            "TryExecuteTaskInline",
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+
+        // Create a task that we can pass to TryExecuteTaskInline
+        var task = new Task(() => { });
+        var result = (bool)method!.Invoke(taskScheduler, [task, false])!;
+
+        await Assert.That(result).IsFalse();
+    }
+
+    /// <summary>
+    /// Verifies that disposing a CancelableTaskSubscription twice is safe; the second call returns immediately.
+    /// Covers the early-return guard in CancelableTaskSubscription.DisposeAsync.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenCancelableTaskSubscriptionDisposedTwice_ThenSecondCallIsNoop()
+    {
+        var source = ObservableAsync.Return(42);
+        var sub = await source.SubscribeAsync(
+            (_, _) => default,
+            null,
+            null);
+
+        await sub.DisposeAsync();
+
+        // Second dispose should hit the early return guard
+        await sub.DisposeAsync();
+    }
+
+    /// <summary>
+    /// Verifies that CompleteWithFailureAsync routes to the unhandled exception handler
+    /// when the observer's OnCompletedAsync itself throws.
+    /// Covers the catch block in CancelableTaskSubscription.CompleteWithFailureAsync.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenCompleteWithFailureAsyncObserverThrows_ThenRoutedToUnhandledHandler()
+    {
+        var handledErrors = new List<Exception>();
+        UnhandledExceptionHandler.Register(ex => handledErrors.Add(ex));
+
+        var completionException = new InvalidOperationException("observer completion throws");
+
+        var observer = new TestableObserverAsync(
+            onCompletedAsyncCore: _ => throw completionException);
+
+        await CancelableTaskSubscription<int>.CompleteWithFailureAsync(
+            observer, new InvalidOperationException("original error"));
+
+        await AsyncTestHelpers.WaitForConditionAsync(
+            () => handledErrors.Count >= 1,
+            TimeSpan.FromSeconds(5));
+
+        await Assert.That(handledErrors).Count().IsGreaterThanOrEqualTo(1);
+        await Assert.That(handledErrors[0]).IsSameReferenceAs(completionException);
+    }
+
+    /// <summary>
     /// A concrete <see cref="ObserverAsync{T}"/> implementation for testing, with
     /// configurable behavior for each virtual method.
     /// </summary>

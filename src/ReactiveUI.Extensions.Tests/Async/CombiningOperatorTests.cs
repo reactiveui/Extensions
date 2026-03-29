@@ -2707,6 +2707,7 @@ public class CombiningOperatorTests
     }
 
     /// <summary>Tests that Concat propagates error from first sequence.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
     public async Task WhenConcatFirstFails_ThenErrorPropagated()
     {
@@ -3872,6 +3873,7 @@ public class CombiningOperatorTests
     /// Verifies that when the first observable in a ConcatEnumerable throws during
     /// subscribe, the subscription is disposed and the exception propagates.
     /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
     public async Task WhenConcatEnumerableSubscribeThrows_ThenDisposesAndRethrows()
     {
@@ -5012,6 +5014,271 @@ public class CombiningOperatorTests
     }
 
     /// <summary>
+    /// Verifies that disposing a RefCount observable with an active connection disposes the connection cleanly.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenRefCountDisposedWithActiveConnection_ThenConnectionIsDisposed()
+    {
+        var source = SubjectAsync.Create<int>();
+        var connectable = source.Values.Publish();
+        var refCounted = connectable.RefCount();
+
+        // Subscribe to trigger the connection.
+        var items = new List<int>();
+        await using var sub = await refCounted.SubscribeAsync(
+            (x, _) =>
+            {
+                items.Add(x);
+                return default;
+            },
+            null,
+            null);
+
+        await source.OnNextAsync(42, CancellationToken.None);
+
+        await AsyncTestHelpers.WaitForConditionAsync(
+            () => items.Count == 1,
+            TimeSpan.FromSeconds(5));
+
+        // Dispose the RefCountObservable via its IDisposable implementation.
+        ((IDisposable)refCounted).Dispose();
+
+        await Assert.That(items).Contains(42);
+
+        await sub.DisposeAsync();
+        await source.DisposeAsync();
+    }
+
+    /// <summary>
+    /// Verifies that disposing a RefCount observable without any subscribers does not throw.
+    /// </summary>
+    [Test]
+    public void WhenRefCountDisposedWithNoSubscribers_ThenDoesNotThrow()
+    {
+        var source = ObservableAsync.Return(1);
+        var connectable = source.Publish();
+        var refCounted = connectable.RefCount();
+
+        // Dispose without ever subscribing — _connection is null.
+        ((IDisposable)refCounted).Dispose();
+    }
+
+    /// <summary>
+    /// Verifies that calling Dispose twice on a RefCount observable is idempotent.
+    /// </summary>
+    [Test]
+    public void WhenRefCountDisposedTwice_ThenSecondDisposeIsNoop()
+    {
+        var source = ObservableAsync.Return(1);
+        var connectable = source.Publish();
+        var refCounted = connectable.RefCount();
+
+        var disposable = (IDisposable)refCounted;
+        disposable.Dispose();
+        disposable.Dispose();
+    }
+
+    /// <summary>
+    /// Verifies that ConcatObservablesObservable.HandleAlreadyDisposed routes a failure
+    /// exception to the unhandled exception handler.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenConcatObservablesHandleAlreadyDisposedWithFailure_ThenRoutesToUnhandled()
+    {
+        Exception? unhandled = null;
+        UnhandledExceptionHandler.Register(ex => unhandled = ex);
+
+        var error = new InvalidOperationException("late failure");
+
+        ConcatObservablesObservable<int>.ConcatSubscription.HandleAlreadyDisposed(
+            Result.Failure(error));
+
+        await Assert.That(unhandled).IsSameReferenceAs(error);
+    }
+
+    /// <summary>
+    /// Verifies that ConcatObservablesObservable.HandleAlreadyDisposed with null or success
+    /// result does not invoke the unhandled exception handler.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenConcatObservablesHandleAlreadyDisposedWithoutFailure_ThenNoUnhandledException()
+    {
+        Exception? unhandled = null;
+        UnhandledExceptionHandler.Register(ex => unhandled = ex);
+
+        ConcatObservablesObservable<int>.ConcatSubscription.HandleAlreadyDisposed(null);
+        ConcatObservablesObservable<int>.ConcatSubscription.HandleAlreadyDisposed(Result.Success);
+
+        await Assert.That(unhandled).IsNull();
+    }
+
+    /// <summary>
+    /// Verifies that when <c>SubscribeNextAsync</c> throws and <c>CompleteAsync</c> also throws
+    /// (because the enumerator's Dispose faults), the catch block in <c>SubscribeAsyncCore</c>
+    /// disposes the subscription and rethrows the exception.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenConcatEnumerableMoveNextAndDisposeBothThrow_ThenSubscribeAsyncCoreDisposesAndRethrows()
+    {
+        var sources = new MoveNextAndDisposeThrowingEnumerable<int>();
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            async () => await sources.Concat().ToListAsync());
+    }
+
+    /// <summary>
+    /// Verifies that Merge(IObservableAsync of IObservableAsync) drops values after disposal.
+    /// Covers the disposed-early-return guard in MergeSubscription.ForwardOnNext.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenMergeOfObservablesDisposedDuringEmission_ThenDropsSubsequentValues()
+    {
+        var outerSource = AsyncTestHelpers.CreateDirectSource<IObservableAsync<int>>();
+        var innerSource = AsyncTestHelpers.CreateDirectSource<int>();
+        var results = new List<int>();
+
+        var sub = await outerSource
+            .Merge()
+            .SubscribeAsync(
+                (x, _) =>
+                {
+                    results.Add(x);
+                    return default;
+                },
+                null,
+                null);
+
+        await outerSource.EmitNext(innerSource);
+        await innerSource.EmitNext(1);
+
+        await AsyncTestHelpers.WaitForConditionAsync(
+            () => results.Count >= 1,
+            TimeSpan.FromSeconds(5));
+
+        await sub.DisposeAsync();
+
+        // Emit after disposal - should be dropped by the guard
+        await innerSource.EmitNext(99);
+
+        await Assert.That(results).Contains(1);
+    }
+
+    /// <summary>
+    /// Verifies that Merge(IObservableAsync of IObservableAsync) drops error-resume after disposal.
+    /// Covers the disposed-early-return guard in MergeSubscription.ForwardOnErrorResume.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenMergeOfObservablesDisposedDuringErrorResume_ThenDropsSubsequentErrors()
+    {
+        var outerSource = AsyncTestHelpers.CreateDirectSource<IObservableAsync<int>>();
+        var innerSource = AsyncTestHelpers.CreateDirectSource<int>();
+        var errors = new List<Exception>();
+
+        var sub = await outerSource
+            .Merge()
+            .SubscribeAsync(
+                (_, _) => default,
+                (ex, _) =>
+                {
+                    errors.Add(ex);
+                    return default;
+                },
+                null);
+
+        await outerSource.EmitNext(innerSource);
+        await innerSource.EmitError(new InvalidOperationException("first"));
+
+        await AsyncTestHelpers.WaitForConditionAsync(
+            () => errors.Count >= 1,
+            TimeSpan.FromSeconds(5));
+
+        await sub.DisposeAsync();
+
+        // Error after disposal - should be dropped by the guard
+        await innerSource.EmitError(new InvalidOperationException("second"));
+
+        await Assert.That(errors).Count().IsEqualTo(1);
+    }
+
+    /// <summary>
+    /// Verifies that MergeEnumerable drops values after disposal.
+    /// Covers the disposed-early-return guard in MergeEnumerableSubscription.OnNextAsync.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenMergeEnumerableDisposedDuringEmission_ThenDropsValues()
+    {
+        var innerSource = AsyncTestHelpers.CreateDirectSource<int>();
+        var results = new List<int>();
+
+        var sub = await new IObservableAsync<int>[] { innerSource }
+            .Merge()
+            .SubscribeAsync(
+                (x, _) =>
+                {
+                    results.Add(x);
+                    return default;
+                },
+                null,
+                null);
+
+        await innerSource.EmitNext(1);
+
+        await AsyncTestHelpers.WaitForConditionAsync(
+            () => results.Count >= 1,
+            TimeSpan.FromSeconds(5));
+
+        await sub.DisposeAsync();
+
+        // Emit after disposal - should be dropped
+        await innerSource.EmitNext(99);
+
+        await Assert.That(results).IsEquivalentTo([1]);
+    }
+
+    /// <summary>
+    /// Verifies that MergeEnumerable drops error-resume after disposal.
+    /// Covers the disposed-early-return guard in MergeEnumerableSubscription.OnErrorResumeAsync.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenMergeEnumerableDisposedDuringErrorResume_ThenDropsErrors()
+    {
+        var innerSource = AsyncTestHelpers.CreateDirectSource<int>();
+        var errors = new List<Exception>();
+
+        var sub = await new IObservableAsync<int>[] { innerSource }
+            .Merge()
+            .SubscribeAsync(
+                (_, _) => default,
+                (ex, _) =>
+                {
+                    errors.Add(ex);
+                    return default;
+                },
+                null);
+
+        await innerSource.EmitError(new InvalidOperationException("first"));
+
+        await AsyncTestHelpers.WaitForConditionAsync(
+            () => errors.Count >= 1,
+            TimeSpan.FromSeconds(5));
+
+        await sub.DisposeAsync();
+
+        // Error after disposal - should be dropped
+        await innerSource.EmitError(new InvalidOperationException("second"));
+
+        await Assert.That(errors).Count().IsEqualTo(1);
+    }
+
+    /// <summary>
     /// A trackable async disposable resource for verifying disposal in Using tests.
     /// </summary>
     private sealed class TrackingAsyncDisposable : IAsyncDisposable
@@ -5059,5 +5326,41 @@ public class CombiningOperatorTests
 
         /// <inheritdoc/>
         System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
+    }
+
+    /// <summary>
+    /// An enumerable whose enumerator throws on both <see cref="System.Collections.IEnumerator.MoveNext"/>
+    /// and <see cref="IDisposable.Dispose"/>, used to exercise the catch block in
+    /// <c>ConcatEnumerableObservable.SubscribeAsyncCore</c>.
+    /// </summary>
+    /// <typeparam name="T">The element type.</typeparam>
+    private sealed class MoveNextAndDisposeThrowingEnumerable<T> : IEnumerable<IObservableAsync<T>>
+    {
+        /// <inheritdoc/>
+        public IEnumerator<IObservableAsync<T>> GetEnumerator() => new ThrowingEnumerator();
+
+        /// <inheritdoc/>
+        System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
+
+        /// <summary>
+        /// An enumerator that throws on both <see cref="MoveNext"/> and <see cref="Dispose"/>.
+        /// </summary>
+        private sealed class ThrowingEnumerator : IEnumerator<IObservableAsync<T>>
+        {
+            /// <inheritdoc/>
+            public IObservableAsync<T> Current => default!;
+
+            /// <inheritdoc/>
+            object System.Collections.IEnumerator.Current => Current!;
+
+            /// <inheritdoc/>
+            public bool MoveNext() => throw new InvalidOperationException("enumerator MoveNext boom");
+
+            /// <inheritdoc/>
+            public void Reset() => throw new NotSupportedException();
+
+            /// <inheritdoc/>
+            public void Dispose() => throw new InvalidOperationException("enumerator Dispose boom");
+        }
     }
 }

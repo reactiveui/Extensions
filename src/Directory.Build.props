@@ -51,7 +51,6 @@
     <TestingPlatformDotnetTestSupport>true</TestingPlatformDotnetTestSupport>
     <TUnitImplicitUsings>true</TUnitImplicitUsings>
     <TUnitAssertionsImplicitUsings>true</TUnitAssertionsImplicitUsings>
-    <NoWarn>$(NoWarn);SA1615;CS4014</NoWarn>
   </PropertyGroup>
   
   <!-- MTP Native JSON Configuration -->

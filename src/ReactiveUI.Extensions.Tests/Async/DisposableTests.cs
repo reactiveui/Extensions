@@ -934,6 +934,20 @@ public class DisposableTests
     }
 
     /// <summary>
+    /// Tests that setting a SingleAssignmentDisposableAsync twice throws InvalidOperationException.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenSingleAssignmentDisposableAsyncSetTwice_ThenThrowsInvalidOperation()
+    {
+        var sad = new SingleAssignmentDisposableAsync();
+        await sad.SetDisposableAsync(DisposableAsync.Empty);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            async () => await sad.SetDisposableAsync(DisposableAsync.Empty));
+    }
+
+    /// <summary>
     /// Helper disposable for testing ToDisposableAsync.
     /// </summary>
     /// <param name="onDispose">The action to invoke on disposal.</param>

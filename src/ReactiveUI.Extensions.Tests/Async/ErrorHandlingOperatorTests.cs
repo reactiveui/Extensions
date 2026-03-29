@@ -16,6 +16,7 @@ namespace ReactiveUI.Extensions.Tests.Async;
 public class ErrorHandlingOperatorTests
 {
     /// <summary>Tests Catch with fallback switches to fallback.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
     public async Task WhenCatchWithFallback_ThenSwitchesToFallback()
     {
@@ -24,10 +25,11 @@ public class ErrorHandlingOperatorTests
 
         var result = await source.Catch(_ => fallback).ToListAsync();
 
-        await Assert.That(result).IsEquivalentTo(new[] { 42 });
+        await Assert.That(result).IsEquivalentTo([42]);
     }
 
     /// <summary>Tests Catch on success completes original sequence.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
     public async Task WhenCatchOnSuccess_ThenOriginalSequenceCompletes()
     {
@@ -35,10 +37,11 @@ public class ErrorHandlingOperatorTests
             .Catch(_ => ObservableAsync.Return(99))
             .ToListAsync();
 
-        await Assert.That(result).IsEquivalentTo(new[] { 1, 2, 3 });
+        await Assert.That(result).IsEquivalentTo([1, 2, 3]);
     }
 
     /// <summary>Tests CatchAndIgnoreErrorResume ignores and continues.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
     public async Task WhenCatchAndIgnoreErrorResume_ThenIgnoresAndContinues()
     {
@@ -47,10 +50,11 @@ public class ErrorHandlingOperatorTests
 
         var result = await source.CatchAndIgnoreErrorResume(_ => fallback).ToListAsync();
 
-        await Assert.That(result).IsEquivalentTo(new[] { 100 });
+        await Assert.That(result).IsEquivalentTo([100]);
     }
 
     /// <summary>Tests OnErrorResumeAsFailure converts error resume to failure.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
     public async Task WhenOnErrorResumeAsFailure_ThenConvertsErrorResumeToFailure()
     {
@@ -82,7 +86,36 @@ public class ErrorHandlingOperatorTests
         await Assert.That(completionResult!.Value.IsFailure).IsTrue();
     }
 
+    /// <summary>Tests that OnErrorResumeAsFailure throws ArgumentNullException when source is null.</summary>
+    [Test]
+    public void WhenOnErrorResumeAsFailureWithNullSource_ThenThrowsArgumentNullException()
+    {
+        IObservableAsync<int> source = null!;
+
+        Assert.Throws<ArgumentNullException>(() => source.OnErrorResumeAsFailure());
+    }
+
+    /// <summary>Tests that OnErrorResumeAsFailure forwards emitted values to the downstream observer.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenOnErrorResumeAsFailureWithValues_ThenForwardsValuesToDownstream()
+    {
+        var source = ObservableAsync.Create<int>(async (observer, ct) =>
+        {
+            await observer.OnNextAsync(1, ct);
+            await observer.OnNextAsync(2, ct);
+            await observer.OnNextAsync(3, ct);
+            await observer.OnCompletedAsync(Result.Success);
+            return DisposableAsync.Empty;
+        });
+
+        var result = await source.OnErrorResumeAsFailure().ToListAsync();
+
+        await Assert.That(result).IsEquivalentTo([1, 2, 3]);
+    }
+
     /// <summary>Tests Retry on transient error succeeds after retry.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
     public async Task WhenRetryOnTransientError_ThenSucceedsAfterRetry()
     {
@@ -102,7 +135,7 @@ public class ErrorHandlingOperatorTests
 
         var result = await source.Retry(5).ToListAsync();
 
-        await Assert.That(result).IsEquivalentTo(new[] { 42 });
+        await Assert.That(result).IsEquivalentTo([42]);
         await Assert.That(attempt).IsEqualTo(3);
     }
 
@@ -125,15 +158,17 @@ public class ErrorHandlingOperatorTests
     }
 
     /// <summary>Tests Retry on success completes normally.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
     public async Task WhenRetryInfiniteOnSuccess_ThenCompletesNormally()
     {
         var result = await ObservableAsync.Return(7).Retry().ToListAsync();
 
-        await Assert.That(result).IsEquivalentTo(new[] { 7 });
+        await Assert.That(result).IsEquivalentTo([7]);
     }
 
     /// <summary>Tests Catch with error resume callback is invoked.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
     public async Task WhenCatchWithErrorResumeCallback_ThenCallbackInvoked()
     {
@@ -312,7 +347,7 @@ public class ErrorHandlingOperatorTests
 
         var result = await source.CatchAndIgnoreErrorResume(_ => ObservableAsync.Return(99)).ToListAsync();
 
-        await Assert.That(result).IsEquivalentTo(new[] { 99 });
+        await Assert.That(result).IsEquivalentTo([99]);
         await Assert.That(reportedExceptions).Count().IsEqualTo(1);
         await Assert.That(reportedExceptions[0].Message).IsEqualTo("resume error");
     }
@@ -417,7 +452,7 @@ public class ErrorHandlingOperatorTests
 
         var result = await source.Retry().ToListAsync();
 
-        await Assert.That(result).IsEquivalentTo(new[] { 100 });
+        await Assert.That(result).IsEquivalentTo([100]);
         await Assert.That(attempt).IsEqualTo(5);
     }
 }

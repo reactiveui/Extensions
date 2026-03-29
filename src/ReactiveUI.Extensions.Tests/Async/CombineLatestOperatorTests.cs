@@ -5325,4 +5325,133 @@ public class CombineLatestOperatorTests
             // Expected
         }
     }
+
+    /// <summary>
+    /// Verifies that SubscribeAsync bails out of the source subscription loop when an
+    /// earlier source completes without emitting (triggering overall completion and
+    /// cancelling the dispose CTS) before remaining sources are subscribed,
+    /// covering the early-return guard in CombineLatestEnumerable.SubscribeAsync.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenCombineLatestEnumerableFirstSourceCompletesImmediately_ThenSkipsRemainingSubscriptions()
+    {
+        var secondSourceSubscribed = false;
+
+        // Second source records whether it was ever subscribed.
+        var trackingSource = ObservableAsync.Create<int>((_, _) =>
+        {
+            secondSourceSubscribed = true;
+            return new ValueTask<IAsyncDisposable>(DisposableAsync.Empty);
+        });
+
+        // Empty completes immediately during subscribe, triggering overall completion
+        // before the loop reaches the second source.
+        var sources = new IObservableAsync<int>[] { AsyncObs.Empty<int>(), trackingSource };
+
+        await using var sub = await sources.CombineLatest()
+            .SubscribeAsync((_, _) => default, null, null);
+
+        await Assert.That(secondSourceSubscribed).IsFalse();
+    }
+
+    /// <summary>
+    /// Verifies that OnCompletedAsync returns early when the same source index completes
+    /// a second time while the subscription is still active (the _completed[index] guard),
+    /// covering line 268 in CombineLatestEnumerable.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenCombineLatestEnumerableSameSourceCompletedTwice_ThenSecondCompletionIsIgnored()
+    {
+        var src1 = new DirectSource<int>();
+        var src2 = new DirectSource<int>();
+        var src3 = new DirectSource<int>();
+        var sources = new IObservableAsync<int>[] { src1, src2, src3 };
+        var completionCount = 0;
+
+        await using var sub = await sources.CombineLatest()
+            .SubscribeAsync(
+                (_, _) => default,
+                null,
+                _ =>
+                {
+                    Interlocked.Increment(ref completionCount);
+                    return default;
+                });
+
+        // All sources emit so _values[i].HasValue is true for all.
+        await src1.EmitNext(1);
+        await src2.EmitNext(2);
+        await src3.EmitNext(3);
+
+        // src1 completes: _completed[0]=true, completedCount=1 (not 3), shouldComplete=false.
+        await src1.Complete(Result.Success);
+
+        // src1 completes again: _completed[0] is already true, returns early (line 268).
+        await src1.Complete(Result.Success);
+
+        await Assert.That(completionCount).IsEqualTo(0);
+
+        // Finish: complete remaining sources so the subscription terminates cleanly.
+        await src2.Complete(Result.Success);
+        await src3.Complete(Result.Success);
+
+        await Assert.That(completionCount).IsEqualTo(1);
+    }
+
+    /// <summary>
+    /// Verifies that OnCompletedAsync takes the non-completing path (shouldComplete=false)
+    /// when a source that has already emitted a value completes while other sources remain active,
+    /// covering line 277 in CombineLatestEnumerable.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenCombineLatestEnumerableSourceWithValueCompletes_ThenDoesNotCompleteUntilAllDone()
+    {
+        var src1 = new DirectSource<int>();
+        var src2 = new DirectSource<int>();
+        var sources = new IObservableAsync<int>[] { src1, src2 };
+        Result? completionResult = null;
+        var emissions = new List<IReadOnlyList<int>>();
+
+        await using var sub = await sources.CombineLatest()
+            .SubscribeAsync(
+                (snapshot, _) =>
+                {
+                    emissions.Add(snapshot);
+                    return default;
+                },
+                null,
+                result =>
+                {
+                    completionResult = result;
+                    return default;
+                });
+
+        // Both emit so _values[i].HasValue is true for both.
+        await src1.EmitNext(10);
+        await src2.EmitNext(20);
+
+        await Assert.That(emissions).Count().IsEqualTo(1);
+
+        // src1 completes: _values[0].HasValue=true, completedCount=1 (not 2) → shouldComplete=false (line 277).
+        await src1.Complete(Result.Success);
+
+        // Subscription is still active because shouldComplete was false.
+        await Assert.That(completionResult).IsNull();
+
+        // src2 can still emit and combine with src1's last value.
+        await src2.EmitNext(30);
+
+        await Assert.That(emissions).Count().IsEqualTo(2);
+        await Assert.That(emissions[1][0]).IsEqualTo(10);
+        await Assert.That(emissions[1][1]).IsEqualTo(30);
+
+        // Complete src2 → all sources completed, shouldComplete=true.
+        await src2.Complete(Result.Success);
+
+        await Assert.That(completionResult).IsNotNull();
+        await Assert.That(completionResult!.Value.IsSuccess).IsTrue();
+    }
 }

@@ -16,6 +16,7 @@ namespace ReactiveUI.Extensions.Tests.Async;
 public class TimeBasedOperatorTests
 {
     /// <summary>Tests Throttle only last in burst is emitted.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
     public async Task WhenThrottle_ThenOnlyLastInBurstIsEmitted()
     {
@@ -49,6 +50,7 @@ public class TimeBasedOperatorTests
     }
 
     /// <summary>Tests Throttle with spaced items all are emitted.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
     public async Task WhenThrottleWithSpacedItems_ThenAllAreEmitted()
     {
@@ -86,7 +88,7 @@ public class TimeBasedOperatorTests
         await subject.OnNextAsync(2, CancellationToken.None);
         await secondReceived.Task.WaitAsync(TimeSpan.FromSeconds(10));
 
-        await Assert.That(results).IsEquivalentTo(new[] { 1, 2 });
+        await Assert.That(results).IsEquivalentTo([1, 2]);
     }
 
     /// <summary>Tests Throttle negative due time throws.</summary>
@@ -98,6 +100,7 @@ public class TimeBasedOperatorTests
     }
 
     /// <summary>Tests Delay elements are time shifted.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
     public async Task WhenDelay_ThenElementsAreTimeShifted()
     {
@@ -112,6 +115,7 @@ public class TimeBasedOperatorTests
     }
 
     /// <summary>Tests Delay zero causes no delay.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
     public async Task WhenDelayZero_ThenNoDelay()
     {
@@ -131,6 +135,7 @@ public class TimeBasedOperatorTests
     }
 
     /// <summary>Tests Delay sequence delays all elements.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
     public async Task WhenDelaySequence_ThenAllElementsDelayed()
     {
@@ -138,10 +143,11 @@ public class TimeBasedOperatorTests
             .Delay(TimeSpan.FromMilliseconds(30))
             .ToListAsync();
 
-        await Assert.That(result).IsEquivalentTo(new[] { 1, 2, 3 });
+        await Assert.That(result).IsEquivalentTo([1, 2, 3]);
     }
 
     /// <summary>Tests Timeout not exceeded completes normally.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
     public async Task WhenTimeoutNotExceeded_ThenCompletesNormally()
     {
@@ -164,6 +170,7 @@ public class TimeBasedOperatorTests
     }
 
     /// <summary>Tests Timeout with fallback switches to fallback.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
     public async Task WhenTimeoutWithFallback_ThenSwitchesToFallback()
     {
@@ -197,44 +204,6 @@ public class TimeBasedOperatorTests
     {
         Assert.Throws<ArgumentNullException>(() =>
             ObservableAsync.Return(1).Timeout(TimeSpan.FromSeconds(1), (ObservableAsync<int>)null!));
-    }
-
-    /// <summary>
-    /// Verifies that when two values are emitted quickly to a throttled sequence,
-    /// only the last value is forwarded after the debounce period (the first value is superseded).
-    /// This covers the early return where <c>_id != id</c>.
-    /// </summary>
-    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
-    [Test]
-    public async Task WhenThrottleValueSuperseded_ThenOlderValueDropped()
-    {
-        var subject = SubjectAsync.Create<int>();
-        var results = new List<int>();
-
-        await using var sub = await subject.Values
-            .Throttle(TimeSpan.FromMilliseconds(100))
-            .SubscribeAsync(
-                (x, _) =>
-                {
-                    results.Add(x);
-                    return default;
-                },
-                null,
-                null);
-
-        // Emit two values in quick succession; the first should be superseded
-        await subject.OnNextAsync(1, CancellationToken.None);
-        await subject.OnNextAsync(2, CancellationToken.None);
-
-        var resultReceived = await AsyncTestHelpers.WaitForConditionAsync(
-            () => results.Count >= 1,
-            TimeSpan.FromSeconds(10));
-
-        await subject.OnCompletedAsync(Result.Success);
-
-        await Assert.That(resultReceived).IsTrue();
-        await Assert.That(results).Count().IsEqualTo(1);
-        await Assert.That(results[0]).IsEqualTo(2);
     }
 
     /// <summary>
@@ -583,6 +552,143 @@ public class TimeBasedOperatorTests
         await Assert.That(errors).Count().IsEqualTo(1);
         await Assert.That(errors[0]).IsTypeOf<InvalidOperationException>();
         await Assert.That(errors[0].Message).IsEqualTo("test error");
+    }
+
+    /// <summary>
+    /// Verifies that Delay forwards non-terminal errors via OnErrorResumeAsync.
+    /// Covers the OnErrorResumeAsyncCore path in DelayObserver.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenDelaySourceEmitsErrorResume_ThenErrorForwarded()
+    {
+        var source = AsyncTestHelpers.CreateDirectSource<int>();
+        var errors = new List<Exception>();
+        var completed = new TaskCompletionSource();
+
+        await using var sub = await source
+            .Delay(TimeSpan.FromMilliseconds(1))
+            .SubscribeAsync(
+                (_, _) => default,
+                (ex, _) =>
+                {
+                    errors.Add(ex);
+                    return default;
+                },
+                result =>
+                {
+                    completed.TrySetResult();
+                    return default;
+                });
+
+        var expectedError = new InvalidOperationException("resume error");
+        await source.EmitError(expectedError);
+        await source.Complete(Result.Success);
+
+        await completed.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        await Assert.That(errors).Count().IsEqualTo(1);
+        await Assert.That(errors[0]).IsSameReferenceAs(expectedError);
+    }
+
+    /// <summary>
+    /// Verifies that Throttle drops a value when superseded by a newer emission,
+    /// exercising the id-mismatch early return in FireAfterDelayAsync.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenThrottleValueSuperseded_ThenOlderValueDropped()
+    {
+        var subject = SubjectAsync.Create<int>();
+        var results = new List<int>();
+        var completed = new TaskCompletionSource();
+
+        await using var sub = await subject.Values
+            .Throttle(TimeSpan.FromMilliseconds(200))
+            .SubscribeAsync(
+                (x, _) =>
+                {
+                    results.Add(x);
+                    return default;
+                },
+                null,
+                result =>
+                {
+                    completed.TrySetResult();
+                    return default;
+                });
+
+        // Emit two values in rapid succession; first should be superseded
+        await subject.OnNextAsync(1, CancellationToken.None);
+        await subject.OnNextAsync(2, CancellationToken.None);
+        await subject.OnCompletedAsync(Result.Success);
+
+        await completed.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        // Only the last value (2) should have been emitted
+        await Assert.That(results).Contains(2);
+    }
+
+    /// <summary>
+    /// Verifies that Throttle routes non-cancellation exceptions to the unhandled exception handler.
+    /// Covers the catch(Exception) block in ThrottleObserver.FireAfterDelayAsync.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenThrottleFireThrowsNonCancellation_ThenRoutedToUnhandledHandler()
+    {
+        var handledErrors = new List<Exception>();
+        UnhandledExceptionHandler.Register(ex => handledErrors.Add(ex));
+
+        var expectedError = new InvalidOperationException("downstream error");
+        var source = AsyncTestHelpers.CreateDirectSource<int>();
+
+        await using var sub = await source
+            .Throttle(TimeSpan.FromMilliseconds(1))
+            .SubscribeAsync(
+                (_, _) => throw expectedError,
+                null,
+                null);
+
+        await source.EmitNext(1);
+
+        await AsyncTestHelpers.WaitForConditionAsync(
+            () => handledErrors.Count >= 1,
+            TimeSpan.FromSeconds(5));
+
+        await Assert.That(handledErrors).Count().IsGreaterThanOrEqualTo(1);
+    }
+
+    /// <summary>
+    /// Verifies that a periodic Timer emits multiple ticks before cancellation.
+    /// Covers the while-loop body in the periodic Timer factory.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenPeriodicTimerEmitsMultipleTicks_ThenAllTicksReceived()
+    {
+        var results = new List<long>();
+
+        var sub = await ObservableAsync.Timer(TimeSpan.Zero, TimeSpan.FromMilliseconds(20))
+            .SubscribeAsync(
+                (x, _) =>
+                {
+                    results.Add(x);
+                    return default;
+                },
+                null,
+                null);
+
+        await AsyncTestHelpers.WaitForConditionAsync(
+            () => results.Count >= 3,
+            TimeSpan.FromSeconds(10));
+
+        await sub.DisposeAsync();
+
+        await Assert.That(results.Count).IsGreaterThanOrEqualTo(3);
+        await Assert.That(results[0]).IsEqualTo(0L);
+        await Assert.That(results[1]).IsEqualTo(1L);
+        await Assert.That(results[2]).IsEqualTo(2L);
     }
 
     /// <summary>

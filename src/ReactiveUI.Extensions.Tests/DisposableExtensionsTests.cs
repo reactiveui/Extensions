@@ -14,6 +14,7 @@ public class DisposableExtensionsTests
     /// <summary>
     /// Tests DisposeWith returns a disposable.
     /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
     public async Task GivenNull_WhenDisposeWith_ThenExceptionThrown()
     {
@@ -30,6 +31,7 @@ public class DisposableExtensionsTests
     /// <summary>
     /// Tests DisposeWith disposes the underlying disposable.
     /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
     public async Task GivenDisposable_WhenDisposeWith_ThenDisposed()
     {
@@ -48,6 +50,7 @@ public class DisposableExtensionsTests
     /// <summary>
     /// Tests DisposeWith returns the original disposable.
     /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
     public async Task GivenDisposable_WhenDisposeWith_ThenReturnsDisposable()
     {

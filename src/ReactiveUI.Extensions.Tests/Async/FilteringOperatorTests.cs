@@ -12,6 +12,7 @@ namespace ReactiveUI.Extensions.Tests.Async;
 public class FilteringOperatorTests
 {
     /// <summary>Tests sync Where filters elements.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
     public async Task WhenWhereSync_ThenFiltersElements()
     {
@@ -19,10 +20,11 @@ public class FilteringOperatorTests
             .Where(x => x % 2 == 0)
             .ToListAsync();
 
-        await Assert.That(result).IsEquivalentTo(new[] { 2, 4, 6 });
+        await Assert.That(result).IsEquivalentTo([2, 4, 6]);
     }
 
     /// <summary>Tests async Where filters elements.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
     public async Task WhenWhereAsync_ThenFiltersElements()
     {
@@ -34,10 +36,11 @@ public class FilteringOperatorTests
             })
             .ToListAsync();
 
-        await Assert.That(result).IsEquivalentTo(new[] { 4, 5 });
+        await Assert.That(result).IsEquivalentTo([4, 5]);
     }
 
     /// <summary>Tests Where filtering all emits nothing.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
     public async Task WhenWhereFilterAll_ThenEmitsNothing()
     {
@@ -49,6 +52,7 @@ public class FilteringOperatorTests
     }
 
     /// <summary>Tests Take emits only first N.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
     public async Task WhenTake_ThenEmitsOnlyFirstN()
     {
@@ -56,10 +60,11 @@ public class FilteringOperatorTests
             .Take(3)
             .ToListAsync();
 
-        await Assert.That(result).IsEquivalentTo(new[] { 1, 2, 3 });
+        await Assert.That(result).IsEquivalentTo([1, 2, 3]);
     }
 
     /// <summary>Tests Take zero emits nothing.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
     public async Task WhenTakeZero_ThenEmitsNothing()
     {
@@ -71,6 +76,7 @@ public class FilteringOperatorTests
     }
 
     /// <summary>Tests Take more than available emits all.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
     public async Task WhenTakeMoreThanAvailable_ThenEmitsAll()
     {
@@ -78,7 +84,7 @@ public class FilteringOperatorTests
             .Take(100)
             .ToListAsync();
 
-        await Assert.That(result).IsEquivalentTo(new[] { 1, 2, 3 });
+        await Assert.That(result).IsEquivalentTo([1, 2, 3]);
     }
 
     /// <summary>Tests Take negative throws.</summary>
@@ -90,6 +96,7 @@ public class FilteringOperatorTests
     }
 
     /// <summary>Tests Skip skips first N.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
     public async Task WhenSkip_ThenSkipsFirstN()
     {
@@ -97,10 +104,11 @@ public class FilteringOperatorTests
             .Skip(2)
             .ToListAsync();
 
-        await Assert.That(result).IsEquivalentTo(new[] { 3, 4, 5 });
+        await Assert.That(result).IsEquivalentTo([3, 4, 5]);
     }
 
     /// <summary>Tests Skip zero emits all.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
     public async Task WhenSkipZero_ThenEmitsAll()
     {
@@ -108,10 +116,11 @@ public class FilteringOperatorTests
             .Skip(0)
             .ToListAsync();
 
-        await Assert.That(result).IsEquivalentTo(new[] { 1, 2, 3 });
+        await Assert.That(result).IsEquivalentTo([1, 2, 3]);
     }
 
     /// <summary>Tests Skip more than available emits nothing.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
     public async Task WhenSkipMoreThanAvailable_ThenEmitsNothing()
     {
@@ -131,6 +140,7 @@ public class FilteringOperatorTests
     }
 
     /// <summary>Tests sync TakeWhile emits while true.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
     public async Task WhenTakeWhileSync_ThenEmitsWhileTrue()
     {
@@ -138,10 +148,11 @@ public class FilteringOperatorTests
             .TakeWhile(x => x < 4)
             .ToListAsync();
 
-        await Assert.That(result).IsEquivalentTo(new[] { 1, 2, 3 });
+        await Assert.That(result).IsEquivalentTo([1, 2, 3]);
     }
 
     /// <summary>Tests async TakeWhile emits while true.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
     public async Task WhenTakeWhileAsync_ThenEmitsWhileTrue()
     {
@@ -153,10 +164,11 @@ public class FilteringOperatorTests
             })
             .ToListAsync();
 
-        await Assert.That(result).IsEquivalentTo(new[] { 1, 2 });
+        await Assert.That(result).IsEquivalentTo([1, 2]);
     }
 
     /// <summary>Tests TakeWhile all true emits all.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
     public async Task WhenTakeWhileAllTrue_ThenEmitsAll()
     {
@@ -164,10 +176,11 @@ public class FilteringOperatorTests
             .TakeWhile(x => true)
             .ToListAsync();
 
-        await Assert.That(result).IsEquivalentTo(new[] { 1, 2, 3 });
+        await Assert.That(result).IsEquivalentTo([1, 2, 3]);
     }
 
     /// <summary>Tests TakeWhile all false emits nothing.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
     public async Task WhenTakeWhileAllFalse_ThenEmitsNothing()
     {
@@ -187,6 +200,7 @@ public class FilteringOperatorTests
     }
 
     /// <summary>Tests sync SkipWhile skips while true.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
     public async Task WhenSkipWhileSync_ThenSkipsWhileTrue()
     {
@@ -194,10 +208,11 @@ public class FilteringOperatorTests
             .SkipWhile(x => x < 4)
             .ToListAsync();
 
-        await Assert.That(result).IsEquivalentTo(new[] { 4, 5, 6 });
+        await Assert.That(result).IsEquivalentTo([4, 5, 6]);
     }
 
     /// <summary>Tests async SkipWhile skips while true.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
     public async Task WhenSkipWhileAsync_ThenSkipsWhileTrue()
     {
@@ -209,10 +224,11 @@ public class FilteringOperatorTests
             })
             .ToListAsync();
 
-        await Assert.That(result).IsEquivalentTo(new[] { 3, 4, 5 });
+        await Assert.That(result).IsEquivalentTo([3, 4, 5]);
     }
 
     /// <summary>Tests SkipWhile always true emits nothing.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
     public async Task WhenSkipWhileAlwaysTrue_ThenEmitsNothing()
     {
@@ -224,6 +240,7 @@ public class FilteringOperatorTests
     }
 
     /// <summary>Tests SkipWhile always false emits all.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
     public async Task WhenSkipWhileAlwaysFalse_ThenEmitsAll()
     {
@@ -231,7 +248,7 @@ public class FilteringOperatorTests
             .SkipWhile(x => false)
             .ToListAsync();
 
-        await Assert.That(result).IsEquivalentTo(new[] { 1, 2, 3 });
+        await Assert.That(result).IsEquivalentTo([1, 2, 3]);
     }
 
     /// <summary>Tests SkipWhile null predicate throws.</summary>
@@ -243,6 +260,7 @@ public class FilteringOperatorTests
     }
 
     /// <summary>Tests Distinct removes duplicates.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
     public async Task WhenDistinct_ThenRemovesDuplicates()
     {
@@ -250,10 +268,11 @@ public class FilteringOperatorTests
 
         var result = await source.Distinct().ToListAsync();
 
-        await Assert.That(result).IsEquivalentTo(new[] { 1, 2, 3 });
+        await Assert.That(result).IsEquivalentTo([1, 2, 3]);
     }
 
     /// <summary>Tests Distinct with comparer uses case insensitive.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
     public async Task WhenDistinctWithComparer_ThenUsesCaseInsensitive()
     {
@@ -261,10 +280,11 @@ public class FilteringOperatorTests
 
         var result = await source.Distinct(StringComparer.OrdinalIgnoreCase).ToListAsync();
 
-        await Assert.That(result).IsEquivalentTo(new[] { "a", "b" });
+        await Assert.That(result).IsEquivalentTo(["a", "b"]);
     }
 
     /// <summary>Tests DistinctBy distinguishes by key.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
     public async Task WhenDistinctBy_ThenDistinguishesByKey()
     {
@@ -272,10 +292,11 @@ public class FilteringOperatorTests
 
         var result = await source.DistinctBy(s => s.Length).ToListAsync();
 
-        await Assert.That(result).IsEquivalentTo(new[] { "abc", "ab", "a" });
+        await Assert.That(result).IsEquivalentTo(["abc", "ab", "a"]);
     }
 
     /// <summary>Tests DistinctUntilChanged suppresses consecutive duplicates.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
     public async Task WhenDistinctUntilChanged_ThenSuppressesConsecutiveDuplicates()
     {
@@ -283,10 +304,11 @@ public class FilteringOperatorTests
 
         var result = await source.DistinctUntilChanged().ToListAsync();
 
-        await Assert.That(result).IsEquivalentTo(new[] { 1, 2, 3, 1 });
+        await Assert.That(result).IsEquivalentTo([1, 2, 3, 1]);
     }
 
     /// <summary>Tests DistinctUntilChanged with comparer.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
     public async Task WhenDistinctUntilChangedWithComparer_ThenUsesComparer()
     {
@@ -294,10 +316,11 @@ public class FilteringOperatorTests
 
         var result = await source.DistinctUntilChanged(StringComparer.OrdinalIgnoreCase).ToListAsync();
 
-        await Assert.That(result).IsEquivalentTo(new[] { "a", "b" });
+        await Assert.That(result).IsEquivalentTo(["a", "b"]);
     }
 
     /// <summary>Tests DistinctUntilChangedBy distinguishes by key.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
     public async Task WhenDistinctUntilChangedBy_ThenDistinguishesByKey()
     {
@@ -305,6 +328,6 @@ public class FilteringOperatorTests
 
         var result = await source.DistinctUntilChangedBy(s => s[0]).ToListAsync();
 
-        await Assert.That(result).IsEquivalentTo(new[] { "aa", "ba" });
+        await Assert.That(result).IsEquivalentTo(["aa", "ba"]);
     }
 }

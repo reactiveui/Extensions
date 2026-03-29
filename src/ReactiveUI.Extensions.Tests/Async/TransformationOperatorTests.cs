@@ -2,9 +2,11 @@
 // ReactiveUI Association Incorporated licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
+using System.Reactive.Concurrency;
 using ReactiveUI.Extensions.Async;
 using ReactiveUI.Extensions.Async.Disposables;
 using ReactiveUI.Extensions.Async.Internals;
+using ReactiveUI.Extensions.Async.Subjects;
 
 namespace ReactiveUI.Extensions.Tests.Async;
 
@@ -16,6 +18,7 @@ namespace ReactiveUI.Extensions.Tests.Async;
 public class TransformationOperatorTests
 {
     /// <summary>Tests sync Select projects each element.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
     public async Task WhenSelectSyncSelector_ThenProjectsEachElement()
     {
@@ -23,10 +26,11 @@ public class TransformationOperatorTests
             .Select(x => x * 10)
             .ToListAsync();
 
-        await Assert.That(result).IsEquivalentTo(new[] { 10, 20, 30 });
+        await Assert.That(result).IsEquivalentTo([10, 20, 30]);
     }
 
     /// <summary>Tests async Select projects each element.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
     public async Task WhenSelectAsyncSelector_ThenProjectsEachElement()
     {
@@ -38,10 +42,11 @@ public class TransformationOperatorTests
             })
             .ToListAsync();
 
-        await Assert.That(result).IsEquivalentTo(new[] { "1", "2", "3" });
+        await Assert.That(result).IsEquivalentTo(["1", "2", "3"]);
     }
 
     /// <summary>Tests sync SelectMany flattens inner sequences.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
     public async Task WhenSelectManySync_ThenFlattensInnerSequences()
     {
@@ -55,6 +60,7 @@ public class TransformationOperatorTests
     }
 
     /// <summary>Tests async SelectMany flattens inner sequences.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
     public async Task WhenSelectManyAsync_ThenFlattensInnerSequences()
     {
@@ -72,6 +78,7 @@ public class TransformationOperatorTests
     }
 
     /// <summary>Tests SelectMany with result selector projects pairs.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
     public async Task WhenSelectManyWithResultSelector_ThenProjectsPairs()
     {
@@ -95,6 +102,7 @@ public class TransformationOperatorTests
     }
 
     /// <summary>Tests sync Scan emits running accumulation.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
     public async Task WhenScanSync_ThenEmitsRunningAccumulation()
     {
@@ -102,10 +110,11 @@ public class TransformationOperatorTests
             .Scan(0, (acc, x) => acc + x)
             .ToListAsync();
 
-        await Assert.That(result).IsEquivalentTo(new[] { 1, 3, 6, 10 });
+        await Assert.That(result).IsEquivalentTo([1, 3, 6, 10]);
     }
 
     /// <summary>Tests async Scan emits running accumulation.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
     public async Task WhenScanAsync_ThenEmitsRunningAccumulation()
     {
@@ -117,7 +126,7 @@ public class TransformationOperatorTests
             })
             .ToListAsync();
 
-        await Assert.That(result).IsEquivalentTo(new[] { "1", "12", "123" });
+        await Assert.That(result).IsEquivalentTo(["1", "12", "123"]);
     }
 
     /// <summary>Tests Scan null accumulator throws.</summary>
@@ -129,6 +138,7 @@ public class TransformationOperatorTests
     }
 
     /// <summary>Tests sync Do invokes side effects.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
     public async Task WhenDoSync_ThenInvokesSideEffects()
     {
@@ -138,11 +148,12 @@ public class TransformationOperatorTests
             .Do(onNext: x => sideEffects.Add(x))
             .ToListAsync();
 
-        await Assert.That(result).IsEquivalentTo(new[] { 1, 2, 3 });
-        await Assert.That(sideEffects).IsEquivalentTo(new[] { 1, 2, 3 });
+        await Assert.That(result).IsEquivalentTo([1, 2, 3]);
+        await Assert.That(sideEffects).IsEquivalentTo([1, 2, 3]);
     }
 
     /// <summary>Tests async Do invokes side effects.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
     public async Task WhenDoAsync_ThenInvokesSideEffects()
     {
@@ -156,11 +167,12 @@ public class TransformationOperatorTests
             })
             .ToListAsync();
 
-        await Assert.That(result).IsEquivalentTo(new[] { 1, 2, 3 });
-        await Assert.That(sideEffects).IsEquivalentTo(new[] { 1, 2, 3 });
+        await Assert.That(result).IsEquivalentTo([1, 2, 3]);
+        await Assert.That(sideEffects).IsEquivalentTo([1, 2, 3]);
     }
 
     /// <summary>Tests Do with completion handler invokes on completed.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
     public async Task WhenDoWithCompletionHandler_ThenInvokesOnCompleted()
     {
@@ -174,7 +186,40 @@ public class TransformationOperatorTests
         await Assert.That(completion!.Value.IsSuccess).IsTrue();
     }
 
+    /// <summary>
+    /// Verifies that Cast completes with a failure containing an <see cref="InvalidCastException"/>
+    /// when the source emits an element that cannot be cast to the target type.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenCastIncompatibleType_ThenCompletesWithFailure()
+    {
+        var source = ObservableAsync.Return<object>(42);
+        Result? completionResult = null;
+        var tcs = new TaskCompletionSource();
+
+        await using var sub = await source.Cast<object, string>()
+            .SubscribeAsync(
+                (_, _) => default,
+                null,
+                result =>
+                {
+                    completionResult = result;
+                    tcs.TrySetResult();
+                    return default;
+                });
+
+        await AsyncTestHelpers.WaitForConditionAsync(
+            () => tcs.Task.IsCompleted,
+            TimeSpan.FromSeconds(5));
+
+        await Assert.That(completionResult).IsNotNull();
+        await Assert.That(completionResult!.Value.IsSuccess).IsFalse();
+        await Assert.That(completionResult.Value.Exception).IsTypeOf<InvalidCastException>();
+    }
+
     /// <summary>Tests Cast with compatible type casts correctly.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
     public async Task WhenCastCompatibleType_ThenCasts()
     {
@@ -182,10 +227,11 @@ public class TransformationOperatorTests
 
         var result = await source.Cast<object, string>().ToListAsync();
 
-        await Assert.That(result).IsEquivalentTo(new[] { "hello" });
+        await Assert.That(result).IsEquivalentTo(["hello"]);
     }
 
     /// <summary>Tests OfType with matching type filters correctly.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
     public async Task WhenOfTypeMatchingType_ThenFiltersCorrectly()
     {
@@ -194,10 +240,11 @@ public class TransformationOperatorTests
 
         var strings = await source.OfType<object, string>().ToListAsync();
 
-        await Assert.That(strings).IsEquivalentTo(new[] { "two", "four" });
+        await Assert.That(strings).IsEquivalentTo(["two", "four"]);
     }
 
     /// <summary>Tests OfType with no matches emits nothing.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
     public async Task WhenOfTypeNoMatches_ThenEmitsNothing()
     {
@@ -418,5 +465,366 @@ public class TransformationOperatorTests
         await Assert.That(resumedErrors).Count().IsEqualTo(1);
         await Assert.That(resumedErrors[0].Message).IsEqualTo("sync error");
         await Assert.That(downstreamErrors).Count().IsEqualTo(1);
+    }
+
+    /// <summary>
+    /// Verifies that ObserveOn with an IScheduler creates the correct async context
+    /// and emits values through the pipeline.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenObserveOnIScheduler_ThenEmitsValues()
+    {
+        IScheduler scheduler = TaskPoolScheduler.Default;
+
+        var result = await ObservableAsync.Range(1, 3)
+            .ObserveOn(scheduler)
+            .ToListAsync();
+
+        await Assert.That(result).IsEquivalentTo([1, 2, 3]);
+    }
+
+    /// <summary>
+    /// Verifies that ObserveOn forwards resumable errors emitted by the source
+    /// through the context-switched observer to the downstream error handler.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenObserveOnSourceEmitsResumableError_ThenForwardsErrorDownstream()
+    {
+        var downstreamErrors = new List<Exception>();
+        var receivedValues = new List<int>();
+        var tcs = new TaskCompletionSource();
+
+        var source = ObservableAsync.Create<int>(async (observer, ct) =>
+        {
+            await observer.OnNextAsync(1, ct);
+            await observer.OnErrorResumeAsync(new InvalidOperationException("resumable"), ct);
+            await observer.OnNextAsync(2, ct);
+            await observer.OnCompletedAsync(Result.Success);
+            return DisposableAsync.Empty;
+        });
+
+        await using var sub = await source
+            .ObserveOn(AsyncContext.Default)
+            .SubscribeAsync(
+                (x, _) =>
+                {
+                    receivedValues.Add(x);
+                    return default;
+                },
+                (ex, _) =>
+                {
+                    downstreamErrors.Add(ex);
+                    return default;
+                },
+                _ =>
+                {
+                    tcs.TrySetResult();
+                    return default;
+                });
+
+        await AsyncTestHelpers.WaitForConditionAsync(
+            () => tcs.Task.IsCompleted,
+            TimeSpan.FromSeconds(5));
+
+        await Assert.That(receivedValues).IsEquivalentTo([1, 2]);
+        await Assert.That(downstreamErrors).Count().IsEqualTo(1);
+        await Assert.That(downstreamErrors[0]).IsTypeOf<InvalidOperationException>();
+        await Assert.That(downstreamErrors[0].Message).IsEqualTo("resumable");
+    }
+
+    /// <summary>
+    /// Verifies that when the CancellationToken passed to Prepend is already cancelled before
+    /// the prepend loop begins iterating, the loop exits immediately without emitting any values.
+    /// This covers the cancellation-requested early return guard inside the prepend foreach loop.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenPrependTokenCancelledBeforeIteration_ThenEmitsNoValues()
+    {
+        var received = new List<int>();
+        using var cts = new CancellationTokenSource();
+
+        var source = ObservableAsync.Never<int>();
+        var pipeline = source.Prepend(Enumerable.Range(1, 100));
+
+        // Cancel the token before subscribing so the prepend loop sees cancellation immediately.
+        cts.Cancel();
+
+        var subscription = await pipeline.SubscribeAsync(
+            (x, _) =>
+            {
+                received.Add(x);
+                return default;
+            },
+            null,
+            null,
+            cts.Token);
+
+        await subscription.DisposeAsync();
+
+        await Assert.That(received.Count).IsLessThan(100);
+    }
+
+    /// <summary>
+    /// Verifies that when the source observable passed to Prepend throws an exception during
+    /// subscription and the downstream observer's OnCompletedAsync handler also throws,
+    /// the secondary exception from the completion handler is routed to the
+    /// <see cref="UnhandledExceptionHandler"/>.
+    /// This covers the inner catch block that guards against completion handler failures.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenPrependSourceThrowsAndOnCompletedThrows_ThenSecondaryExceptionRoutedToHandler()
+    {
+        var handlerExceptions = new List<Exception>();
+        var secondaryException = new InvalidOperationException("onCompleted blew up");
+
+        UnhandledExceptionHandler.Register(ex => handlerExceptions.Add(ex));
+
+        var source = ObservableAsync.Create<int>(async (observer, ct) =>
+        {
+            throw new ApplicationException("source failure");
+#pragma warning disable CS0162 // Unreachable code detected
+            return DisposableAsync.Empty;
+#pragma warning restore CS0162 // Unreachable code detected
+        });
+
+        // Prepend a single value so the prepend loop completes, then SubscribeAsync on the
+        // throwing source triggers the catch path. The completion handler throws a second
+        // exception, which should be routed to the unhandled exception handler.
+        var pipeline = source.Prepend(1);
+
+        await using var sub = await pipeline.SubscribeAsync(
+            (_, _) => default,
+            null,
+            _ => throw secondaryException);
+
+        await AsyncTestHelpers.WaitForConditionAsync(
+            () => handlerExceptions.Count >= 1,
+            TimeSpan.FromSeconds(5));
+
+        await Assert.That(handlerExceptions).Count().IsGreaterThanOrEqualTo(1);
+        await Assert.That(handlerExceptions[0]).IsTypeOf<InvalidOperationException>();
+        await Assert.That(handlerExceptions[0].Message).IsEqualTo("onCompleted blew up");
+    }
+
+    /// <summary>
+    /// Verifies that Yield with a null source throws <see cref="ArgumentNullException"/>.
+    /// </summary>
+    [Test]
+    public void WhenYieldNullSource_ThenThrowsArgumentNull()
+    {
+        Assert.Throws<ArgumentNullException>(() =>
+            ObservableAsync.Yield<int>(null!));
+    }
+
+    /// <summary>
+    /// Verifies that Yield forwards all elements from the source sequence.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenYield_ThenForwardsAllElements()
+    {
+        var result = await ObservableAsync.Range(1, 5)
+            .Yield()
+            .ToListAsync();
+
+        await Assert.That(result).IsEquivalentTo([1, 2, 3, 4, 5]);
+    }
+
+    /// <summary>
+    /// Verifies that Yield forwards completion from the source sequence.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenYield_ThenForwardsCompletion()
+    {
+        Result? capturedResult = null;
+        var tcs = new TaskCompletionSource();
+
+        await using var sub = await ObservableAsync.Return(42)
+            .Yield()
+            .SubscribeAsync(
+                (_, _) => default,
+                null,
+                result =>
+                {
+                    capturedResult = result;
+                    tcs.TrySetResult();
+                    return default;
+                });
+
+        await AsyncTestHelpers.WaitForConditionAsync(
+            () => tcs.Task.IsCompleted,
+            TimeSpan.FromSeconds(5));
+
+        await Assert.That(capturedResult).IsNotNull();
+        await Assert.That(capturedResult!.Value.IsSuccess).IsTrue();
+    }
+
+    /// <summary>
+    /// Verifies that Yield forwards errors from the source sequence.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenYieldSourceErrors_ThenForwardsError()
+    {
+        Result? capturedResult = null;
+        var tcs = new TaskCompletionSource();
+
+        var source = ObservableAsync.Create<int>(async (observer, ct) =>
+        {
+            await observer.OnNextAsync(1, ct);
+            await observer.OnCompletedAsync(Result.Failure(new InvalidOperationException("yield error")));
+            return DisposableAsync.Empty;
+        });
+
+        await using var sub = await source
+            .Yield()
+            .SubscribeAsync(
+                (_, _) => default,
+                null,
+                result =>
+                {
+                    capturedResult = result;
+                    tcs.TrySetResult();
+                    return default;
+                });
+
+        await AsyncTestHelpers.WaitForConditionAsync(
+            () => tcs.Task.IsCompleted,
+            TimeSpan.FromSeconds(5));
+
+        await Assert.That(capturedResult).IsNotNull();
+        await Assert.That(capturedResult!.Value.IsSuccess).IsFalse();
+    }
+
+    /// <summary>
+    /// Verifies that the three-argument GroupBy overload throws <see cref="ArgumentNullException"/>
+    /// when the source parameter is null.
+    /// </summary>
+    [Test]
+    public void WhenGroupByWithSubjectSelectorNullSource_ThenThrowsArgumentNull()
+    {
+        Assert.Throws<ArgumentNullException>(() =>
+            ObservableAsync.GroupBy<int, int>(
+                null!,
+                static x => x,
+                static _ => SubjectAsync.Create<int>()));
+    }
+
+    /// <summary>
+    /// Verifies that the three-argument GroupBy overload throws <see cref="ArgumentNullException"/>
+    /// when the keySelector parameter is null.
+    /// </summary>
+    [Test]
+    public void WhenGroupByWithSubjectSelectorNullKeySelector_ThenThrowsArgumentNull()
+    {
+        Assert.Throws<ArgumentNullException>(() =>
+            ObservableAsync.GroupBy<int, int>(
+                ObservableAsync.Empty<int>(),
+                null!,
+                static _ => SubjectAsync.Create<int>()));
+    }
+
+    /// <summary>
+    /// Verifies that the three-argument GroupBy overload with a custom group subject selector
+    /// correctly groups elements by key using the provided subject factory.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenGroupByWithCustomSubjectSelector_ThenGroupsByKey()
+    {
+        var source = new[] { 1, 2, 3, 4, 5, 6 }.ToObservableAsync();
+
+        var groups = new Dictionary<int, List<int>>();
+        var tcs = new TaskCompletionSource();
+
+        await using var sub = await source
+            .GroupBy(
+                static x => x % 2,
+                static _ => SubjectAsync.Create<int>())
+            .SubscribeAsync(
+                async (group, ct) =>
+                {
+                    var list = new List<int>();
+                    groups[group.Key] = list;
+                    await group.SubscribeAsync(
+                        (value, _) =>
+                        {
+                            list.Add(value);
+                            return default;
+                        },
+                        null,
+                        null,
+                        ct);
+                },
+                null,
+                _ =>
+                {
+                    tcs.TrySetResult();
+                    return default;
+                });
+
+        await AsyncTestHelpers.WaitForConditionAsync(
+            () => tcs.Task.IsCompleted,
+            TimeSpan.FromSeconds(5));
+
+        await Assert.That(groups).Count().IsEqualTo(2);
+        await Assert.That(groups[1]).IsEquivalentTo([1, 3, 5]);
+        await Assert.That(groups[0]).IsEquivalentTo([2, 4, 6]);
+    }
+
+    /// <summary>
+    /// Verifies that GroupBy forwards resumable errors from the source through to the downstream observer
+    /// via <see cref="IObserverAsync{T}.OnErrorResumeAsync"/>.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenGroupBySourceEmitsResumableError_ThenForwardsErrorDownstream()
+    {
+        var downstreamErrors = new List<Exception>();
+        var tcs = new TaskCompletionSource();
+
+        var source = ObservableAsync.Create<int>(async (observer, ct) =>
+        {
+            await observer.OnNextAsync(1, ct);
+            await observer.OnErrorResumeAsync(new InvalidOperationException("group error"), ct);
+            await observer.OnNextAsync(2, ct);
+            await observer.OnCompletedAsync(Result.Success);
+            return DisposableAsync.Empty;
+        });
+
+        await using var sub = await source
+            .GroupBy(static x => x, static _ => SubjectAsync.Create<int>())
+            .SubscribeAsync(
+                async (group, ct) =>
+                {
+                    await group.SubscribeAsync(
+                        (_, _) => default,
+                        null,
+                        null,
+                        ct);
+                },
+                (ex, _) =>
+                {
+                    downstreamErrors.Add(ex);
+                    return default;
+                },
+                _ =>
+                {
+                    tcs.TrySetResult();
+                    return default;
+                });
+
+        await AsyncTestHelpers.WaitForConditionAsync(
+            () => tcs.Task.IsCompleted,
+            TimeSpan.FromSeconds(5));
+
+        await Assert.That(downstreamErrors).Count().IsEqualTo(1);
+        await Assert.That(downstreamErrors[0]).IsTypeOf<InvalidOperationException>();
+        await Assert.That(downstreamErrors[0].Message).IsEqualTo("group error");
     }
 }

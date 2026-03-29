@@ -1920,4 +1920,103 @@ public class TakeUntilOperatorTests
 
         await sub.DisposeAsync();
     }
+
+    /// <summary>
+    /// Verifies that when TakeUntil(CancellationToken) forwards completion and the observer throws,
+    /// the outer catch block in OnTokenCanceled swallows the exception.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenTakeUntilCancellationTokenForwardingThrows_ThenOuterCatchSwallows()
+    {
+        using var cts = new CancellationTokenSource();
+        var source = SubjectAsync.Create<int>();
+
+        var sub = await source.Values
+            .TakeUntil(cts.Token)
+            .SubscribeAsync(
+                (x, _) => default,
+                null,
+                _ => throw new InvalidOperationException("observer completion throws"));
+
+        // Cancel the token; OnTokenCanceled will call ForwardOnCompletedAsync which will throw
+        await cts.CancelAsync();
+
+        // The outer catch block should swallow the exception; no crash
+        await AsyncTestHelpers.WaitForConditionAsync(
+            () => true,
+            TimeSpan.FromMilliseconds(200));
+
+        await sub.DisposeAsync();
+    }
+
+    /// <summary>
+    /// Verifies that when TakeUntil(CompletionObservableDelegate) with SourceFailsWhenOtherFails=false
+    /// signals an error, ForwardOnErrorResumeAsync is called. If that also throws, the outer catch swallows it.
+    /// Covers the outermost catch in WaitAndComplete for CompletionObservableDelegate.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenTakeUntilDelegateErrorResumeThrows_ThenOuterCatchSwallows()
+    {
+        Action<Result>? storedNotifyStop = null;
+        var source = SubjectAsync.Create<int>();
+
+        CompletionObservableDelegate stopSignal = notifyStop =>
+        {
+            storedNotifyStop = notifyStop;
+            return DisposableAsync.Create(() => default);
+        };
+
+        var sub = await source.Values
+            .TakeUntil(
+                stopSignal,
+                new TakeUntilOptions { SourceFailsWhenOtherFails = false })
+            .SubscribeAsync(
+                (x, _) => default,
+                (_, _) => throw new InvalidOperationException("error resume throws"),
+                _ => throw new InvalidOperationException("completion throws"));
+
+        // Signal a failure; SourceFailsWhenOtherFails=false so ForwardOnErrorResumeAsync is called, which throws
+        storedNotifyStop!(Result.Failure(new InvalidOperationException("stop error")));
+
+        // The outer catch block should swallow the exception
+        await AsyncTestHelpers.WaitForConditionAsync(
+            () => true,
+            TimeSpan.FromMilliseconds(200));
+
+        await sub.DisposeAsync();
+    }
+
+    /// <summary>
+    /// Verifies that when TakeUntil(Task) with SourceFailsWhenOtherFails=false
+    /// the task faults and ForwardOnErrorResumeAsync throws, the outer catch swallows it.
+    /// Covers the outermost catch in WaitAndComplete for Task.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenTakeUntilTaskErrorResumeThrows_ThenOuterCatchSwallows()
+    {
+        var tcs = new TaskCompletionSource();
+        var source = SubjectAsync.Create<int>();
+
+        var sub = await source.Values
+            .TakeUntil(
+                tcs.Task,
+                new TakeUntilOptions { SourceFailsWhenOtherFails = false })
+            .SubscribeAsync(
+                (x, _) => default,
+                (_, _) => throw new InvalidOperationException("error resume throws"),
+                _ => throw new InvalidOperationException("completion throws"));
+
+        // Fault the task; SourceFailsWhenOtherFails=false so ForwardOnErrorResumeAsync is called, which throws
+        tcs.SetException(new InvalidOperationException("task error"));
+
+        // The outer catch block should swallow the exception
+        await AsyncTestHelpers.WaitForConditionAsync(
+            () => true,
+            TimeSpan.FromMilliseconds(200));
+
+        await sub.DisposeAsync();
+    }
 }

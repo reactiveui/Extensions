@@ -194,6 +194,19 @@ internal sealed class ConcatObservablesObservable<T>(IObservableAsync<IObservabl
         public ValueTask DisposeAsync() => CompleteAsync(null);
 
         /// <summary>
+        /// Handles a second call to <see cref="CompleteAsync"/> when already disposed,
+        /// routing any failure exception to the unhandled exception handler.
+        /// </summary>
+        /// <param name="result">The completion result from the second call.</param>
+        internal static void HandleAlreadyDisposed(Result? result)
+        {
+            if (result?.Exception is not null and var exception)
+            {
+                UnhandledExceptionHandler.OnUnhandledException(exception);
+            }
+        }
+
+        /// <summary>
         /// Subscribes to the specified inner observable, setting it as the current active inner subscription.
         /// </summary>
         /// <param name="currentInner">The inner observable to subscribe to.</param>
@@ -221,11 +234,7 @@ internal sealed class ConcatObservablesObservable<T>(IObservableAsync<IObservabl
         {
             if (DisposalHelper.TrySetDisposed(ref _disposed))
             {
-                if (result?.Exception is not null and var exception)
-                {
-                    UnhandledExceptionHandler.OnUnhandledException(exception);
-                }
-
+                HandleAlreadyDisposed(result);
                 return;
             }
 

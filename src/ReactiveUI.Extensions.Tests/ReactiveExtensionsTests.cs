@@ -2465,7 +2465,7 @@ public class ReactiveExtensionsTests
 
         using var sub = source.SkipWhileNull().Subscribe(results.Add);
 
-        await Assert.That(results).IsEquivalentTo(new[] { "first", null, "second" });
+        await Assert.That(results).IsEquivalentTo(["first", null, "second"]);
     }
 
     /// <summary>
@@ -3992,7 +3992,7 @@ public class ReactiveExtensionsTests
         ReactiveExtensions.FastForEach(observer, source);
 
         // Then
-        await Assert.That(received).IsEquivalentTo(new[] { 1, 2, 3 });
+        await Assert.That(received).IsEquivalentTo([1, 2, 3]);
     }
 
     /// <summary>
@@ -4011,7 +4011,7 @@ public class ReactiveExtensionsTests
         ReactiveExtensions.FastForEach(observer, source);
 
         // Then
-        await Assert.That(received).IsEquivalentTo(new[] { 10, 20, 30 });
+        await Assert.That(received).IsEquivalentTo([10, 20, 30]);
     }
 
     /// <summary>
@@ -4035,7 +4035,7 @@ public class ReactiveExtensionsTests
         ReactiveExtensions.FastForEach(observer, Generate());
 
         // Then
-        await Assert.That(received).IsEquivalentTo(new[] { 100, 200 });
+        await Assert.That(received).IsEquivalentTo([100, 200]);
     }
 
     /// <summary>
@@ -4095,7 +4095,7 @@ public class ReactiveExtensionsTests
 
         ReactiveExtensions.FastForEach(observer, arr);
 
-        await Assert.That(received).IsEquivalentTo(new[] { 5, 10, 15 });
+        await Assert.That(received).IsEquivalentTo([5, 10, 15]);
     }
 
     /// <summary>
