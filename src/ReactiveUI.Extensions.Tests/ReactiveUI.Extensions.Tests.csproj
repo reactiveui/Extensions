@@ -8,10 +8,6 @@
       <ExcludeFromCodeCoverage>true</ExcludeFromCodeCoverage>
     </PropertyGroup>
 
-    <ItemGroup>
-      <PackageReference Include="Moq" />
-    </ItemGroup>
-  
   <ItemGroup>
     <ProjectReference Include="..\ReactiveUI.Extensions\ReactiveUI.Extensions.csproj" />
   </ItemGroup>
