@@ -16,8 +16,6 @@ namespace ReactiveUI.Extensions.Tests.Async;
 /// <summary>
 /// Tests for Result struct, UnhandledExceptionHandler, and ConcurrentObserverCallsException.
 /// </summary>
-[NotInParallel(nameof(UnhandledExceptionHandler))]
-[TestExecutor<UnhandledExceptionTestExecutor>]
 public class ResultAndInfrastructureTests
 {
     /// <summary>Tests Result.Success IsSuccess is true.</summary>

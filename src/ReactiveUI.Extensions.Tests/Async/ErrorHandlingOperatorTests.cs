@@ -11,8 +11,6 @@ namespace ReactiveUI.Extensions.Tests.Async;
 /// <summary>
 /// Tests for error handling operators: Catch, CatchAndIgnoreErrorResume, OnErrorResumeAsFailure, Retry.
 /// </summary>
-[NotInParallel(nameof(UnhandledExceptionHandler))]
-[TestExecutor<UnhandledExceptionTestExecutor>]
 public class ErrorHandlingOperatorTests
 {
     /// <summary>Tests Catch with fallback switches to fallback.</summary>

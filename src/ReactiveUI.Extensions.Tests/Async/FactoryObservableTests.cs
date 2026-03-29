@@ -11,8 +11,6 @@ namespace ReactiveUI.Extensions.Tests.Async;
 /// <summary>
 /// Tests for factory observables: Return, Empty, Throw, Never, Range, FromAsync, Defer, Create, Timer, Interval, ToAsyncObservable.
 /// </summary>
-[NotInParallel(nameof(UnhandledExceptionHandler))]
-[TestExecutor<UnhandledExceptionTestExecutor>]
 public class FactoryObservableTests
 {
     /// <summary>

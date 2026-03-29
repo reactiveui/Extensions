@@ -14,8 +14,6 @@ namespace ReactiveUI.Extensions.Tests.Async;
 /// Tests for the bi-directional bridge between IObservable{T} and ObservableAsync{T},
 /// including combined real-world scenarios.
 /// </summary>
-[NotInParallel(nameof(UnhandledExceptionHandler))]
-[TestExecutor<UnhandledExceptionTestExecutor>]
 public class BridgeTests
 {
     /// <summary>

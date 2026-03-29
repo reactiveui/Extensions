@@ -11,8 +11,6 @@ namespace ReactiveUI.Extensions.Tests.Async;
 /// <summary>
 /// Tests for time-based operators: Throttle, Delay, Timeout, Timer, Interval.
 /// </summary>
-[NotInParallel(nameof(UnhandledExceptionHandler))]
-[TestExecutor<UnhandledExceptionTestExecutor>]
 public class TimeBasedOperatorTests
 {
     /// <summary>Tests Throttle only last in burst is emitted.</summary>

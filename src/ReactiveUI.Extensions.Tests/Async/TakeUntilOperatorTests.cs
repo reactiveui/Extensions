@@ -14,8 +14,6 @@ namespace ReactiveUI.Extensions.Tests.Async;
 /// TakeUntil(observable), TakeUntil(Task), TakeUntil(CancellationToken),
 /// TakeUntil(predicate), TakeUntil(asyncPredicate), TakeUntil(CompletionObservableDelegate).
 /// </summary>
-[NotInParallel(nameof(UnhandledExceptionHandler))]
-[TestExecutor<UnhandledExceptionTestExecutor>]
 public class TakeUntilOperatorTests
 {
     /// <summary>Tests that TakeUntil(observable) throws on null source.</summary>

@@ -12,8 +12,6 @@ namespace ReactiveUI.Extensions.Tests.Async;
 /// <summary>
 /// Tests for combining operators: Merge, Concat, CombineLatest, Zip, Prepend, StartWith.
 /// </summary>
-[NotInParallel(nameof(UnhandledExceptionHandler))]
-[TestExecutor<UnhandledExceptionTestExecutor>]
 public class CombiningOperatorTests
 {
     /// <summary>Tests Merge two sequences emits from both.</summary>

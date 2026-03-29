@@ -13,8 +13,6 @@ namespace ReactiveUI.Extensions.Tests.Async;
 /// <summary>
 /// Tests for transformation operators: Select, SelectMany, Scan, Do, Cast, OfType.
 /// </summary>
-[NotInParallel(nameof(UnhandledExceptionHandler))]
-[TestExecutor<UnhandledExceptionTestExecutor>]
 public class TransformationOperatorTests
 {
     /// <summary>Tests sync Select projects each element.</summary>
