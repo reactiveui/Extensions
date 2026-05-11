@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project>
   <ItemGroup>
-    <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="10.0.202" />
+    <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="10.0.203" />
   </ItemGroup>
   <ItemGroup>
     <PackageVersion Include="Nerdbank.GitVersioning" Version="3.9.50" />
@@ -13,14 +13,14 @@
   </ItemGroup>
   <ItemGroup>
     <PackageVersion Include="System.Reactive" Version="6.1.0" />
-    <PackageVersion Include="Microsoft.Bcl.TimeProvider" Version="10.0.6" />
-    <PackageVersion Include="System.Threading.Channels" Version="10.0.6" />
+    <PackageVersion Include="Microsoft.Bcl.TimeProvider" Version="10.0.7" />
+    <PackageVersion Include="System.Threading.Channels" Version="10.0.7" />
     <PackageVersion Include="System.Runtime.CompilerServices.Unsafe" Version="6.1.2" />
     <PackageVersion Include="System.ComponentModel.Annotations" Version="5.0.0" />
     <PackageVersion Include="System.Buffers" Version="4.6.1" />
     <PackageVersion Include="System.Memory" Version="4.6.3" />
     <PackageVersion Include="Polyfill" Version="10.3.0" />
-    <PackageVersion Include="System.Collections.Immutable" Version="10.0.6" />
+    <PackageVersion Include="System.Collections.Immutable" Version="10.0.7" />
   </ItemGroup>
   <ItemGroup>
     <PackageVersion Include="DynamicData" Version="9.4.31" />
