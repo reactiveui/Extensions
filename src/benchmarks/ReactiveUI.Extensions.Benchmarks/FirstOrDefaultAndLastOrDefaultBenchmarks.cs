@@ -15,7 +15,7 @@ namespace ReactiveUI.Extensions.Benchmarks;
 /// drains the full sequence. Both are exercised against a primed <c>ReplayLatest</c> source so the
 /// benchmark body is purely the terminal operator + a single completion signal.
 /// </summary>
-[SimpleJob(RuntimeMoniker.Net90)]
+[SimpleJob(RuntimeMoniker.Net10_0)]
 [MemoryDiagnoser]
 [MarkdownExporterAttribute.GitHub]
 [SuppressMessage(

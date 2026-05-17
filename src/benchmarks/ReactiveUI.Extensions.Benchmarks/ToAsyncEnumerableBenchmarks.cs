@@ -14,7 +14,7 @@ namespace ReactiveUI.Extensions.Benchmarks;
 /// the observable side into <see cref="IAsyncEnumerable{T}"/> via a buffered <see cref="Channel{T}"/>;
 /// the benchmark body enumerates every element.
 /// </summary>
-[SimpleJob(RuntimeMoniker.Net90)]
+[SimpleJob(RuntimeMoniker.Net10_0)]
 [MemoryDiagnoser]
 [MarkdownExporterAttribute.GitHub]
 public class ToAsyncEnumerableBenchmarks

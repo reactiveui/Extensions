@@ -15,7 +15,7 @@ namespace ReactiveUI.Extensions.Benchmarks;
 /// upstream and downstream. Every emission necessarily reaches a suspension point, so the
 /// numbers here reflect the realistic cost of inserting an async boundary into a pipeline.
 /// </summary>
-[SimpleJob(RuntimeMoniker.Net90)]
+[SimpleJob(RuntimeMoniker.Net10_0)]
 [MemoryDiagnoser]
 [MarkdownExporterAttribute.GitHub]
 public class YieldBenchmarks : IDisposable

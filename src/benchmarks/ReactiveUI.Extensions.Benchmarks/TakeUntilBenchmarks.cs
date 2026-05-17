@@ -16,7 +16,7 @@ namespace ReactiveUI.Extensions.Benchmarks;
 /// never fire during the benchmark body so the timings reflect the operator's per-emission
 /// overhead, not its termination path.
 /// </summary>
-[SimpleJob(RuntimeMoniker.Net90)]
+[SimpleJob(RuntimeMoniker.Net10_0)]
 [MemoryDiagnoser]
 [MarkdownExporterAttribute.GitHub]
 public class TakeUntilBenchmarks : IDisposable

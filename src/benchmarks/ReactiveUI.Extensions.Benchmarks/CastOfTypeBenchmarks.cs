@@ -17,7 +17,7 @@ namespace ReactiveUI.Extensions.Benchmarks;
 /// pass every value through. <see cref="string"/> is used as the target rather than <see cref="int"/>
 /// because <c>OfType</c> requires a reference-type constraint.
 /// </summary>
-[SimpleJob(RuntimeMoniker.Net90)]
+[SimpleJob(RuntimeMoniker.Net10_0)]
 [MemoryDiagnoser]
 [MarkdownExporterAttribute.GitHub]
 public class CastOfTypeBenchmarks : IDisposable

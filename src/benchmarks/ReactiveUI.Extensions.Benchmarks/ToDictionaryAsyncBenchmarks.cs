@@ -13,7 +13,7 @@ namespace ReactiveUI.Extensions.Benchmarks;
 /// no-capture identity projection so the measurement reflects the operator's per-element work
 /// (dictionary growth, key insertion) plus the constant subscribe / teardown overhead.
 /// </summary>
-[SimpleJob(RuntimeMoniker.Net90)]
+[SimpleJob(RuntimeMoniker.Net10_0)]
 [MemoryDiagnoser]
 [MarkdownExporterAttribute.GitHub]
 public class ToDictionaryAsyncBenchmarks

@@ -5,7 +5,6 @@
 using System.Diagnostics.CodeAnalysis;
 using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Jobs;
-using ReactiveUI.Extensions;
 using ReactiveUI.Extensions.Internal;
 
 namespace ReactiveUI.Extensions.Benchmarks;
@@ -16,7 +15,7 @@ namespace ReactiveUI.Extensions.Benchmarks;
 /// emission therefore flows through the operator. Previously composed via System.Reactive's
 /// <c>SkipWhile(x =&gt; x == null)</c>; replaced with a typed <c>SkipWhileNullObservable&lt;T&gt;</c>.
 /// </summary>
-[SimpleJob(RuntimeMoniker.Net90)]
+[SimpleJob(RuntimeMoniker.Net10_0)]
 [MemoryDiagnoser]
 [MarkdownExporterAttribute.GitHub]
 public class SyncSkipWhileNullBenchmarks : IDisposable

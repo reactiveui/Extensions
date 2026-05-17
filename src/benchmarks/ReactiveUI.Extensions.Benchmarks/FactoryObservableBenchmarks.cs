@@ -3,7 +3,6 @@
 // See the LICENSE file in the project root for full license information.
 
 using System.Diagnostics.CodeAnalysis;
-using System.Linq;
 using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Jobs;
 using ReactiveUI.Extensions.Async;
@@ -16,7 +15,7 @@ namespace ReactiveUI.Extensions.Benchmarks;
 /// an <see cref="IEnumerable{T}"/>. Each benchmark builds the observable per invocation (these
 /// factories are not typically cached) so the measurement reflects the cold subscribe path.
 /// </summary>
-[SimpleJob(RuntimeMoniker.Net90)]
+[SimpleJob(RuntimeMoniker.Net10_0)]
 [MemoryDiagnoser]
 [MarkdownExporterAttribute.GitHub]
 [SuppressMessage(

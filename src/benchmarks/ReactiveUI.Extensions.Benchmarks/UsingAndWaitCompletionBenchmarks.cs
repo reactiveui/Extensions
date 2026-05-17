@@ -14,7 +14,7 @@ namespace ReactiveUI.Extensions.Benchmarks;
 /// the subscribe-and-await-completion cost of <c>WaitCompletionAsync</c>. Each invocation builds
 /// a fresh pipeline so the measurement reflects cold subscribe / teardown overhead.
 /// </summary>
-[SimpleJob(RuntimeMoniker.Net90)]
+[SimpleJob(RuntimeMoniker.Net10_0)]
 [MemoryDiagnoser]
 [MarkdownExporterAttribute.GitHub]
 [SuppressMessage(

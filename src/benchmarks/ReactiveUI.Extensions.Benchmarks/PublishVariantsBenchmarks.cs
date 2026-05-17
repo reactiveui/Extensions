@@ -17,7 +17,7 @@ namespace ReactiveUI.Extensions.Benchmarks;
 /// <c>StatelessPublish(initialValue)</c> (replay-latest stateless), and
 /// <c>ReplayLatestPublish</c>.
 /// </summary>
-[SimpleJob(RuntimeMoniker.Net90)]
+[SimpleJob(RuntimeMoniker.Net10_0)]
 [MemoryDiagnoser]
 [MarkdownExporterAttribute.GitHub]
 public class PublishVariantsBenchmarks : IDisposable

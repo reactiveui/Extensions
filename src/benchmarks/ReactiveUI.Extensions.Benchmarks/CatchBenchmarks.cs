@@ -16,7 +16,7 @@ namespace ReactiveUI.Extensions.Benchmarks;
 /// upstream subject without ever triggering the error path, so we measure the steady-state
 /// pass-through cost of the operator's intermediary observer.
 /// </summary>
-[SimpleJob(RuntimeMoniker.Net90)]
+[SimpleJob(RuntimeMoniker.Net10_0)]
 [MemoryDiagnoser]
 [MarkdownExporterAttribute.GitHub]
 public class CatchBenchmarks : IDisposable

@@ -16,7 +16,7 @@ namespace ReactiveUI.Extensions.Benchmarks;
 /// observer-chain pass-through plus the awaiter machinery around the callback's
 /// <see cref="ValueTask"/> return.
 /// </summary>
-[SimpleJob(RuntimeMoniker.Net90)]
+[SimpleJob(RuntimeMoniker.Net10_0)]
 [MemoryDiagnoser]
 [MarkdownExporterAttribute.GitHub]
 public class DoBenchmarks : IDisposable

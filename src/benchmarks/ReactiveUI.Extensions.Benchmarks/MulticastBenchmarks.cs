@@ -15,7 +15,7 @@ namespace ReactiveUI.Extensions.Benchmarks;
 /// attached. Exercises the multicast / connectable wiring (subject snapshot, single upstream
 /// subscribe, fan-out to N observers per emission).
 /// </summary>
-[SimpleJob(RuntimeMoniker.Net90)]
+[SimpleJob(RuntimeMoniker.Net10_0)]
 [MemoryDiagnoser]
 [MarkdownExporterAttribute.GitHub]
 public class MulticastBenchmarks : IDisposable

@@ -16,7 +16,7 @@ namespace ReactiveUI.Extensions.Benchmarks;
 /// synchronously, so the steady-state numbers reflect the operator's bookkeeping rather than
 /// scheduler / wall-time variance.
 /// </summary>
-[SimpleJob(RuntimeMoniker.Net90)]
+[SimpleJob(RuntimeMoniker.Net10_0)]
 [MemoryDiagnoser]
 [MarkdownExporterAttribute.GitHub]
 public class DelayBenchmarks : IDisposable

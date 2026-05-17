@@ -17,7 +17,7 @@ namespace ReactiveUI.Extensions.Benchmarks;
 /// bookkeeping (gate, id-counter, CTS handling, timer lifecycle) without scheduler / wall-time
 /// variance.
 /// </summary>
-[SimpleJob(RuntimeMoniker.Net90)]
+[SimpleJob(RuntimeMoniker.Net10_0)]
 [MemoryDiagnoser]
 [MarkdownExporterAttribute.GitHub]
 public class ThrottleBenchmarks : IDisposable

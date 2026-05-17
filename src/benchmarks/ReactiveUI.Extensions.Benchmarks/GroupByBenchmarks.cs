@@ -15,7 +15,7 @@ namespace ReactiveUI.Extensions.Benchmarks;
 /// only created during warm-up; the steady-state path is the lookup-and-forward into an existing
 /// inner group's observable, exercising the dictionary lookup plus the inner subject's broadcast.
 /// </summary>
-[SimpleJob(RuntimeMoniker.Net90)]
+[SimpleJob(RuntimeMoniker.Net10_0)]
 [MemoryDiagnoser]
 [MarkdownExporterAttribute.GitHub]
 public class GroupByBenchmarks : IDisposable

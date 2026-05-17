@@ -15,7 +15,7 @@ namespace ReactiveUI.Extensions.Benchmarks;
 /// Measures the sync→async bridge's per-emission cost (Packet 8 — WorkItem struct queue replacing the
 /// previous Func{Task} + Action closure trio).
 /// </summary>
-[SimpleJob(RuntimeMoniker.Net90)]
+[SimpleJob(RuntimeMoniker.Net10_0)]
 [MemoryDiagnoser]
 [MarkdownExporterAttribute.GitHub]
 public class BridgeBenchmarks : IDisposable

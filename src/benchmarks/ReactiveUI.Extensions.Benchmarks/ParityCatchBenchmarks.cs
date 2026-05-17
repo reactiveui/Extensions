@@ -15,7 +15,7 @@ namespace ReactiveUI.Extensions.Benchmarks;
 /// (no upstream errors): <c>CatchIgnore</c> and <c>CatchAndReturn</c>. Both are pass-through when
 /// the source doesn't fault, so the numbers here reflect operator scaffold cost.
 /// </summary>
-[SimpleJob(RuntimeMoniker.Net90)]
+[SimpleJob(RuntimeMoniker.Net10_0)]
 [MemoryDiagnoser]
 [MarkdownExporterAttribute.GitHub]
 public class ParityCatchBenchmarks : IDisposable

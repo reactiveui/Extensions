@@ -15,7 +15,7 @@ namespace ReactiveUI.Extensions.Benchmarks;
 /// source, requiring both sources to advance lock-step. The benchmark body alternates a push to
 /// source 1 then source 2 so a paired tuple is emitted exactly once per outer iteration.
 /// </summary>
-[SimpleJob(RuntimeMoniker.Net90)]
+[SimpleJob(RuntimeMoniker.Net10_0)]
 [MemoryDiagnoser]
 [MarkdownExporterAttribute.GitHub]
 public class ZipBenchmarks : IDisposable

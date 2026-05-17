@@ -15,7 +15,7 @@ namespace ReactiveUI.Extensions.Benchmarks;
 /// <see cref="ToDictionaryAsyncBenchmarks"/> and <see cref="AggregateAndPredicateAsyncBenchmarks"/>
 /// by exercising the overloads with extra delegate work per element.
 /// </summary>
-[SimpleJob(RuntimeMoniker.Net90)]
+[SimpleJob(RuntimeMoniker.Net10_0)]
 [MemoryDiagnoser]
 [MarkdownExporterAttribute.GitHub]
 public class AdditionalProjectionAsyncBenchmarks

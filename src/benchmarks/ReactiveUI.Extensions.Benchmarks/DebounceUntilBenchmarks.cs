@@ -15,7 +15,7 @@ namespace ReactiveUI.Extensions.Benchmarks;
 /// is always true so each value is emitted immediately through the inner <c>Return</c> + outer
 /// <c>Switch</c> composition. Surfaces the per-emission inner-observable construction cost.
 /// </summary>
-[SimpleJob(RuntimeMoniker.Net90)]
+[SimpleJob(RuntimeMoniker.Net10_0)]
 [MemoryDiagnoser]
 [MarkdownExporterAttribute.GitHub]
 public class DebounceUntilBenchmarks : IDisposable

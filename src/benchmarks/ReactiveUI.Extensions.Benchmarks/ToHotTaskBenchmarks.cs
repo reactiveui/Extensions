@@ -12,7 +12,7 @@ namespace ReactiveUI.Extensions.Benchmarks;
 /// Cost of <c>ToHotTask</c> (backed by <c>FirstAsTaskHelper.FirstAsTask</c>) — each iteration
 /// subscribes to a fresh-ish source, the source synchronously emits one value, the task resolves.
 /// </summary>
-[SimpleJob(RuntimeMoniker.Net90)]
+[SimpleJob(RuntimeMoniker.Net10_0)]
 [MemoryDiagnoser]
 [MarkdownExporterAttribute.GitHub]
 public class ToHotTaskBenchmarks : IDisposable

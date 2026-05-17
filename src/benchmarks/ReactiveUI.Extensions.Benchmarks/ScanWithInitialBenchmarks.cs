@@ -14,7 +14,7 @@ namespace ReactiveUI.Extensions.Benchmarks;
 /// Measures the per-emission cost of <c>ScanWithInitial</c>. Currently implemented as
 /// <c>Return(initial).Concat(source.Scan(initial, acc))</c> — two layers that are a fusion candidate.
 /// </summary>
-[SimpleJob(RuntimeMoniker.Net90)]
+[SimpleJob(RuntimeMoniker.Net10_0)]
 [MemoryDiagnoser]
 [MarkdownExporterAttribute.GitHub]
 public class ScanWithInitialBenchmarks : IDisposable

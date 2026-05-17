@@ -16,7 +16,7 @@ namespace ReactiveUI.Extensions.Benchmarks;
 /// gate; this benchmark complements <see cref="SubjectBroadcastBenchmarks"/> (which covers the
 /// stateless serial subject) by exercising the gated last-value-cache hot path.
 /// </summary>
-[SimpleJob(RuntimeMoniker.Net90)]
+[SimpleJob(RuntimeMoniker.Net10_0)]
 [MemoryDiagnoser]
 [MarkdownExporterAttribute.GitHub]
 public class ReplayLatestSubjectBenchmarks : IDisposable

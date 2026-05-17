@@ -15,7 +15,7 @@ namespace ReactiveUI.Extensions.Benchmarks;
 /// subject's selector always returns the same inner subject, so the benchmark measures the
 /// steady-state fan-out path rather than the inner-subscribe / unsubscribe churn.
 /// </summary>
-[SimpleJob(RuntimeMoniker.Net90)]
+[SimpleJob(RuntimeMoniker.Net10_0)]
 [MemoryDiagnoser]
 [MarkdownExporterAttribute.GitHub]
 public class SelectManyBenchmarks : IDisposable

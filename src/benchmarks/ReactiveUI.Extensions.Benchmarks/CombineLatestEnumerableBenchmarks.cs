@@ -16,7 +16,7 @@ namespace ReactiveUI.Extensions.Benchmarks;
 /// <c>CombineLatest2..16</c> overloads — the enumerable form rents a snapshot buffer from the pool
 /// per emission and projects via <c>IReadOnlyList&lt;T&gt;</c>.
 /// </summary>
-[SimpleJob(RuntimeMoniker.Net90)]
+[SimpleJob(RuntimeMoniker.Net10_0)]
 [MemoryDiagnoser]
 [MarkdownExporterAttribute.GitHub]
 public class CombineLatestEnumerableBenchmarks : IDisposable

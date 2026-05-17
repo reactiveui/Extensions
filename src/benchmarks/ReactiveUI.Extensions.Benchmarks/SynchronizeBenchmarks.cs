@@ -3,43 +3,43 @@
 // See the LICENSE file in the project root for full license information.
 
 using System.Diagnostics.CodeAnalysis;
+using System.Reactive.Subjects;
 using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Jobs;
-using ReactiveUI.Extensions.Internal;
 
 namespace ReactiveUI.Extensions.Benchmarks;
 
 /// <summary>
-/// Per-emission cost of the sync <c>LogErrors</c> helper on the happy path — no errors fire, so
-/// every value flows straight through to the downstream observer with the logger never invoked.
+/// Drives values through <c>SynchronizeAsync</c> and immediately disposes the per-emission Sync
+/// handle. Exercises the <c>Continuation</c> phase-barrier path that signals via
+/// <c>Task.Factory.StartNew</c> + state — measures throughput and per-emission allocations on the
+/// fire-and-forget signal task.
 /// </summary>
 [SimpleJob(RuntimeMoniker.Net10_0)]
 [MemoryDiagnoser]
 [MarkdownExporterAttribute.GitHub]
-public class SyncLogErrorsBenchmarks : IDisposable
+public class SynchronizeBenchmarks : IDisposable
 {
     /// <summary>Low end of the <see cref="EmissionCount"/> parameter sweep.</summary>
-    private const int SmallEmissionCount = 1_000;
+    private const int SmallEmissionCount = 100;
 
     /// <summary>High end of the <see cref="EmissionCount"/> parameter sweep.</summary>
-    private const int LargeEmissionCount = 10_000;
+    private const int LargeEmissionCount = 1_000;
 
-    /// <summary>Source feeding the pipeline; the initial-value replay fires once during setup and does not pollute the measurement loop.</summary>
-    private readonly CurrentValueSubject<int> _source = new(0);
+    /// <summary>Source feeding the synchronize pipeline.</summary>
+    private readonly Subject<int> _source = new();
 
-    /// <summary>No-op terminal sink.</summary>
-    private readonly NoopObserver _sink = new();
-
-    /// <summary>Subscription on the pipeline.</summary>
+    /// <summary>Subscription on the synchronize pipeline.</summary>
     private IDisposable _subscription = null!;
 
     /// <summary>Gets or sets the number of emissions pushed through the pipeline per invocation.</summary>
     [Params(SmallEmissionCount, LargeEmissionCount)]
     public int EmissionCount { get; set; }
 
-    /// <summary>Wires the pipeline; logger is a static no-op since no errors fire on the happy path.</summary>
+    /// <summary>Wires the pipeline; the downstream observer immediately disposes the per-emission Sync handle.</summary>
     [GlobalSetup]
-    public void Setup() => _subscription = _source.LogErrors(static _ => { }).Subscribe(_sink);
+    public void Setup() =>
+        _subscription = _source.SynchronizeAsync().Subscribe(static tuple => tuple.Sync.Dispose());
 
     /// <summary>Tears the pipeline down.</summary>
     [SuppressMessage(
@@ -53,9 +53,9 @@ public class SyncLogErrorsBenchmarks : IDisposable
         _source.Dispose();
     }
 
-    /// <summary>Drives values through the log-errors pipeline without ever erroring.</summary>
+    /// <summary>Drives values through the synchronize pipeline; each tuple's Sync is disposed inline by the sink.</summary>
     [Benchmark]
-    public void LogErrors_HappyPath()
+    public void SynchronizeAsync_FastDispose()
     {
         for (var i = 0; i < EmissionCount; i++)
         {
@@ -80,24 +80,5 @@ public class SyncLogErrorsBenchmarks : IDisposable
         }
 
         Cleanup();
-    }
-
-    /// <summary>No-op observer used as the terminal sink.</summary>
-    private sealed class NoopObserver : IObserver<int>
-    {
-        /// <inheritdoc/>
-        public void OnNext(int value)
-        {
-        }
-
-        /// <inheritdoc/>
-        public void OnError(Exception error)
-        {
-        }
-
-        /// <inheritdoc/>
-        public void OnCompleted()
-        {
-        }
     }
 }

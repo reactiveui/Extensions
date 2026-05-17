@@ -15,7 +15,7 @@ namespace ReactiveUI.Extensions.Benchmarks;
 /// so we exercise the operator's intermediary-observer pass-through without paying re-subscribe
 /// overhead.
 /// </summary>
-[SimpleJob(RuntimeMoniker.Net90)]
+[SimpleJob(RuntimeMoniker.Net10_0)]
 [MemoryDiagnoser]
 [MarkdownExporterAttribute.GitHub]
 public class RetryBenchmarks : IDisposable

@@ -17,7 +17,7 @@ namespace ReactiveUI.Extensions.Benchmarks;
 /// "wait for the first matching value" use case. Currently implemented as
 /// <c>Where(predicate).Take(1)</c> — a fusion candidate.
 /// </summary>
-[SimpleJob(RuntimeMoniker.Net90)]
+[SimpleJob(RuntimeMoniker.Net10_0)]
 [MemoryDiagnoser]
 [MarkdownExporterAttribute.GitHub]
 public class WaitUntilBenchmarks : IDisposable

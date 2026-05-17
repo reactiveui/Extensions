@@ -16,7 +16,7 @@ namespace ReactiveUI.Extensions.Benchmarks;
 /// scheduler hand-off, so this benchmark captures the cost of the cross-context bridge and the
 /// associated awaiter machinery, not the operator's allocations alone.
 /// </summary>
-[SimpleJob(RuntimeMoniker.Net90)]
+[SimpleJob(RuntimeMoniker.Net10_0)]
 [MemoryDiagnoser]
 [MarkdownExporterAttribute.GitHub]
 public class ObserveOnBenchmarks : IDisposable

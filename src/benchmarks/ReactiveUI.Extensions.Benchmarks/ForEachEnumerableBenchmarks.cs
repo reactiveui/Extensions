@@ -16,7 +16,7 @@ namespace ReactiveUI.Extensions.Benchmarks;
 /// <c>SelectMany(values =&gt; values.ToObservableAsync())</c> — surfaces the cost of building a
 /// new inner observable per upstream emission.
 /// </summary>
-[SimpleJob(RuntimeMoniker.Net90)]
+[SimpleJob(RuntimeMoniker.Net10_0)]
 [MemoryDiagnoser]
 [MarkdownExporterAttribute.GitHub]
 public class ForEachEnumerableBenchmarks : IDisposable

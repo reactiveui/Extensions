@@ -5,7 +5,6 @@
 using System.Diagnostics.CodeAnalysis;
 using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Diagnosers;
-using ReactiveUI.Extensions.Async;
 using ReactiveUI.Extensions.Async.Subjects;
 
 namespace ReactiveUI.Extensions.Benchmarks;

@@ -14,7 +14,7 @@ namespace ReactiveUI.Extensions.Benchmarks;
 /// benchmarks (which measure per-emission cost on a pre-subscribed pipeline), each invocation
 /// here pays both the subscription / dispose cost and the per-element work.
 /// </summary>
-[SimpleJob(RuntimeMoniker.Net90)]
+[SimpleJob(RuntimeMoniker.Net10_0)]
 [MemoryDiagnoser]
 [MarkdownExporterAttribute.GitHub]
 public class TerminalAggregateBenchmarks

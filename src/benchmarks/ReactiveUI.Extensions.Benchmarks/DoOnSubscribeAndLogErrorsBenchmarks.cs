@@ -17,7 +17,7 @@ namespace ReactiveUI.Extensions.Benchmarks;
 /// <c>Create&lt;T&gt;</c> closures and add an extra observer layer; the benchmark surfaces the
 /// per-emission cost of that layer.
 /// </summary>
-[SimpleJob(RuntimeMoniker.Net90)]
+[SimpleJob(RuntimeMoniker.Net10_0)]
 [MemoryDiagnoser]
 [MarkdownExporterAttribute.GitHub]
 public class DoOnSubscribeAndLogErrorsBenchmarks : IDisposable

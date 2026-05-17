@@ -14,7 +14,7 @@ namespace ReactiveUI.Extensions.Benchmarks;
 /// and the subscribe+replay cost. Locks in the single-observer fast path and the immutable-array
 /// snapshot iteration.
 /// </summary>
-[SimpleJob(RuntimeMoniker.Net90)]
+[SimpleJob(RuntimeMoniker.Net10_0)]
 [MemoryDiagnoser]
 [MarkdownExporterAttribute.GitHub]
 public class CurrentValueSubjectBenchmarks : IDisposable

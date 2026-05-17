@@ -16,7 +16,7 @@ namespace ReactiveUI.Extensions.Benchmarks;
 /// <see cref="SetupAsync"/>; the benchmark body then measures the operator's steady-state
 /// forwarding of subsequent source emissions.
 /// </summary>
-[SimpleJob(RuntimeMoniker.Net90)]
+[SimpleJob(RuntimeMoniker.Net10_0)]
 [MemoryDiagnoser]
 [MarkdownExporterAttribute.GitHub]
 public class PrependBenchmarks : IDisposable

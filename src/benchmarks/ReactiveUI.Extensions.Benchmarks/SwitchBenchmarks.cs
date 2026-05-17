@@ -16,7 +16,7 @@ namespace ReactiveUI.Extensions.Benchmarks;
 /// so every emission traverses the gate / current-inner-subscription path without paying
 /// switch-over cost.
 /// </summary>
-[SimpleJob(RuntimeMoniker.Net90)]
+[SimpleJob(RuntimeMoniker.Net10_0)]
 [MemoryDiagnoser]
 [MarkdownExporterAttribute.GitHub]
 public class SwitchBenchmarks : IDisposable

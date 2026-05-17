@@ -14,7 +14,7 @@ namespace ReactiveUI.Extensions.Benchmarks;
 /// happy path — no errors fire, so every emission flows straight through the retry sink to the
 /// downstream observer.
 /// </summary>
-[SimpleJob(RuntimeMoniker.Net90)]
+[SimpleJob(RuntimeMoniker.Net10_0)]
 [MemoryDiagnoser]
 [MarkdownExporterAttribute.GitHub]
 public class RetryForeverBenchmarks : IDisposable

@@ -12,7 +12,7 @@ namespace ReactiveUI.Extensions.Benchmarks;
 /// Measures the subscribe-and-drain cost of <c>ForEachAsync</c> with sync and async callbacks.
 /// Each invocation subscribes to a fresh finite source and awaits the drain.
 /// </summary>
-[SimpleJob(RuntimeMoniker.Net90)]
+[SimpleJob(RuntimeMoniker.Net10_0)]
 [MemoryDiagnoser]
 [MarkdownExporterAttribute.GitHub]
 public class ForEachAsyncBenchmarks

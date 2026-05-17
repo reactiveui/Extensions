@@ -17,7 +17,7 @@ namespace ReactiveUI.Extensions.Benchmarks;
 /// <c>WhereTrue</c> / <c>WhereFalse</c> (boolean filters), <c>WhereIsNotNull</c> (null filter),
 /// and <c>Pairwise</c> (emits <c>(prev, current)</c> tuples).
 /// </summary>
-[SimpleJob(RuntimeMoniker.Net90)]
+[SimpleJob(RuntimeMoniker.Net10_0)]
 [MemoryDiagnoser]
 [MarkdownExporterAttribute.GitHub]
 public class ParityFilterAndProjectionBenchmarks : IDisposable

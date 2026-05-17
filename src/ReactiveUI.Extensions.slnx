@@ -1,4 +1,7 @@
 <Solution>
+    <Folder Name="/benchmarks/">
+        <Project Path="benchmarks/ReactiveUI.Extensions.Benchmarks/ReactiveUI.Extensions.Benchmarks.csproj" />
+    </Folder>
     <Folder Name="/SolutionConfig/">
         <File Path="../.editorconfig" />
         <File Path="../.gitattributes" />
@@ -14,9 +17,12 @@
         <File Path="stylecop.json" />
         <File Path="testconfig.json" />
     </Folder>
-    <Project Path="ReactiveUI.Extensions.Tests/ReactiveUI.Extensions.Tests.csproj" />
+    <Folder Name="/tools/">
+        <Project Path="tools/ReactiveUI.Extensions.AllocReport/ReactiveUI.Extensions.AllocReport.csproj" />
+        <Project Path="tools/ReactiveUI.Extensions.CpuReport/ReactiveUI.Extensions.CpuReport.csproj" />
+    </Folder>
     <Project Path="ReactiveUI.Extensions/ReactiveUI.Extensions.csproj" />
-    <Project Path="benchmarks/ReactiveUI.Extensions.Benchmarks/ReactiveUI.Extensions.Benchmarks.csproj" />
-    <Project Path="tools/ReactiveUI.Extensions.AllocReport/ReactiveUI.Extensions.AllocReport.csproj" />
-    <Project Path="tools/ReactiveUI.Extensions.CpuReport/ReactiveUI.Extensions.CpuReport.csproj" />
+    <Folder Name="/tests/">
+        <Project Path="ReactiveUI.Extensions.Tests/ReactiveUI.Extensions.Tests.csproj" />
+    </Folder>
 </Solution>

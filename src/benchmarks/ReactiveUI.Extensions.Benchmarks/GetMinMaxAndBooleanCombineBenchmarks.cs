@@ -15,7 +15,7 @@ namespace ReactiveUI.Extensions.Benchmarks;
 /// parity-helper combinators built on top of <c>CombineLatest</c>. Each pipeline has four
 /// pre-primed sources so every emission produces a downstream value.
 /// </summary>
-[SimpleJob(RuntimeMoniker.Net90)]
+[SimpleJob(RuntimeMoniker.Net10_0)]
 [MemoryDiagnoser]
 [MarkdownExporterAttribute.GitHub]
 public class GetMinMaxAndBooleanCombineBenchmarks : IDisposable

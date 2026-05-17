@@ -5,7 +5,6 @@
 using System.Diagnostics.CodeAnalysis;
 using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Jobs;
-using ReactiveUI.Extensions.Async;
 using ReactiveUI.Extensions.Async.Subjects;
 
 namespace ReactiveUI.Extensions.Benchmarks;
@@ -16,7 +15,7 @@ namespace ReactiveUI.Extensions.Benchmarks;
 /// <c>Concurrent.ForwardOnNextConcurrently</c>. Complements
 /// <see cref="SubjectBroadcastBenchmarks"/> which exercises the serial variant.
 /// </summary>
-[SimpleJob(RuntimeMoniker.Net90)]
+[SimpleJob(RuntimeMoniker.Net10_0)]
 [MemoryDiagnoser]
 [MarkdownExporterAttribute.GitHub]
 public class ConcurrentStatelessSubjectBroadcastBenchmarks : IDisposable

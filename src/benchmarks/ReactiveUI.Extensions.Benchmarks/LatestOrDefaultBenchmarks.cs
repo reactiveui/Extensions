@@ -15,7 +15,7 @@ namespace ReactiveUI.Extensions.Benchmarks;
 /// emission passes the downstream <c>DistinctUntilChanged</c> equality check. Currently implemented
 /// as <c>StartWith(default).DistinctUntilChanged()</c> — a fusion candidate.
 /// </summary>
-[SimpleJob(RuntimeMoniker.Net90)]
+[SimpleJob(RuntimeMoniker.Net10_0)]
 [MemoryDiagnoser]
 [MarkdownExporterAttribute.GitHub]
 public class LatestOrDefaultBenchmarks : IDisposable

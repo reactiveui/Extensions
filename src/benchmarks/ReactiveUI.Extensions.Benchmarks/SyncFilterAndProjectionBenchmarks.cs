@@ -17,7 +17,7 @@ namespace ReactiveUI.Extensions.Benchmarks;
 /// benchmark exists primarily to lock in the single-observer-layer baseline and catch any future
 /// regressions on the sync surface.
 /// </summary>
-[SimpleJob(RuntimeMoniker.Net90)]
+[SimpleJob(RuntimeMoniker.Net10_0)]
 [MemoryDiagnoser]
 [MarkdownExporterAttribute.GitHub]
 public class SyncFilterAndProjectionBenchmarks : IDisposable

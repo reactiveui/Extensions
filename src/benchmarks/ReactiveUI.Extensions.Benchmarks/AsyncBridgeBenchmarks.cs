@@ -17,7 +17,7 @@ namespace ReactiveUI.Extensions.Benchmarks;
 /// covered by <see cref="FactoryObservableBenchmarks"/>; this class focuses on the genuinely-async
 /// sources.
 /// </summary>
-[SimpleJob(RuntimeMoniker.Net90)]
+[SimpleJob(RuntimeMoniker.Net10_0)]
 [MemoryDiagnoser]
 [MarkdownExporterAttribute.GitHub]
 [SuppressMessage(

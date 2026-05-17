@@ -5,7 +5,6 @@
 using System.Diagnostics.CodeAnalysis;
 using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Jobs;
-using ReactiveUI.Extensions.Async;
 using ReactiveUI.Extensions.Async.Subjects;
 
 namespace ReactiveUI.Extensions.Benchmarks;
@@ -16,7 +15,7 @@ namespace ReactiveUI.Extensions.Benchmarks;
 /// Complements <see cref="ReplayLatestSubjectBenchmarks"/> by exercising the factory-style
 /// constructors that wrap the same underlying types.
 /// </summary>
-[SimpleJob(RuntimeMoniker.Net90)]
+[SimpleJob(RuntimeMoniker.Net10_0)]
 [MemoryDiagnoser]
 [MarkdownExporterAttribute.GitHub]
 public class BehaviorSubjectBenchmarks : IDisposable

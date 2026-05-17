@@ -5,7 +5,6 @@
 using System.Diagnostics.CodeAnalysis;
 using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Jobs;
-using ReactiveUI.Extensions.Async;
 using ReactiveUI.Extensions.Async.Subjects;
 
 namespace ReactiveUI.Extensions.Benchmarks;
@@ -17,7 +16,7 @@ namespace ReactiveUI.Extensions.Benchmarks;
 /// <see cref="ConcurrentStatelessSubjectBroadcastBenchmarks"/>; this class isolates the cost of
 /// the stateful machinery (result-tracking, completion guard) on top of the broadcast pipeline.
 /// </summary>
-[SimpleJob(RuntimeMoniker.Net90)]
+[SimpleJob(RuntimeMoniker.Net10_0)]
 [MemoryDiagnoser]
 [MarkdownExporterAttribute.GitHub]
 public class StatefulSubjectBroadcastBenchmarks : IDisposable

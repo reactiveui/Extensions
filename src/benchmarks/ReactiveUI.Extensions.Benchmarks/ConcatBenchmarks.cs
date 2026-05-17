@@ -15,7 +15,7 @@ namespace ReactiveUI.Extensions.Benchmarks;
 /// source. A single inner subject feeds the operator and is never completed during the benchmark
 /// body, so we measure the steady-state observer chain (one inner forwarder + downstream).
 /// </summary>
-[SimpleJob(RuntimeMoniker.Net90)]
+[SimpleJob(RuntimeMoniker.Net10_0)]
 [MemoryDiagnoser]
 [MarkdownExporterAttribute.GitHub]
 public class ConcatBenchmarks : IDisposable

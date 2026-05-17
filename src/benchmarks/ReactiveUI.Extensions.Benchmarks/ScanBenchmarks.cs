@@ -15,7 +15,7 @@ namespace ReactiveUI.Extensions.Benchmarks;
 /// Complements <see cref="ScanWithInitialBenchmarks"/>, which fuses a leading seed emission into
 /// the operator.
 /// </summary>
-[SimpleJob(RuntimeMoniker.Net90)]
+[SimpleJob(RuntimeMoniker.Net10_0)]
 [MemoryDiagnoser]
 [MarkdownExporterAttribute.GitHub]
 public class ScanBenchmarks : IDisposable

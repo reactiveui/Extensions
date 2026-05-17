@@ -16,7 +16,7 @@ namespace ReactiveUI.Extensions.Benchmarks;
 /// inner subjects so every emission goes through the merge gate without paying subscribe / completion
 /// overhead.
 /// </summary>
-[SimpleJob(RuntimeMoniker.Net90)]
+[SimpleJob(RuntimeMoniker.Net10_0)]
 [MemoryDiagnoser]
 [MarkdownExporterAttribute.GitHub]
 public class MergeBenchmarks : IDisposable

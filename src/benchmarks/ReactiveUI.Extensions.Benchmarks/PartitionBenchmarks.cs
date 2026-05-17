@@ -16,7 +16,7 @@ namespace ReactiveUI.Extensions.Benchmarks;
 /// <c>Publish().RefCount()</c> backbone. Both branches are subscribed; the predicate is evaluated
 /// exactly once per upstream emission.
 /// </summary>
-[SimpleJob(RuntimeMoniker.Net90)]
+[SimpleJob(RuntimeMoniker.Net10_0)]
 [MemoryDiagnoser]
 [MarkdownExporterAttribute.GitHub]
 public class PartitionBenchmarks : IDisposable

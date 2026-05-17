@@ -23,7 +23,7 @@ namespace ReactiveUI.Extensions.Benchmarks;
 /// reaches a true suspension point so the surrounding await observes its value, unsubscribes,
 /// and the pump exits cleanly.
 /// </remarks>
-[SimpleJob(RuntimeMoniker.Net90)]
+[SimpleJob(RuntimeMoniker.Net10_0)]
 [MemoryDiagnoser]
 [MarkdownExporterAttribute.GitHub]
 public class IntervalTimerBenchmarks

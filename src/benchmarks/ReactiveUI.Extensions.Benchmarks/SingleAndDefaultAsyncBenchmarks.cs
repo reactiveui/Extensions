@@ -14,7 +14,7 @@ namespace ReactiveUI.Extensions.Benchmarks;
 /// <c>FirstOrDefaultAsync</c> / <c>LastOrDefaultAsync</c> / <c>SingleOrDefaultAsync</c> against an
 /// <c>Empty</c> source so the default value is returned.
 /// </summary>
-[SimpleJob(RuntimeMoniker.Net90)]
+[SimpleJob(RuntimeMoniker.Net10_0)]
 [MemoryDiagnoser]
 [MarkdownExporterAttribute.GitHub]
 public class SingleAndDefaultAsyncBenchmarks

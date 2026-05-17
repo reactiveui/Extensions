@@ -14,7 +14,7 @@ namespace ReactiveUI.Extensions.Benchmarks;
 /// Measures CombineLatest's per-emission cost — both the arity-N typed form (CombineLatest2, Packet 2
 /// linked-CTS removal) and the enumerable form (Packet 6's snapshot-buffer reuse).
 /// </summary>
-[SimpleJob(RuntimeMoniker.Net90)]
+[SimpleJob(RuntimeMoniker.Net10_0)]
 [MemoryDiagnoser]
 [MarkdownExporterAttribute.GitHub]
 public class CombineLatestBenchmarks : IDisposable

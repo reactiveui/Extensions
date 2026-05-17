@@ -15,7 +15,7 @@ namespace ReactiveUI.Extensions.Benchmarks;
 /// subscribes to a fresh <see cref="ObservableAsync.Range"/> per invocation; the short-circuit
 /// variants exit early on the first match / mismatch.
 /// </summary>
-[SimpleJob(RuntimeMoniker.Net90)]
+[SimpleJob(RuntimeMoniker.Net10_0)]
 [MemoryDiagnoser]
 [MarkdownExporterAttribute.GitHub]
 public class AggregateAndPredicateAsyncBenchmarks

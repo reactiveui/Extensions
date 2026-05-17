@@ -12,7 +12,7 @@ namespace ReactiveUI.Extensions.Benchmarks;
 /// Subscribe + emit + complete cost of <see cref="SingleValueObservable{T}"/>. Each iteration
 /// produces one full subscribe-then-terminate cycle.
 /// </summary>
-[SimpleJob(RuntimeMoniker.Net90)]
+[SimpleJob(RuntimeMoniker.Net10_0)]
 [MemoryDiagnoser]
 [MarkdownExporterAttribute.GitHub]
 public class SingleValueObservableBenchmarks

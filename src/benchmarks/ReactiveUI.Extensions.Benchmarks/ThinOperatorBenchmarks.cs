@@ -16,7 +16,7 @@ namespace ReactiveUI.Extensions.Benchmarks;
 /// pipeline at <see cref="EmissionCount"/> emissions per benchmark amortises subscription cost across the
 /// invocations that get measured by MemoryDiagnoser.
 /// </summary>
-[SimpleJob(RuntimeMoniker.Net90)]
+[SimpleJob(RuntimeMoniker.Net10_0)]
 [MemoryDiagnoser]
 [MarkdownExporterAttribute.GitHub]
 public class ThinOperatorBenchmarks : IDisposable

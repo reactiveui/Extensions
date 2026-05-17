@@ -15,7 +15,7 @@ namespace ReactiveUI.Extensions.Benchmarks;
 /// <see cref="TimeProvider.System"/> with a window much larger than the benchmark's wall-time so
 /// the timeout never elapses; the operator's per-emission rearm path is the measurement target.
 /// </summary>
-[SimpleJob(RuntimeMoniker.Net90)]
+[SimpleJob(RuntimeMoniker.Net10_0)]
 [MemoryDiagnoser]
 [MarkdownExporterAttribute.GitHub]
 public class TimeoutBenchmarks : IDisposable

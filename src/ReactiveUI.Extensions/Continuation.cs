@@ -59,7 +59,12 @@ public class Continuation : IDisposable
 
         _locked = true;
         observer?.OnNext((item, this));
-        return Task.Run(() => _phaseSync?.SignalAndWait(CancellationToken.None));
+        return Task.Factory.StartNew(
+            SignalPhaseSync,
+            this,
+            CancellationToken.None,
+            TaskCreationOptions.DenyChildAttach,
+            TaskScheduler.Default);
     }
 
     /// <summary>
@@ -74,7 +79,12 @@ public class Continuation : IDisposable
         }
 
         _locked = false;
-        return Task.Run(() => _phaseSync?.SignalAndWait(CancellationToken.None));
+        return Task.Factory.StartNew(
+            SignalPhaseSync,
+            this,
+            CancellationToken.None,
+            TaskCreationOptions.DenyChildAttach,
+            TaskScheduler.Default);
     }
 
     /// <summary>
@@ -96,4 +106,8 @@ public class Continuation : IDisposable
 
         _disposedValue = true;
     }
+
+    /// <summary>Static state-carrying signal callback; avoids the per-call closure allocation a captured lambda would produce.</summary>
+    /// <param name="state">The owning <see cref="Continuation"/> instance.</param>
+    private static void SignalPhaseSync(object? state) => ((Continuation)state!)._phaseSync?.SignalAndWait(CancellationToken.None);
 }

@@ -16,7 +16,7 @@ namespace ReactiveUI.Extensions.Benchmarks;
 /// skip / take boundary is crossed during warm-up (or never crossed at all), so the benchmark
 /// body measures only the steady-state pass-through cost.
 /// </summary>
-[SimpleJob(RuntimeMoniker.Net90)]
+[SimpleJob(RuntimeMoniker.Net10_0)]
 [MemoryDiagnoser]
 [MarkdownExporterAttribute.GitHub]
 public class SkipTakeWhileBenchmarks : IDisposable

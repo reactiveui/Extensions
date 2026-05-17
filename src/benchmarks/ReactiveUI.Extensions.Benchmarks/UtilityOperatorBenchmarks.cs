@@ -16,7 +16,7 @@ namespace ReactiveUI.Extensions.Benchmarks;
 /// downstream), and <c>Yield</c> (forces an async hop). Each pipeline is pre-subscribed; the
 /// benchmark body measures steady-state pass-through cost only.
 /// </summary>
-[SimpleJob(RuntimeMoniker.Net90)]
+[SimpleJob(RuntimeMoniker.Net10_0)]
 [MemoryDiagnoser]
 [MarkdownExporterAttribute.GitHub]
 public class UtilityOperatorBenchmarks : IDisposable

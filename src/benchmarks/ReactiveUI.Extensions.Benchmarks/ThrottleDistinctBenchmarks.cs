@@ -18,7 +18,7 @@ namespace ReactiveUI.Extensions.Benchmarks;
 /// <c>DistinctUntilChanged().Throttle(window).DistinctUntilChanged()</c> — three layers that are
 /// a fusion candidate.
 /// </summary>
-[SimpleJob(RuntimeMoniker.Net90)]
+[SimpleJob(RuntimeMoniker.Net10_0)]
 [MemoryDiagnoser]
 [MarkdownExporterAttribute.GitHub]
 public class ThrottleDistinctBenchmarks : IDisposable

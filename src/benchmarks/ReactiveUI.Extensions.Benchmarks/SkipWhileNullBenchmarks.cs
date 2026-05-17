@@ -16,7 +16,7 @@ namespace ReactiveUI.Extensions.Benchmarks;
 /// flows through the operator. Currently implemented as <c>SkipWhile(null).Select(value!)</c> —
 /// a fusion candidate analogous to <c>WhereIsNotNull</c>.
 /// </summary>
-[SimpleJob(RuntimeMoniker.Net90)]
+[SimpleJob(RuntimeMoniker.Net10_0)]
 [MemoryDiagnoser]
 [MarkdownExporterAttribute.GitHub]
 public class SkipWhileNullBenchmarks : IDisposable

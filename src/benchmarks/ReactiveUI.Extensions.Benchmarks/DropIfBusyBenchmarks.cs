@@ -15,7 +15,7 @@ namespace ReactiveUI.Extensions.Benchmarks;
 /// (so every emission flows through without being dropped). Captures the steady-state cost of the
 /// busy-flag check + completed-ValueTask path.
 /// </summary>
-[SimpleJob(RuntimeMoniker.Net90)]
+[SimpleJob(RuntimeMoniker.Net10_0)]
 [MemoryDiagnoser]
 [MarkdownExporterAttribute.GitHub]
 public class DropIfBusyBenchmarks : IDisposable

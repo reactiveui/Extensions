@@ -15,7 +15,7 @@ namespace ReactiveUI.Extensions.Benchmarks;
 /// <c>DistinctUntilChanged</c>, and <c>Take</c>. All three sit on the hot path of typical UI state
 /// pipelines; <c>DistinctUntilChanged</c> in particular is rarely absent.
 /// </summary>
-[SimpleJob(RuntimeMoniker.Net90)]
+[SimpleJob(RuntimeMoniker.Net10_0)]
 [MemoryDiagnoser]
 [MarkdownExporterAttribute.GitHub]
 public class FilteringOperatorBenchmarks : IDisposable

@@ -15,7 +15,7 @@ namespace ReactiveUI.Extensions.Benchmarks;
 /// The synchronous-completion sink used here lets BenchmarkDotNet's MemoryDiagnoser capture per-emission
 /// allocations without scheduler / continuation noise.
 /// </summary>
-[SimpleJob(RuntimeMoniker.Net90)]
+[SimpleJob(RuntimeMoniker.Net10_0)]
 [MemoryDiagnoser]
 [MarkdownExporterAttribute.GitHub]
 public class SubjectBroadcastBenchmarks : IDisposable

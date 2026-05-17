@@ -15,7 +15,7 @@ namespace ReactiveUI.Extensions.Benchmarks;
 /// DisposableAsync.Create overload via BaseSubjectAsync's unsubscribe lambda, which now uses
 /// (this, observer) state and a static delegate instead of closing over locals.
 /// </summary>
-[SimpleJob(RuntimeMoniker.Net90)]
+[SimpleJob(RuntimeMoniker.Net10_0)]
 [MemoryDiagnoser]
 [MarkdownExporterAttribute.GitHub]
 public class SubscribeChurnBenchmarks : IDisposable
