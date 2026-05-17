@@ -469,43 +469,66 @@ public partial class ResultAndInfrastructureTests
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
+    [SuppressMessage(
+        "Major Bug",
+        "S4462:Calls to async methods should not be blocking",
+        Justification = "Test drives OnNextAsync from a sync Thread body so the two callers have distinct managed thread IDs for concurrent-call detection.")]
+    [SuppressMessage(
+        "Major Bug",
+        "S5034:'ValueTask' should be consumed correctly",
+        Justification = "ValueTask is materialized once via AsTask() and consumed once via Wait().")]
     public async Task WhenConcurrentObserverCalls_ThenDetectedAndReported()
     {
         var received = new TaskCompletionSource<Exception>(TaskCreationOptions.RunContinuationsAsynchronously);
         UnhandledExceptionHandler.Register(ex => received.TrySetResult(ex));
 
-        var blockFirstCall = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var releaseFirstCall = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var observerCaptured = new TaskCompletionSource<IObserverAsync<int>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var subscriberEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseSubscriber = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        var source = ObservableAsync.Create<int>(async (observer, ct) =>
+        var source = ObservableAsync.Create<int>((observer, _) =>
         {
-            // Start first OnNextAsync call from a separate async context via Task.Run
-            _ = Task.Run(async () => await observer.OnNextAsync(1, ct), ct);
-
-            // Wait for the first call to enter OnNextAsyncCore
-            await blockFirstCall.Task.WaitAsync(TimeSpan.FromSeconds(5), ct);
-
-            // Second call from a different async context while first is in progress
-            await observer.OnNextAsync(2, ct);
-
-            // Release the blocked first call so it can exit
-            releaseFirstCall.TrySetResult();
-
-            await observer.OnCompletedAsync(Result.Success);
-            return DisposableAsync.Empty;
+            observerCaptured.TrySetResult(observer);
+            return new ValueTask<IAsyncDisposable>(DisposableAsync.Empty);
         });
 
         await using var sub = await source.SubscribeAsync(
             async (_, ct) =>
             {
-                blockFirstCall.TrySetResult();
-
-                // Block until the concurrent call detection has completed
-                await releaseFirstCall.Task.WaitAsync(TimeSpan.FromSeconds(5), ct);
+                subscriberEntered.TrySetResult();
+                await releaseSubscriber.Task.WaitAsync(TimeSpan.FromSeconds(5), ct);
             },
             null);
 
+        var observer = await observerCaptured.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        // Concurrent detection keys on Environment.CurrentManagedThreadId. Drive each call from
+        // its own dedicated Thread (not ThreadPool, where IDs can be reused) so the two callers
+        // are guaranteed distinct — otherwise the second call is treated as reentrant and the
+        // detection silently passes.
+        var firstStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var firstThread = new Thread(() =>
+        {
+            firstStarted.TrySetResult();
+            observer.OnNextAsync(1, CancellationToken.None).AsTask().Wait();
+        })
+        { IsBackground = true, Name = "ConcurrentObserverTest-First" };
+        firstThread.Start();
+
+        await firstStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await subscriberEntered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        var secondThread = new Thread(() =>
+            observer.OnNextAsync(2, CancellationToken.None).AsTask().Wait())
+        { IsBackground = true, Name = "ConcurrentObserverTest-Second" };
+        secondThread.Start();
+
         var result = await received.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        releaseSubscriber.TrySetResult();
+        firstThread.Join(TimeSpan.FromSeconds(5));
+        secondThread.Join(TimeSpan.FromSeconds(5));
+
         await Assert.That(result).IsTypeOf<ConcurrentObserverCallsException>();
     }
 
