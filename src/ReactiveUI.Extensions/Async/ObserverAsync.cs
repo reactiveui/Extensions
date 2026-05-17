@@ -408,7 +408,6 @@ public abstract class ObserverAsync<T> : IObserverAsync<T>
     protected virtual async ValueTask DisposeAsyncCore()
     {
         Task? allOnSomethingCallsCompleted = null;
-        bool shouldCancel;
         lock (_gate)
         {
             if (_disposeCts.IsCancellationRequested)
@@ -416,7 +415,6 @@ public abstract class ObserverAsync<T> : IObserverAsync<T>
                 return;
             }
 
-            shouldCancel = true;
             if (_callsCount > 0 && _entryThreadId != Environment.CurrentManagedThreadId)
             {
                 _allCallsCompletedTcs = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -424,22 +422,19 @@ public abstract class ObserverAsync<T> : IObserverAsync<T>
             }
         }
 
-        if (shouldCancel)
+        // Two callers can both pass the IsCancellationRequested guard above (the guard is read
+        // in the lock but the actual cancellation happens outside, so the window between
+        // guard-passed and cancel-applied is non-zero). Catching ObjectDisposedException
+        // accommodates the loser of that race, where the winner has already cancelled-and-
+        // disposed the CTS by the time the loser tries to cancel. The loser then returns without
+        // re-running the rest of the disposal body.
+        try
         {
-            // Two callers can both pass the IsCancellationRequested guard above (the guard is
-            // read in the lock but the actual cancellation happens outside, so the window
-            // between guard-passed and cancel-applied is non-zero). Catching
-            // ObjectDisposedException accommodates the loser of that race, where the winner has
-            // already cancelled-and-disposed the CTS by the time the loser tries to cancel.
-            // The loser then returns without re-running the rest of the disposal body.
-            try
-            {
-                await _disposeCts.CancelAsync().ConfigureAwait(false);
-            }
-            catch (ObjectDisposedException)
-            {
-                return;
-            }
+            await _disposeCts.CancelAsync().ConfigureAwait(false);
+        }
+        catch (ObjectDisposedException)
+        {
+            return;
         }
 
         if (allOnSomethingCallsCompleted is not null)

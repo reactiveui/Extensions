@@ -63,21 +63,22 @@ public partial class ReactiveExtensionsTests
     {
         var subject = new Subject<int>();
         var results = new List<int>();
-        var tcs = new TaskCompletionSource<object>();
+        var release = new TaskCompletionSource<object>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var processed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
         subject.DropIfBusy(async x =>
         {
-            await tcs.Task;
+            await release.Task;
             results.Add(x);
+            processed.TrySetResult();
         }).Subscribe();
 
         subject.OnNext(1); // Should process
         subject.OnNext(SampleValue2); // Should drop
         subject.OnNext(SampleValue3); // Should drop
 
-        tcs.SetResult(new object()); // Complete the async action
-
-        await Task.Delay(SampleValue10); // Small delay to allow processing
+        release.SetResult(new object()); // Complete the async action
+        await processed.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
         await Assert.That(results).IsCollectionEqualTo([1]);
     }
@@ -354,14 +355,19 @@ public partial class ReactiveExtensionsTests
     {
         var subject = new Subject<int>();
         var results = new List<int>();
+        var received = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
         using var sub = subject.DebounceUntil(TimeSpan.FromMilliseconds(500), x => x % 2 == 0)
-            .Subscribe(results.Add);
+            .Subscribe(v =>
+            {
+                results.Add(v);
+                received.TrySetResult();
+            });
 
         // Even values should emit immediately (condition true)
         subject.OnNext(SampleValue2);
 
-        await Task.Delay(SchedulerHalfWindowTicks);
+        await received.Task.WaitAsync(TimeSpan.FromSeconds(5));
         await Assert.That(results).Contains(SampleValue2);
     }
 }

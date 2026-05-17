@@ -28,19 +28,25 @@ public partial class SubjectTests
         var mapped = subject.MapValues(values => values.Select(x => x * Multiplier));
 
         var items = new List<int>();
+        var completed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         await using var sub = await mapped.Values.SubscribeAsync(
             (x, _) =>
             {
                 items.Add(x);
                 return default;
             },
-            null);
+            null,
+            _ =>
+            {
+                completed.TrySetResult();
+                return default;
+            });
 
         await mapped.OnNextAsync(FirstInput, CancellationToken.None);
         await mapped.OnNextAsync(SecondInput, CancellationToken.None);
         await mapped.OnCompletedAsync(Result.Success);
 
-        await Task.Delay(SettleDelayMilliseconds);
+        await completed.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
         await Assert.That(items).IsCollectionEqualTo([FirstMapped, SecondMapped]);
     }

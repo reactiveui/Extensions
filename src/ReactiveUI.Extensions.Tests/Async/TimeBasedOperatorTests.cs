@@ -793,6 +793,7 @@ public class TimeBasedOperatorTests
         const int MinItemCount = 2;
         var cts = new CancellationTokenSource();
         var items = new List<long>();
+        var cancelled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
         await using var sub = await ObservableAsync.Interval(TimeSpan.FromMilliseconds(10))
             .SubscribeAsync(
@@ -805,12 +806,13 @@ public class TimeBasedOperatorTests
                     }
 
                     await cts.CancelAsync();
+                    cancelled.TrySetResult();
                 },
                 null,
                 null,
                 cts.Token);
 
-        await Task.Delay(SettleDelayMillis);
+        await cancelled.Task.WaitAsync(TimeSpan.FromSeconds(5));
         await Assert.That(items.Count).IsGreaterThanOrEqualTo(MinItemCount);
     }
 
@@ -822,6 +824,7 @@ public class TimeBasedOperatorTests
         const int MinItemCount = 2;
         var cts = new CancellationTokenSource();
         var items = new List<long>();
+        var cancelled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
         await using var sub = await ObservableAsync.Timer(TimeSpan.FromMilliseconds(1), TimeSpan.FromMilliseconds(10))
             .SubscribeAsync(
@@ -834,12 +837,13 @@ public class TimeBasedOperatorTests
                     }
 
                     await cts.CancelAsync();
+                    cancelled.TrySetResult();
                 },
                 null,
                 null,
                 cts.Token);
 
-        await Task.Delay(SettleDelayMillis);
+        await cancelled.Task.WaitAsync(TimeSpan.FromSeconds(5));
         await Assert.That(items.Count).IsGreaterThanOrEqualTo(MinItemCount);
     }
 

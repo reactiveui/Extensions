@@ -581,14 +581,21 @@ public partial class ReactiveExtensionsTests
 
         var results = new List<int>();
         Exception? error = null;
+        var received = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
         source.OnErrorRetry<int, InvalidOperationException>(
             _ => { },
             retryCount: 5,
             delay: TimeSpan.FromTicks(-1))
-            .Subscribe(results.Add, ex => error = ex);
+            .Subscribe(
+                v =>
+                {
+                    results.Add(v);
+                    received.TrySetResult();
+                },
+                ex => error = ex);
 
-        await Task.Delay(ShortDelayMilliseconds);
+        await received.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
         await Assert.That(results).Contains(SampleValue42);
     }
@@ -602,14 +609,21 @@ public partial class ReactiveExtensionsTests
     {
         var source = Observable.Throw<int>(new InvalidOperationException("fail"));
         Exception? caught = null;
+        var errorReceived = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
         source.OnErrorRetry<int, InvalidOperationException>(
             _ => { },
             retryCount: 2,
             delay: TimeSpan.Zero)
-            .Subscribe(_ => { }, ex => caught = ex);
+            .Subscribe(
+                _ => { },
+                ex =>
+                {
+                    caught = ex;
+                    errorReceived.TrySetResult();
+                });
 
-        await Task.Delay(ShortDelayMilliseconds);
+        await errorReceived.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
         await Assert.That(caught).IsNotNull();
         await Assert.That(caught).IsTypeOf<InvalidOperationException>();

@@ -292,34 +292,28 @@ public partial class ReactiveExtensionsTests
         var subject = new Subject<int>();
         var results = new List<int>();
         var errorHandled = false;
-        var completed = false;
+        var completed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
         subject.SubscribeSynchronous(
             async v =>
             {
-                await Task.Delay(1);
+                await Task.Yield();
                 results.Add(v);
             },
-            ex => errorHandled = true,
-            () => completed = true);
+            _ => errorHandled = true,
+            () => completed.TrySetResult());
 
         subject.OnNext(1);
         subject.OnNext(SampleValue2);
         subject.OnCompleted();
 
-        // Wait for completion callback
-        var timeout = 0;
-        while (!completed && timeout < LongDelayMilliseconds)
-        {
-            await Task.Delay(SampleValue10);
-            timeout += SampleValue10;
-        }
+        await completed.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
         using (Assert.Multiple())
         {
             await Assert.That(results).IsCollectionEqualTo([1, SampleValue2]);
             await Assert.That(errorHandled).IsFalse();
-            await Assert.That(completed).IsTrue();
+            await Assert.That(completed.Task.IsCompletedSuccessfully).IsTrue();
         }
     }
 
@@ -366,27 +360,26 @@ public partial class ReactiveExtensionsTests
     {
         var subject = new Subject<int>();
         var results = new List<int>();
-        var completed = false;
+        var completed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
         subject.SubscribeSynchronous(
             async v =>
             {
-                await Task.Delay(1);
+                await Task.Yield();
                 results.Add(v);
             },
-            () => completed = true);
+            () => completed.TrySetResult());
 
         subject.OnNext(1);
         subject.OnNext(SampleValue2);
         subject.OnCompleted();
 
-        // Wait for async operations
-        await Task.Delay(SchedulerHalfWindowTicks);
+        await completed.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
         using (Assert.Multiple())
         {
             await Assert.That(results).IsCollectionEqualTo([1, SampleValue2]);
-            await Assert.That(completed).IsTrue();
+            await Assert.That(completed.Task.IsCompletedSuccessfully).IsTrue();
         }
     }
 
@@ -397,22 +390,24 @@ public partial class ReactiveExtensionsTests
     [Test]
     public async Task SubscribeSynchronous_WithOnlyOnNext_ProcessesValues()
     {
+        const int ExpectedCount = 3;
         var subject = new Subject<int>();
         var results = new List<int>();
+        var allReceived = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
         subject.SubscribeSynchronous(
             async v =>
             {
-                await Task.Delay(1);
+                await Task.Yield();
                 results.Add(v);
+                _ = results.Count == ExpectedCount && allReceived.TrySetResult();
             });
 
         subject.OnNext(1);
         subject.OnNext(SampleValue2);
         subject.OnNext(SampleValue3);
 
-        // Wait for async operations
-        await Task.Delay(SchedulerHalfWindowTicks);
+        await allReceived.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
         await Assert.That(results).IsCollectionEqualTo([1, SampleValue2, SampleValue3]);
     }

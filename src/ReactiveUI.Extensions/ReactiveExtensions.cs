@@ -701,7 +701,7 @@ public static class ReactiveExtensions
     /// <param name="regexPattern">Regex pattern.</param>
     /// <returns>Filtered sequence.</returns>
     public static IObservable<string> Filter(this IObservable<string> source, string regexPattern) =>
-        source.Filter(new Regex(regexPattern));
+        source.Filter(new Regex(regexPattern, RegexOptions.None, TimeSpan.FromSeconds(1)));
 
     /// <summary>
     /// Filters strings by regex.

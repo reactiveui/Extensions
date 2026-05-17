@@ -12,9 +12,6 @@ namespace ReactiveUI.Extensions.Tests.Async;
 /// </summary>
 public partial class SubjectTests
 {
-    /// <summary>Settle delay milliseconds (100).</summary>
-    private const int SettleDelayMilliseconds = 100;
-
 #if NET9_0_OR_GREATER
     /// <summary>Synchronization gate used by tests.</summary>
     private readonly Lock _gate = new();
@@ -30,6 +27,7 @@ public partial class SubjectTests
     {
         var subject = SubjectAsync.Create<int>();
         var items = new List<int>();
+        var completed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
         await using var sub = await subject.Values.SubscribeAsync(
             (x, _) =>
@@ -37,7 +35,12 @@ public partial class SubjectTests
                 items.Add(x);
                 return default;
             },
-            null);
+            null,
+            _ =>
+            {
+                completed.TrySetResult();
+                return default;
+            });
 
         const int FirstValue = 1;
         const int SecondValue = 2;
@@ -48,7 +51,7 @@ public partial class SubjectTests
         await subject.OnNextAsync(ThirdValue, CancellationToken.None);
         await subject.OnCompletedAsync(Result.Success);
 
-        await Task.Delay(SettleDelayMilliseconds);
+        await completed.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
         await Assert.That(items).IsCollectionEqualTo([FirstValue, SecondValue, ThirdValue]);
     }
@@ -64,6 +67,7 @@ public partial class SubjectTests
         };
         var subject = SubjectAsync.Create<int>(options);
         var items = new List<int>();
+        var completed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
         await using var sub = await subject.Values.SubscribeAsync(
             (x, _) =>
@@ -75,7 +79,12 @@ public partial class SubjectTests
 
                 return default;
             },
-            null);
+            null,
+            _ =>
+            {
+                completed.TrySetResult();
+                return default;
+            });
 
         const int FirstValue = 10;
         const int SecondValue = 20;
@@ -85,7 +94,7 @@ public partial class SubjectTests
         await subject.OnNextAsync(SecondValue, CancellationToken.None);
         await subject.OnCompletedAsync(Result.Success);
 
-        await Task.Delay(SettleDelayMilliseconds);
+        await completed.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
         await Assert.That(items).Count().IsEqualTo(ExpectedCount);
     }
@@ -98,6 +107,7 @@ public partial class SubjectTests
         var options = new SubjectCreationOptions { PublishingOption = PublishingOption.Serial, IsStateless = true };
         var subject = SubjectAsync.Create<string>(options);
         var items = new List<string>();
+        var completed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
         await using var sub = await subject.Values.SubscribeAsync(
             (x, _) =>
@@ -105,13 +115,18 @@ public partial class SubjectTests
                 items.Add(x);
                 return default;
             },
-            null);
+            null,
+            _ =>
+            {
+                completed.TrySetResult();
+                return default;
+            });
 
         await subject.OnNextAsync("a", CancellationToken.None);
         await subject.OnNextAsync("b", CancellationToken.None);
         await subject.OnCompletedAsync(Result.Success);
 
-        await Task.Delay(SettleDelayMilliseconds);
+        await completed.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
         await Assert.That(items).IsCollectionEqualTo(["a", "b"]);
     }
@@ -124,6 +139,7 @@ public partial class SubjectTests
         var options = new SubjectCreationOptions { PublishingOption = PublishingOption.Concurrent, IsStateless = true };
         var subject = SubjectAsync.Create<int>(options);
         var items = new List<int>();
+        var completed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
         await using var sub = await subject.Values.SubscribeAsync(
             (x, _) =>
@@ -135,14 +151,19 @@ public partial class SubjectTests
 
                 return default;
             },
-            null);
+            null,
+            _ =>
+            {
+                completed.TrySetResult();
+                return default;
+            });
 
         const int PushedValue = 5;
 
         await subject.OnNextAsync(PushedValue, CancellationToken.None);
         await subject.OnCompletedAsync(Result.Success);
 
-        await Task.Delay(SettleDelayMilliseconds);
+        await completed.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
         await Assert.That(items).IsCollectionEqualTo([PushedValue]);
     }
@@ -154,17 +175,19 @@ public partial class SubjectTests
     {
         var subject = SubjectAsync.Create<int>();
         var errors = new List<Exception>();
+        var errorReceived = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
         await using var sub = await subject.Values.SubscribeAsync(
             (_, _) => default,
             (ex, _) =>
             {
                 errors.Add(ex);
+                errorReceived.TrySetResult();
                 return default;
             });
 
         await subject.OnErrorResumeAsync(new InvalidOperationException("test"), CancellationToken.None);
-        await Task.Delay(SettleDelayMilliseconds);
+        await errorReceived.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
         const int ExpectedErrorCount = 1;
         await Assert.That(errors).Count().IsEqualTo(ExpectedErrorCount);
@@ -178,6 +201,7 @@ public partial class SubjectTests
     {
         var subject = SubjectAsync.Create<int>();
         Result? completionResult = null;
+        var completed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
         await using var sub = await subject.Values.SubscribeAsync(
             (_, _) => default,
@@ -185,11 +209,12 @@ public partial class SubjectTests
             result =>
             {
                 completionResult = result;
+                completed.TrySetResult();
                 return default;
             });
 
         await subject.OnCompletedAsync(Result.Success);
-        await Task.Delay(SettleDelayMilliseconds);
+        await completed.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
         await Assert.That(completionResult).IsNotNull();
         await Assert.That(completionResult!.Value.IsSuccess).IsTrue();
@@ -202,6 +227,7 @@ public partial class SubjectTests
     {
         var subject = SubjectAsync.Create<int>();
         Result? completionResult = null;
+        var completed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
         await using var sub = await subject.Values.SubscribeAsync(
             (_, _) => default,
@@ -209,11 +235,12 @@ public partial class SubjectTests
             result =>
             {
                 completionResult = result;
+                completed.TrySetResult();
                 return default;
             });
 
         await subject.OnCompletedAsync(Result.Failure(new InvalidOperationException("fatal")));
-        await Task.Delay(SettleDelayMilliseconds);
+        await completed.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
         await Assert.That(completionResult).IsNotNull();
         await Assert.That(completionResult!.Value.IsFailure).IsTrue();
@@ -227,6 +254,8 @@ public partial class SubjectTests
         var subject = SubjectAsync.Create<int>();
         var items1 = new List<int>();
         var items2 = new List<int>();
+        var completed1 = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var completed2 = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
         await using var sub1 = await subject.Values.SubscribeAsync(
             (x, _) =>
@@ -234,7 +263,12 @@ public partial class SubjectTests
                 items1.Add(x);
                 return default;
             },
-            null);
+            null,
+            _ =>
+            {
+                completed1.TrySetResult();
+                return default;
+            });
 
         await using var sub2 = await subject.Values.SubscribeAsync(
             (x, _) =>
@@ -242,7 +276,12 @@ public partial class SubjectTests
                 items2.Add(x);
                 return default;
             },
-            null);
+            null,
+            _ =>
+            {
+                completed2.TrySetResult();
+                return default;
+            });
 
         const int FirstValue = 1;
         const int SecondValue = 2;
@@ -251,7 +290,7 @@ public partial class SubjectTests
         await subject.OnNextAsync(SecondValue, CancellationToken.None);
         await subject.OnCompletedAsync(Result.Success);
 
-        await Task.Delay(SettleDelayMilliseconds);
+        await Task.WhenAll(completed1.Task, completed2.Task).WaitAsync(TimeSpan.FromSeconds(5));
 
         await Assert.That(items1).IsCollectionEqualTo([FirstValue, SecondValue]);
         await Assert.That(items2).IsCollectionEqualTo([FirstValue, SecondValue]);
@@ -265,6 +304,7 @@ public partial class SubjectTests
         var subject = SubjectAsync.Create<int>();
         var observer = subject.AsObserverAsync();
         var items = new List<int>();
+        var completed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
         await using var sub = await subject.Values.SubscribeAsync(
             (x, _) =>
@@ -272,7 +312,12 @@ public partial class SubjectTests
                 items.Add(x);
                 return default;
             },
-            null);
+            null,
+            _ =>
+            {
+                completed.TrySetResult();
+                return default;
+            });
 
         const int FirstValue = 1;
         const int SecondValue = 2;
@@ -281,7 +326,7 @@ public partial class SubjectTests
         await observer.OnNextAsync(SecondValue, CancellationToken.None);
         await observer.OnCompletedAsync(Result.Success);
 
-        await Task.Delay(SettleDelayMilliseconds);
+        await completed.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
         await Assert.That(items).IsCollectionEqualTo([FirstValue, SecondValue]);
     }

@@ -557,11 +557,15 @@ public partial class ReactiveExtensionsTests
         Exception? caughtError = null;
         var completionSource = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 
+        const int ExpectedCount = 2;
+        var allReceived = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
         using var sub = subject.SubscribeAsync(
             async x =>
             {
-                await Task.Delay(1);
+                await Task.Yield();
                 results.Add(x);
+                _ = results.Count == ExpectedCount && allReceived.TrySetResult();
             },
             ex => caughtError = ex,
             () =>
@@ -572,6 +576,7 @@ public partial class ReactiveExtensionsTests
 
         subject.OnNext(1);
         subject.OnNext(SampleValue2);
+        await allReceived.Task.WaitAsync(TimeSpan.FromSeconds(5));
         subject.OnCompleted();
 
         await completionSource.Task.WaitAsync(TimeSpan.FromSeconds(5));

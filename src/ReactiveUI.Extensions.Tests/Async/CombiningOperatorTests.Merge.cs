@@ -834,6 +834,7 @@ public partial class CombiningOperatorTests
         var outer = ObservableAsync.Return(inner);
 
         Result? completionResult = null;
+        var completed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         await using var sub = await outer.Merge()
             .SubscribeAsync(
                 static (_, _) => default,
@@ -841,10 +842,11 @@ public partial class CombiningOperatorTests
                 result =>
                 {
                     completionResult = result;
+                    completed.TrySetResult();
                     return default;
                 });
 
-        await Task.Delay(PropagationDelayMilliseconds);
+        await completed.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
         await Assert.That(completionResult).IsNotNull();
         await Assert.That(completionResult!.Value.IsFailure).IsTrue();
@@ -860,6 +862,7 @@ public partial class CombiningOperatorTests
         var outer = ObservableAsync.Return(inner);
 
         Result? completionResult = null;
+        var completed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         await using var sub = await outer.Merge(1)
             .SubscribeAsync(
                 static (_, _) => default,
@@ -867,10 +870,11 @@ public partial class CombiningOperatorTests
                 result =>
                 {
                     completionResult = result;
+                    completed.TrySetResult();
                     return default;
                 });
 
-        await Task.Delay(PropagationDelayMilliseconds);
+        await completed.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
         await Assert.That(completionResult).IsNotNull();
         await Assert.That(completionResult!.Value.IsFailure).IsTrue();

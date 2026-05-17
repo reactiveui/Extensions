@@ -20,16 +20,18 @@ public partial class SubjectTests
         const int StartValue = 42;
         var subject = SubjectAsync.CreateBehavior(StartValue);
         var items = new List<int>();
+        var firstReceived = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
         await using var sub = await subject.Values.SubscribeAsync(
             (x, _) =>
             {
                 items.Add(x);
+                firstReceived.TrySetResult();
                 return default;
             },
             null);
 
-        await Task.Delay(SettleDelayMilliseconds);
+        await firstReceived.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
         await Assert.That(items).Count().IsGreaterThanOrEqualTo(1);
         await Assert.That(items[0]).IsEqualTo(StartValue);
@@ -47,6 +49,7 @@ public partial class SubjectTests
         const int StartValue = 100;
         var subject = SubjectAsync.CreateBehavior(StartValue, options);
         var items = new List<int>();
+        var firstReceived = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
         await using var sub = await subject.Values.SubscribeAsync(
             (x, _) =>
@@ -56,11 +59,12 @@ public partial class SubjectTests
                     items.Add(x);
                 }
 
+                firstReceived.TrySetResult();
                 return default;
             },
             null);
 
-        await Task.Delay(SettleDelayMilliseconds);
+        await firstReceived.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
         await Assert.That(items).Count().IsGreaterThanOrEqualTo(1);
         await Assert.That(items[0]).IsEqualTo(StartValue);
@@ -79,15 +83,17 @@ public partial class SubjectTests
         await subject.OnNextAsync(LatestValue, CancellationToken.None);
 
         var items = new List<int>();
+        var firstReceived = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         await using var sub = await subject.Values.SubscribeAsync(
             (x, _) =>
             {
                 items.Add(x);
+                firstReceived.TrySetResult();
                 return default;
             },
             null);
 
-        await Task.Delay(SettleDelayMilliseconds);
+        await firstReceived.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
         await Assert.That(items).Count().IsGreaterThanOrEqualTo(1);
         await Assert.That(items[0]).IsEqualTo(LatestValue);
@@ -108,6 +114,7 @@ public partial class SubjectTests
         await subject.OnNextAsync(PushedValue, CancellationToken.None);
 
         var items = new List<int>();
+        var firstReceived = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         await using var sub = await subject.Values.SubscribeAsync(
             (x, _) =>
             {
@@ -116,11 +123,12 @@ public partial class SubjectTests
                     items.Add(x);
                 }
 
+                firstReceived.TrySetResult();
                 return default;
             },
             null);
 
-        await Task.Delay(SettleDelayMilliseconds);
+        await firstReceived.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
         await Assert.That(items).Count().IsGreaterThanOrEqualTo(1);
         await Assert.That(items[0]).IsEqualTo(PushedValue);
@@ -137,16 +145,18 @@ public partial class SubjectTests
         };
         var subject = SubjectAsync.CreateBehavior("initial", options);
         var items = new List<string>();
+        var firstReceived = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
         await using var sub = await subject.Values.SubscribeAsync(
             (x, _) =>
             {
                 items.Add(x);
+                firstReceived.TrySetResult();
                 return default;
             },
             null);
 
-        await Task.Delay(SettleDelayMilliseconds);
+        await firstReceived.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
         await Assert.That(items).Count().IsGreaterThanOrEqualTo(1);
         await Assert.That(items[0]).IsEqualTo("initial");
@@ -167,15 +177,17 @@ public partial class SubjectTests
         await subject.OnNextAsync(PushedValue, CancellationToken.None);
 
         var items = new List<int>();
+        var firstReceived = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         await using var sub = await subject.Values.SubscribeAsync(
             (x, _) =>
             {
                 items.Add(x);
+                firstReceived.TrySetResult();
                 return default;
             },
             null);
 
-        await Task.Delay(SettleDelayMilliseconds);
+        await firstReceived.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
         await Assert.That(items).Count().IsGreaterThanOrEqualTo(1);
         await Assert.That(items[0]).IsEqualTo(PushedValue);
@@ -196,6 +208,7 @@ public partial class SubjectTests
         await subject.OnNextAsync(PushedValue, CancellationToken.None);
 
         var items = new List<int>();
+        var firstReceived = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         await using var sub = await subject.Values.SubscribeAsync(
             (x, _) =>
             {
@@ -204,11 +217,12 @@ public partial class SubjectTests
                     items.Add(x);
                 }
 
+                firstReceived.TrySetResult();
                 return default;
             },
             null);
 
-        await Task.Delay(SettleDelayMilliseconds);
+        await firstReceived.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
         await Assert.That(items).Count().IsGreaterThanOrEqualTo(1);
         await Assert.That(items[0]).IsEqualTo(PushedValue);
@@ -408,6 +422,7 @@ public partial class SubjectTests
         const int StartValue = 55;
         var subject = SubjectAsync.CreateBehavior(StartValue, options);
         var items = new List<int>();
+        var firstReceived = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
         await using var sub = await subject.Values.SubscribeAsync(
             (x, _) =>
@@ -417,11 +432,12 @@ public partial class SubjectTests
                     items.Add(x);
                 }
 
+                firstReceived.TrySetResult();
                 return default;
             },
             null);
 
-        await Task.Delay(SettleDelayMilliseconds);
+        await firstReceived.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
         await Assert.That(items).Count().IsGreaterThanOrEqualTo(1);
         await Assert.That(items[0]).IsEqualTo(StartValue);

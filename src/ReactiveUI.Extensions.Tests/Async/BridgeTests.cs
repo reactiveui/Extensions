@@ -18,9 +18,6 @@ public class BridgeTests
     /// <summary>Sentinel value (42) used by tests.</summary>
     private const int SentinelValue = 42;
 
-    /// <summary>Propagation delay ms (200).</summary>
-    private const int PropagationDelayMs = 200;
-
     /// <summary>Sequence item two (2).</summary>
     private const int SequenceItemTwo = 2;
 
@@ -237,13 +234,19 @@ public class BridgeTests
             .Where(x => x > 5);
 
         var items = new List<int>();
+        var completed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         await using var sub = await asyncPipeline.SubscribeAsync(
             (x, _) =>
             {
                 items.Add(x);
                 return default;
             },
-            null);
+            null,
+            _ =>
+            {
+                completed.TrySetResult();
+                return default;
+            });
 
         rxSubject.OnNext(1); // 2 -> filtered
         rxSubject.OnNext(Input1); // 6 -> passes
@@ -251,7 +254,7 @@ public class BridgeTests
         rxSubject.OnNext(Input3); // 4 -> filtered
         rxSubject.OnCompleted();
 
-        await Task.Delay(PropagationDelayMs);
+        await completed.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
         await Assert.That(items).IsCollectionEqualTo([ExpectedFirst, ExpectedSecond]);
     }
@@ -269,7 +272,8 @@ public class BridgeTests
             .ToObservable();
 
         var items = new List<int>();
-        using var sub = rxPipeline.Subscribe(items.Add);
+        var completed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var sub = rxPipeline.Subscribe(items.Add, () => completed.TrySetResult());
 
         const int ExpectedFirst = 101;
         const int ExpectedSecond = 102;
@@ -279,7 +283,7 @@ public class BridgeTests
         await asyncSubject.OnNextAsync(SequenceItemThree, CancellationToken.None);
         await asyncSubject.OnCompletedAsync(Result.Success);
 
-        await Task.Delay(PropagationDelayMs);
+        await completed.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
         await Assert.That(items).IsCollectionEqualTo([ExpectedFirst, ExpectedSecond, ExpectedThird]);
     }
@@ -789,12 +793,16 @@ public class BridgeTests
         var source = new DirectSource<int>();
         var bridged = source.ToObservable();
         var items = new List<int>();
+        var received = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        var sub = bridged.Subscribe(items.Add);
+        var sub = bridged.Subscribe(x =>
+        {
+            items.Add(x);
+            received.TrySetResult();
+        });
 
-        const int EmitDelayMs = 50;
         await source.EmitNext(SentinelValue);
-        await Task.Delay(EmitDelayMs);
+        await received.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
         sub.Dispose();
 

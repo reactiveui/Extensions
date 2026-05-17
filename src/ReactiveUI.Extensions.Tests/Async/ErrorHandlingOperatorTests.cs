@@ -69,6 +69,7 @@ public class ErrorHandlingOperatorTests
         });
 
         Result? completionResult = null;
+        var completed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         await using var sub = await source
             .OnErrorResumeAsFailure()
             .SubscribeAsync(
@@ -77,11 +78,11 @@ public class ErrorHandlingOperatorTests
                 result =>
                 {
                     completionResult = result;
+                    completed.TrySetResult();
                     return default;
                 });
 
-        const int SettleDelayMs = 200;
-        await Task.Delay(SettleDelayMs);
+        await completed.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
         await Assert.That(errorSent).IsTrue();
         await Assert.That(completionResult).IsNotNull();

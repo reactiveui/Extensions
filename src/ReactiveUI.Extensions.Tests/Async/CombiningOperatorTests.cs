@@ -62,9 +62,6 @@ public partial class CombiningOperatorTests
     /// <summary>Range start offset 105.</summary>
     private const int RangeOffset105 = 105;
 
-    /// <summary>Default propagation delay used in tests.</summary>
-    private const int PropagationDelayMilliseconds = 100;
-
     /// <summary>Common inner-fail error message used by tests.</summary>
     private const string InnerFailMessage = "inner fail";
 
