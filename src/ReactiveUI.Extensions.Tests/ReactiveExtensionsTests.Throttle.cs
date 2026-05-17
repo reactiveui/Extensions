@@ -252,18 +252,22 @@ public partial class ReactiveExtensionsTests
     {
         var subject = new Subject<int>();
         var results = new List<int>();
+        var throttledArrived = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
 
         using var sub = subject
             .ThrottleUntilTrue(TimeSpan.FromMilliseconds(100), x => x > 5)
-            .Subscribe(results.Add);
+            .Subscribe(value =>
+            {
+                results.Add(value);
+                _ = value == 1 && throttledArrived.TrySetResult(value);
+            });
 
-        // Predicate true: immediate
+        // Predicate true: immediate.
         subject.OnNext(SampleValue10);
-        await Task.Delay(SchedulerHalfWindowTicks);
 
-        // Predicate false: throttled
+        // Predicate false: throttled — wait on the event instead of racing a fixed delay.
         subject.OnNext(1);
-        await Task.Delay(ThrottleWaitMilliseconds);
+        await throttledArrived.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
         await Assert.That(results).Contains(SampleValue10);
         await Assert.That(results).Contains(1);
