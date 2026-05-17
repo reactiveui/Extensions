@@ -332,26 +332,28 @@ public partial class ReactiveExtensionsTests
     {
         var subject = new Subject<int>();
         var results = new List<int>();
-        var errorHandled = false;
+        var onNextCompleted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var errorHandled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
         subject.SubscribeSynchronous(
             async v =>
             {
-                await Task.Delay(1);
+                await Task.Yield();
                 results.Add(v);
+                onNextCompleted.TrySetResult();
             },
-            ex => errorHandled = true);
+            _ => errorHandled.TrySetResult());
 
         subject.OnNext(1);
-        subject.OnError(new InvalidOperationException());
+        await onNextCompleted.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
-        // Wait for async operations
-        await Task.Delay(SchedulerHalfWindowTicks);
+        subject.OnError(new InvalidOperationException());
+        await errorHandled.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
         using (Assert.Multiple())
         {
             await Assert.That(results).IsCollectionEqualTo([1]);
-            await Assert.That(errorHandled).IsTrue();
+            await Assert.That(errorHandled.Task.IsCompletedSuccessfully).IsTrue();
         }
     }
 
