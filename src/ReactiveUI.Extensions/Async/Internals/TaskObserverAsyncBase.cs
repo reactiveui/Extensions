@@ -32,19 +32,29 @@ internal abstract class TaskObserverAsyncBase<T, TTaskValue>(CancellationToken c
     {
         try
         {
+#if NET8_0_OR_GREATER
+            await using var ct = _cancellationToken.Register(
+                static x =>
+                {
+                    var @this = (TaskObserverAsyncBase<T, TTaskValue>)x!;
+                    @this._tcs.TrySetException(new OperationCanceledException(@this._cancellationToken));
+                },
+                this);
+#else
             using var ct = _cancellationToken.Register(
                 static x =>
-            {
-                var @this = (TaskObserverAsyncBase<T, TTaskValue>)x!;
-                @this._tcs.TrySetException(new OperationCanceledException(@this._cancellationToken));
-            },
+                {
+                    var @this = (TaskObserverAsyncBase<T, TTaskValue>)x!;
+                    @this._tcs.TrySetException(new OperationCanceledException(@this._cancellationToken));
+                },
                 this);
+#endif
 
-            return await _tcs.Task;
+            return await _tcs.Task.ConfigureAwait(false);
         }
         finally
         {
-            await DisposeAsync();
+            await DisposeAsync().ConfigureAwait(false);
         }
     }
 
@@ -62,7 +72,7 @@ internal abstract class TaskObserverAsyncBase<T, TTaskValue>(CancellationToken c
         }
         finally
         {
-            await DisposeAsync();
+            await DisposeAsync().ConfigureAwait(false);
         }
     }
 
@@ -79,7 +89,7 @@ internal abstract class TaskObserverAsyncBase<T, TTaskValue>(CancellationToken c
         }
         finally
         {
-            await DisposeAsync();
+            await DisposeAsync().ConfigureAwait(false);
         }
     }
 }

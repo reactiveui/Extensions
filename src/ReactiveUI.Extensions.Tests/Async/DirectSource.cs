@@ -39,9 +39,11 @@ internal sealed class DirectSource<T> : ObservableAsync<T>
         _observer!.OnCompletedAsync(result);
 
     /// <inheritdoc/>
-    protected override ValueTask<IAsyncDisposable> SubscribeAsyncCore(IObserverAsync<T> observer, CancellationToken cancellationToken)
+    protected override ValueTask<IAsyncDisposable> SubscribeAsyncCore(
+        IObserverAsync<T> observer,
+        CancellationToken cancellationToken)
     {
         _observer = observer;
-        return new ValueTask<IAsyncDisposable>(DisposableAsync.Empty);
+        return new(DisposableAsync.Empty);
     }
 }

@@ -22,10 +22,10 @@ public static partial class ObservableAsync
     /// <param name="value">The value to be emitted by the observable sequence.</param>
     /// <returns>An observable sequence that emits the specified value and then signals completion.</returns>
     public static IObservableAsync<T> Return<T>(T value) => CreateAsBackgroundJob<T>(
-            async (obs, token) =>
+        async (obs, token) =>
         {
-            await obs.OnNextAsync(value, token);
-            await obs.OnCompletedAsync(Result.Success);
+            await obs.OnNextAsync(value, token).ConfigureAwait(false);
+            await obs.OnCompletedAsync(Result.Success).ConfigureAwait(false);
         },
-            true);
+        true);
 }

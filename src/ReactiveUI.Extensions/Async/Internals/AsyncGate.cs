@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2019-2026 ReactiveUI Association Incorporated. All rights reserved.
+// Copyright (c) 2019-2026 ReactiveUI Association Incorporated. All rights reserved.
 // ReactiveUI Association Incorporated licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
@@ -7,28 +7,44 @@ using System.Diagnostics;
 namespace ReactiveUI.Extensions.Async.Internals;
 
 /// <summary>
-/// Provides an asynchronous reentrant lock that allows recursive acquisition from the same async context.
+/// Asynchronous mutual-exclusion primitive used to serialize critical sections inside the async
+/// pipeline. The uncontended fast path is a pure
+/// <see cref="Interlocked.CompareExchange(ref int, int, int)"/> ownership transfer — no
+/// <see cref="SemaphoreSlim"/> touch at all, which is the dominant case in chained operator
+/// pipelines. The contended slow path uses a signal-only <see cref="SemaphoreSlim"/> as a
+/// wake-up channel and retries the CAS after each signal.
 /// </summary>
+/// <remarks>
+/// <para>Same-thread reentry is granted via an owner-thread-id check, with a non-shared recursion
+/// counter; nested releases just decrement it. Cross-thread reentry inside a single lock
+/// acquisition would deadlock — no in-tree caller exercises that pattern.</para>
+/// </remarks>
 internal sealed class AsyncGate : IDisposable
 {
     /// <summary>
-    /// Synchronization gate protecting the recursion count and semaphore access.
+    /// Signal-only semaphore used to wake one waiter when the gate is released. Initial count is
+    /// zero; <see cref="SemaphoreSlim.Release()"/> is called only when at least one waiter is
+    /// recorded in <see cref="_waiters"/>, so the count tracks pending wake-ups.
     /// </summary>
-#if NET9_0_OR_GREATER
-    private readonly Lock _gate = new();
-#else
-    private readonly object _gate = new();
-#endif
+    private readonly SemaphoreSlim _semaphore = new(0, int.MaxValue);
 
     /// <summary>
-    /// Semaphore that enforces mutual exclusion across async contexts.
+    /// Managed thread id of the thread that currently owns the gate. Zero when the gate is free.
+    /// Used both as the ownership flag (CAS target on acquire / release) and as the reentry key.
     /// </summary>
-    private readonly SemaphoreSlim _semaphore = new(1, 1);
+    private int _ownerThreadId;
 
     /// <summary>
-    /// Tracks the lock recursion depth per async flow, enabling reentrant acquisition.
+    /// Number of nested <see cref="LockAsync"/> calls beyond the initial acquisition. Read / written
+    /// only by the owning thread, so unguarded mutation is safe.
     /// </summary>
-    private readonly AsyncLocal<int> _recursionCount = new();
+    private int _recursionDepth;
+
+    /// <summary>
+    /// Count of awaiters parked on the slow path. Read by <see cref="Release"/> to decide whether
+    /// to signal the semaphore; incremented / decremented around each <see cref="SemaphoreSlim.WaitAsync(CancellationToken)"/>.
+    /// </summary>
+    private int _waiters;
 
     /// <summary>
     /// Indicates whether this instance has been disposed.
@@ -36,77 +52,105 @@ internal sealed class AsyncGate : IDisposable
     private bool _disposedValue;
 
     /// <summary>
-    /// Asynchronously acquires the lock, returning a <see cref="Releaser"/> that releases the lock when disposed.
+    /// Asynchronously acquires the gate, returning a <see cref="Releaser"/> that releases it on disposal.
     /// </summary>
-    /// <returns>A <see cref="ValueTask{Releaser}"/> that completes when the lock is acquired.</returns>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>A <see cref="ValueTask{Releaser}"/> that completes when the gate has been acquired.</returns>
     [DebuggerStepThrough]
-    public ValueTask<Releaser> LockAsync()
+    public ValueTask<Releaser> LockAsync(CancellationToken cancellationToken = default)
     {
-        var shouldAcquire = false;
+        var currentThreadId = Environment.CurrentManagedThreadId;
 
-        lock (_gate)
+        // Same-thread reentry: bump depth, no synchronization needed (we already own it).
+        if (Volatile.Read(ref _ownerThreadId) == currentThreadId)
         {
-            if (_recursionCount.Value == 0)
-            {
-                shouldAcquire = true;
-                _recursionCount.Value = 1;
-            }
-            else
-            {
-                _recursionCount.Value++;
-            }
+            _recursionDepth++;
+            return new(new Releaser(this));
         }
 
-        if (shouldAcquire)
+        // Fast uncontended acquire: pure CAS, no semaphore touch.
+        if (Interlocked.CompareExchange(ref _ownerThreadId, currentThreadId, 0) == 0)
         {
-            return new ValueTask<Releaser>(WaitForReleaseAsync());
+            return new(new Releaser(this));
         }
 
-        return new ValueTask<Releaser>(new Releaser(this));
+        return WaitForReleaseAsync(cancellationToken);
     }
 
     /// <inheritdoc/>
     public void Dispose()
     {
-        if (!_disposedValue)
+        if (_disposedValue)
         {
-            _semaphore.Dispose();
-            _disposedValue = true;
+            return;
         }
+
+        _semaphore.Dispose();
+        _disposedValue = true;
     }
 
     /// <summary>
-    /// Releases the lock by decrementing the recursion count and releasing the semaphore when the count reaches zero.
+    /// Releases the gate. Decrements the recursion depth on a nested release, or clears the owner
+    /// and signals one waiter (if any) on the outermost release.
     /// </summary>
     internal void Release()
     {
-        lock (_gate)
+        if (_recursionDepth > 0)
         {
-            Debug.Assert(_recursionCount.Value > 0, "Release called without a corresponding LockAsync call.");
+            _recursionDepth--;
+            return;
+        }
 
-            if (--_recursionCount.Value == 0)
+        Volatile.Write(ref _ownerThreadId, 0);
+        SignalIfWaiting();
+    }
+
+    /// <summary>
+    /// Signals one parked waiter if any are present. An extra signal observed across the
+    /// <see cref="_waiters"/> read / <see cref="SemaphoreSlim.Release()"/> race lands harmlessly in
+    /// the semaphore count and is consumed by the next waiter that arrives.
+    /// </summary>
+    private void SignalIfWaiting()
+    {
+        if (Volatile.Read(ref _waiters) == 0)
+        {
+            return;
+        }
+
+        _semaphore.Release();
+    }
+
+    /// <summary>
+    /// Slow path: park as a waiter and retry the acquire CAS after each semaphore signal.
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation token observed while waiting.</param>
+    /// <returns>A <see cref="Releaser"/> for the acquired gate.</returns>
+    private async ValueTask<Releaser> WaitForReleaseAsync(CancellationToken cancellationToken)
+    {
+        Interlocked.Increment(ref _waiters);
+        try
+        {
+            while (true)
             {
-                _semaphore.Release();
+                // Retry the CAS before waiting; closes the race where the owner releases between
+                // the caller's fast-path failure and our increment of _waiters.
+                if (Interlocked.CompareExchange(ref _ownerThreadId, Environment.CurrentManagedThreadId, 0) == 0)
+                {
+                    return new(this);
+                }
+
+                await _semaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
             }
+        }
+        finally
+        {
+            Interlocked.Decrement(ref _waiters);
         }
     }
 
     /// <summary>
-    /// Asynchronously waits for the semaphore to become available and returns a <see cref="Releaser"/>.
+    /// Releases a previously acquired <see cref="AsyncGate"/> when disposed.
     /// </summary>
-    /// <returns>A <see cref="Releaser"/> that releases the lock when disposed.</returns>
-    private async Task<Releaser> WaitForReleaseAsync()
-    {
-        await _semaphore.WaitAsync().ConfigureAwait(false);
-        return new Releaser(this);
-    }
-
-    /// <summary>
-    /// Provides a mechanism for releasing a previously acquired lock or resource when disposed.
-    /// </summary>
-    /// <remarks>A Releaser is typically returned by methods that acquire an asynchronous lock or gate.
-    /// Disposing the Releaser releases the associated lock or resource. This type is intended to be used with a using
-    /// statement to ensure proper release, even in the presence of exceptions.</remarks>
     public readonly record struct Releaser : IDisposable
     {
         /// <summary>
@@ -115,7 +159,7 @@ internal sealed class AsyncGate : IDisposable
         private readonly AsyncGate _parent;
 
         /// <summary>
-        /// Initializes a new instance of the <see cref="Releaser"/> struct with the specified parent gate.
+        /// Initializes a new instance of the <see cref="Releaser"/> struct.
         /// </summary>
         /// <param name="parent">The <see cref="AsyncGate"/> that owns this releaser.</param>
         public Releaser(AsyncGate parent) => _parent = parent;

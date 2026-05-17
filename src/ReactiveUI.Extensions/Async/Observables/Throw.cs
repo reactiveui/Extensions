@@ -2,7 +2,10 @@
 // ReactiveUI Association Incorporated licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
+using System.Diagnostics.CodeAnalysis;
+
 using ReactiveUI.Extensions.Async.Disposables;
+using ReactiveUI.Extensions.Internal;
 
 namespace ReactiveUI.Extensions.Async;
 
@@ -23,9 +26,13 @@ public static partial class ObservableAsync
     /// <param name="error">The exception to be propagated to observers as an error notification. Cannot be null.</param>
     /// <returns>An observable sequence of type <typeparamref name="T"/> that signals the specified exception upon subscription.</returns>
     /// <exception cref="ArgumentNullException">Thrown if <paramref name="error"/> is null.</exception>
+    [SuppressMessage(
+        "Major Code Smell",
+        "S4018:Generic methods should provide type parameters",
+        Justification = "Public factory API — caller specifies T explicitly: ObservableAsync.Throw<int>(ex).")]
     public static IObservableAsync<T> Throw<T>(Exception error)
     {
-        ArgumentExceptionHelper.ThrowIfNull(error, nameof(error));
+        ArgumentExceptionHelper.ThrowIfNull(error);
 
         return new ObservableAsyncThrow<T>(error);
     }
@@ -41,9 +48,11 @@ public static partial class ObservableAsync
     internal sealed class ObservableAsyncThrow<T>(Exception error) : ObservableAsync<T>
     {
         /// <inheritdoc/>
-        protected override async ValueTask<IAsyncDisposable> SubscribeAsyncCore(IObserverAsync<T> observer, CancellationToken cancellationToken)
+        protected override async ValueTask<IAsyncDisposable> SubscribeAsyncCore(
+            IObserverAsync<T> observer,
+            CancellationToken cancellationToken)
         {
-            await observer.OnCompletedAsync(Result.Failure(error));
+            await observer.OnCompletedAsync(Result.Failure(error)).ConfigureAwait(false);
             return DisposableAsync.Empty;
         }
     }

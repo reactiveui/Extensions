@@ -27,7 +27,9 @@ public static partial class ObservableAsync
     {
         if (@this is null)
         {
-            throw new ArgumentNullException(nameof(@this), "Cannot create an OnErrorResumeAsFailure observable from a null source.");
+            throw new ArgumentNullException(
+                nameof(@this),
+                "Cannot create an OnErrorResumeAsFailure observable from a null source.");
         }
 
         return new OnErrorResumeAsFailureObservable<T>(@this);
@@ -41,7 +43,9 @@ public static partial class ObservableAsync
     internal sealed class OnErrorResumeAsFailureObservable<T>(IObservableAsync<T> source) : ObservableAsync<T>
     {
         /// <inheritdoc/>
-        protected override ValueTask<IAsyncDisposable> SubscribeAsyncCore(IObserverAsync<T> observer, CancellationToken cancellationToken) =>
+        protected override ValueTask<IAsyncDisposable> SubscribeAsyncCore(
+            IObserverAsync<T> observer,
+            CancellationToken cancellationToken) =>
             source.SubscribeAsync(new OnErrorResumeAsFailureObserver(observer), cancellationToken);
 
         /// <summary>

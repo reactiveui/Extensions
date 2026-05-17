@@ -2,10 +2,9 @@
 // ReactiveUI Association Incorporated licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using System.Reactive.Concurrency;
+using System.Diagnostics.CodeAnalysis;
 using ReactiveUI.Extensions.Async;
 using ReactiveUI.Extensions.Async.Disposables;
-using ReactiveUI.Extensions.Async.Internals;
 using ReactiveUI.Extensions.Async.Subjects;
 
 namespace ReactiveUI.Extensions.Tests.Async;
@@ -15,16 +14,24 @@ namespace ReactiveUI.Extensions.Tests.Async;
 /// </summary>
 public class TransformationOperatorTests
 {
+    /// <summary>Hoisted source array used by tests (was inline literal).</summary>
+    private static readonly int[] Sequence123456 = [1, 2, 3, 4, 5, 6];
+
     /// <summary>Tests sync Select projects each element.</summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
     public async Task WhenSelectSyncSelector_ThenProjectsEachElement()
     {
+        const int Multiplier = 10;
+        const int ExpectedFirst = 10;
+        const int ExpectedSecond = 20;
+        const int ExpectedThird = 30;
+
         var result = await ObservableAsync.Range(1, 3)
-            .Select(x => x * 10)
+            .Select(x => x * Multiplier)
             .ToListAsync();
 
-        await Assert.That(result).IsEquivalentTo([10, 20, 30]);
+        await Assert.That(result).IsCollectionEqualTo([ExpectedFirst, ExpectedSecond, ExpectedThird]);
     }
 
     /// <summary>Tests async Select projects each element.</summary>
@@ -33,14 +40,14 @@ public class TransformationOperatorTests
     public async Task WhenSelectAsyncSelector_ThenProjectsEachElement()
     {
         var result = await ObservableAsync.Range(1, 3)
-            .Select(async (x, ct) =>
+            .Select(async (x, _) =>
             {
                 await Task.Yield();
                 return x.ToString();
             })
             .ToListAsync();
 
-        await Assert.That(result).IsEquivalentTo(["1", "2", "3"]);
+        await Assert.That(result).IsCollectionEqualTo(["1", "2", "3"]);
     }
 
     /// <summary>Tests sync SelectMany flattens inner sequences.</summary>
@@ -48,13 +55,18 @@ public class TransformationOperatorTests
     [Test]
     public async Task WhenSelectManySync_ThenFlattensInnerSequences()
     {
+        const int InnerMultiplier = 10;
+        const int ExpectedCount = 6;
+        const int FirstExpectedValue = 10;
+        const int LastExpectedValue = 30;
+
         var result = await ObservableAsync.Range(1, 3)
-            .SelectMany(x => ObservableAsync.Range(x * 10, 2))
+            .SelectMany(x => ObservableAsync.Range(x * InnerMultiplier, 2))
             .ToListAsync();
 
-        await Assert.That(result).Count().IsEqualTo(6);
-        await Assert.That(result).Contains(10);
-        await Assert.That(result).Contains(30);
+        await Assert.That(result).Count().IsEqualTo(ExpectedCount);
+        await Assert.That(result).Contains(FirstExpectedValue);
+        await Assert.That(result).Contains(LastExpectedValue);
     }
 
     /// <summary>Tests async SelectMany flattens inner sequences.</summary>
@@ -62,17 +74,22 @@ public class TransformationOperatorTests
     [Test]
     public async Task WhenSelectManyAsync_ThenFlattensInnerSequences()
     {
+        const int Multiplier = 100;
+        const int ExpectedCount = 2;
+        const int FirstExpectedValue = 100;
+        const int SecondExpectedValue = 200;
+
         var result = await ObservableAsync.Range(1, 2)
-            .SelectMany(async (x, ct) =>
+            .SelectMany(async (x, _) =>
             {
                 await Task.Yield();
-                return ObservableAsync.Return(x * 100);
+                return ObservableAsync.Return(x * Multiplier);
             })
             .ToListAsync();
 
-        await Assert.That(result).Count().IsEqualTo(2);
-        await Assert.That(result).Contains(100);
-        await Assert.That(result).Contains(200);
+        await Assert.That(result).Count().IsEqualTo(ExpectedCount);
+        await Assert.That(result).Contains(FirstExpectedValue);
+        await Assert.That(result).Contains(SecondExpectedValue);
     }
 
     /// <summary>Tests SelectMany with result selector projects pairs.</summary>
@@ -80,35 +97,40 @@ public class TransformationOperatorTests
     [Test]
     public async Task WhenSelectManyWithResultSelector_ThenProjectsPairs()
     {
+        const int InnerMultiplier = 10;
+        const int ExpectedCount = 2;
+
         var result = await ObservableAsync.Range(1, 2)
             .SelectMany(
-                x => ObservableAsync.Return(x * 10),
+                x => ObservableAsync.Return(x * InnerMultiplier),
                 (outer, inner) => $"{outer}:{inner}")
             .ToListAsync();
 
-        await Assert.That(result).Count().IsEqualTo(2);
+        await Assert.That(result).Count().IsEqualTo(ExpectedCount);
         await Assert.That(result).Contains("1:10");
         await Assert.That(result).Contains("2:20");
     }
 
     /// <summary>Tests SelectMany null selector throws.</summary>
     [Test]
-    public void WhenSelectManyNullSelector_ThenThrowsArgumentNull()
-    {
+    public void WhenSelectManyNullSelector_ThenThrowsArgumentNull() =>
         Assert.Throws<ArgumentNullException>(() =>
             ObservableAsync.Return(1).SelectMany((Func<int, ObservableAsync<int>>)null!));
-    }
 
     /// <summary>Tests sync Scan emits running accumulation.</summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
     public async Task WhenScanSync_ThenEmitsRunningAccumulation()
     {
+        const int ExpectedSecond = 3;
+        const int ExpectedThird = 6;
+        const int ExpectedFourth = 10;
+
         var result = await ObservableAsync.Range(1, 4)
             .Scan(0, (acc, x) => acc + x)
             .ToListAsync();
 
-        await Assert.That(result).IsEquivalentTo([1, 3, 6, 10]);
+        await Assert.That(result).IsCollectionEqualTo([1, ExpectedSecond, ExpectedThird, ExpectedFourth]);
     }
 
     /// <summary>Tests async Scan emits running accumulation.</summary>
@@ -117,37 +139,42 @@ public class TransformationOperatorTests
     public async Task WhenScanAsync_ThenEmitsRunningAccumulation()
     {
         var result = await ObservableAsync.Range(1, 3)
-            .Scan(string.Empty, async (acc, x, ct) =>
+            .Scan(string.Empty, async (acc, x, _) =>
             {
                 await Task.Yield();
                 return acc + x;
             })
             .ToListAsync();
 
-        await Assert.That(result).IsEquivalentTo(["1", "12", "123"]);
+        await Assert.That(result).IsCollectionEqualTo(["1", "12", "123"]);
     }
 
     /// <summary>Tests Scan null accumulator throws.</summary>
     [Test]
-    public void WhenScanNullAccumulator_ThenThrowsArgumentNull()
-    {
+    public void WhenScanNullAccumulator_ThenThrowsArgumentNull() =>
         Assert.Throws<ArgumentNullException>(() =>
             ObservableAsync.Return(1).Scan(0, (Func<int, int, int>)null!));
-    }
 
     /// <summary>Tests sync Do invokes side effects.</summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
     public async Task WhenDoSync_ThenInvokesSideEffects()
     {
+        const int ExpectedSecond = 2;
+        const int ExpectedThird = 3;
+
         var sideEffects = new List<int>();
 
         var result = await ObservableAsync.Range(1, 3)
-            .Do(onNext: x => sideEffects.Add(x))
+            .Do((x, _) =>
+            {
+                sideEffects.Add(x);
+                return default;
+            })
             .ToListAsync();
 
-        await Assert.That(result).IsEquivalentTo([1, 2, 3]);
-        await Assert.That(sideEffects).IsEquivalentTo([1, 2, 3]);
+        await Assert.That(result).IsCollectionEqualTo([1, ExpectedSecond, ExpectedThird]);
+        await Assert.That(sideEffects).IsCollectionEqualTo([1, ExpectedSecond, ExpectedThird]);
     }
 
     /// <summary>Tests async Do invokes side effects.</summary>
@@ -155,18 +182,21 @@ public class TransformationOperatorTests
     [Test]
     public async Task WhenDoAsync_ThenInvokesSideEffects()
     {
+        const int ExpectedSecond = 2;
+        const int ExpectedThird = 3;
+
         var sideEffects = new List<int>();
 
         var result = await ObservableAsync.Range(1, 3)
-            .Do(async (x, ct) =>
+            .Do(async (x, _) =>
             {
                 await Task.Yield();
                 sideEffects.Add(x);
             })
             .ToListAsync();
 
-        await Assert.That(result).IsEquivalentTo([1, 2, 3]);
-        await Assert.That(sideEffects).IsEquivalentTo([1, 2, 3]);
+        await Assert.That(result).IsCollectionEqualTo([1, ExpectedSecond, ExpectedThird]);
+        await Assert.That(sideEffects).IsCollectionEqualTo([1, ExpectedSecond, ExpectedThird]);
     }
 
     /// <summary>Tests Do with completion handler invokes on completed.</summary>
@@ -177,7 +207,10 @@ public class TransformationOperatorTests
         Result? completion = null;
 
         await ObservableAsync.Empty<int>()
-            .Do(onCompleted: r => completion = r)
+            .Do(
+                (Action<int>?)null,
+                (Action<Exception>?)null,
+                r => completion = r)
             .WaitCompletionAsync();
 
         await Assert.That(completion).IsNotNull();
@@ -225,7 +258,7 @@ public class TransformationOperatorTests
 
         var result = await source.Cast<object, string>().ToListAsync();
 
-        await Assert.That(result).IsEquivalentTo(["hello"]);
+        await Assert.That(result).IsCollectionEqualTo(["hello"]);
     }
 
     /// <summary>Tests OfType with matching type filters correctly.</summary>
@@ -238,7 +271,7 @@ public class TransformationOperatorTests
 
         var strings = await source.OfType<object, string>().ToListAsync();
 
-        await Assert.That(strings).IsEquivalentTo(["two", "four"]);
+        await Assert.That(strings).IsCollectionEqualTo(["two", "four"]);
     }
 
     /// <summary>Tests OfType with no matches emits nothing.</summary>
@@ -269,7 +302,7 @@ public class TransformationOperatorTests
         var pipeline = source.Prepend(values);
 
         subscription = await pipeline.SubscribeAsync(
-            async (x, ct) =>
+            async (x, _) =>
             {
                 received.Add(x);
                 if (received.Count == 3)
@@ -277,14 +310,15 @@ public class TransformationOperatorTests
                     await subscription!.DisposeAsync();
                 }
             },
-            null,
             null);
+
+        const int MinReceivedCount = 3;
 
         await AsyncTestHelpers.WaitForConditionAsync(
             () => received.Count >= 3,
             TimeSpan.FromSeconds(5));
 
-        await Assert.That(received.Count).IsGreaterThanOrEqualTo(3);
+        await Assert.That(received.Count).IsGreaterThanOrEqualTo(MinReceivedCount);
     }
 
     /// <summary>
@@ -293,25 +327,34 @@ public class TransformationOperatorTests
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
+    [SuppressMessage("Major Code Smell", "S112", Justification = "Deliberately throws a generic exception type to verify operator error-handling pathways.")]
+    [SuppressMessage("Microsoft.Design", "CA2201", Justification = "Deliberately uses a generic exception type to verify operator error-handling pathways with arbitrary exception kinds.")]
     public async Task WhenPrependSourceThrowsAndCompletionAlsoThrows_ThenRoutedToHandler()
     {
         var handlerExceptions = new List<Exception>();
         var completionException = new InvalidOperationException("completion failed");
 
-        UnhandledExceptionHandler.Register(ex => handlerExceptions.Add(ex));
+        UnhandledExceptionHandler.Register(handlerExceptions.Add);
 
-        var source = ObservableAsync.Create<int>(async (observer, ct) =>
+        var source = ObservableAsync.Create<int>((_, _) =>
         {
-            throw new ApplicationException("source error");
+            try
+            {
+                throw new ApplicationException("source error");
 #pragma warning disable CS0162 // Unreachable code detected
-            return DisposableAsync.Empty;
+                return ValueTask.FromResult(DisposableAsync.Empty);
 #pragma warning restore CS0162 // Unreachable code detected
+            }
+            catch (Exception exception)
+            {
+                return ValueTask.FromException<IAsyncDisposable>(exception);
+            }
         });
 
         var pipeline = source.Prepend(42);
 
         await using var sub = await pipeline.SubscribeAsync(
-            (x, _) => default,
+            (_, _) => default,
             null,
             _ => throw completionException);
 
@@ -347,12 +390,13 @@ public class TransformationOperatorTests
 
         await using var sub = await source
             .Do(
-                onNext: null,
-                onErrorResume: async (ex, ct) =>
+                (Func<int, CancellationToken, ValueTask>?)null,
+                async (ex, _) =>
                 {
                     await Task.Yield();
                     resumedErrors.Add(ex);
-                })
+                },
+                onCompleted: null)
             .SubscribeAsync(
                 (_, _) => default,
                 (ex, _) =>
@@ -395,7 +439,8 @@ public class TransformationOperatorTests
 
         await using var sub = await source
             .Do(
-                onNext: null,
+                (Func<int, CancellationToken, ValueTask>?)null,
+                onErrorResume: null,
                 onCompleted: async result =>
                 {
                     await Task.Yield();
@@ -441,8 +486,9 @@ public class TransformationOperatorTests
 
         await using var sub = await source
             .Do(
-                onNext: null,
-                onErrorResume: ex => resumedErrors.Add(ex))
+                (Action<int>?)null,
+                ex => resumedErrors.Add(ex),
+                (Action<Result>?)null)
             .SubscribeAsync(
                 (_, _) => default,
                 (ex, _) =>
@@ -475,11 +521,14 @@ public class TransformationOperatorTests
     {
         IScheduler scheduler = TaskPoolScheduler.Default;
 
+        const int ExpectedSecond = 2;
+        const int ExpectedThird = 3;
+
         var result = await ObservableAsync.Range(1, 3)
             .ObserveOn(scheduler)
             .ToListAsync();
 
-        await Assert.That(result).IsEquivalentTo([1, 2, 3]);
+        await Assert.That(result).IsCollectionEqualTo([1, ExpectedSecond, ExpectedThird]);
     }
 
     /// <summary>
@@ -490,6 +539,7 @@ public class TransformationOperatorTests
     [Test]
     public async Task WhenObserveOnSourceEmitsResumableError_ThenForwardsErrorDownstream()
     {
+        const int ExpectedSecond = 2;
         var downstreamErrors = new List<Exception>();
         var receivedValues = new List<int>();
         var tcs = new TaskCompletionSource();
@@ -526,7 +576,7 @@ public class TransformationOperatorTests
             () => tcs.Task.IsCompleted,
             TimeSpan.FromSeconds(5));
 
-        await Assert.That(receivedValues).IsEquivalentTo([1, 2]);
+        await Assert.That(receivedValues).IsCollectionEqualTo([1, ExpectedSecond]);
         await Assert.That(downstreamErrors).Count().IsEqualTo(1);
         await Assert.That(downstreamErrors[0]).IsTypeOf<InvalidOperationException>();
         await Assert.That(downstreamErrors[0].Message).IsEqualTo("resumable");
@@ -541,6 +591,7 @@ public class TransformationOperatorTests
     [Test]
     public async Task WhenPrependTokenCancelledBeforeIteration_ThenEmitsNoValues()
     {
+        const int MaxReceivedCount = 100;
         var received = new List<int>();
         using var cts = new CancellationTokenSource();
 
@@ -548,7 +599,7 @@ public class TransformationOperatorTests
         var pipeline = source.Prepend(Enumerable.Range(1, 100));
 
         // Cancel the token before subscribing so the prepend loop sees cancellation immediately.
-        cts.Cancel();
+        await cts.CancelAsync();
 
         var subscription = await pipeline.SubscribeAsync(
             (x, _) =>
@@ -562,7 +613,7 @@ public class TransformationOperatorTests
 
         await subscription.DisposeAsync();
 
-        await Assert.That(received.Count).IsLessThan(100);
+        await Assert.That(received.Count).IsLessThan(MaxReceivedCount);
     }
 
     /// <summary>
@@ -574,19 +625,28 @@ public class TransformationOperatorTests
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
+    [SuppressMessage("Major Code Smell", "S112", Justification = "Deliberately throws a generic exception type to verify operator error-handling pathways.")]
+    [SuppressMessage("Microsoft.Design", "CA2201", Justification = "Deliberately uses a generic exception type to verify operator error-handling pathways with arbitrary exception kinds.")]
     public async Task WhenPrependSourceThrowsAndOnCompletedThrows_ThenSecondaryExceptionRoutedToHandler()
     {
         var handlerExceptions = new List<Exception>();
         var secondaryException = new InvalidOperationException("onCompleted blew up");
 
-        UnhandledExceptionHandler.Register(ex => handlerExceptions.Add(ex));
+        UnhandledExceptionHandler.Register(handlerExceptions.Add);
 
-        var source = ObservableAsync.Create<int>(async (observer, ct) =>
+        var source = ObservableAsync.Create<int>((_, _) =>
         {
-            throw new ApplicationException("source failure");
+            try
+            {
+                throw new ApplicationException("source failure");
 #pragma warning disable CS0162 // Unreachable code detected
-            return DisposableAsync.Empty;
+                return ValueTask.FromResult(DisposableAsync.Empty);
 #pragma warning restore CS0162 // Unreachable code detected
+            }
+            catch (Exception exception)
+            {
+                return ValueTask.FromException<IAsyncDisposable>(exception);
+            }
         });
 
         // Prepend a single value so the prepend loop completes, then SubscribeAsync on the
@@ -612,11 +672,9 @@ public class TransformationOperatorTests
     /// Verifies that Yield with a null source throws <see cref="ArgumentNullException"/>.
     /// </summary>
     [Test]
-    public void WhenYieldNullSource_ThenThrowsArgumentNull()
-    {
+    public void WhenYieldNullSource_ThenThrowsArgumentNull() =>
         Assert.Throws<ArgumentNullException>(() =>
             ObservableAsync.Yield<int>(null!));
-    }
 
     /// <summary>
     /// Verifies that Yield forwards all elements from the source sequence.
@@ -625,11 +683,16 @@ public class TransformationOperatorTests
     [Test]
     public async Task WhenYield_ThenForwardsAllElements()
     {
+        const int Expected2 = 2;
+        const int Expected3 = 3;
+        const int Expected4 = 4;
+        const int Expected5 = 5;
+
         var result = await ObservableAsync.Range(1, 5)
             .Yield()
             .ToListAsync();
 
-        await Assert.That(result).IsEquivalentTo([1, 2, 3, 4, 5]);
+        await Assert.That(result).IsCollectionEqualTo([1, Expected2, Expected3, Expected4, Expected5]);
     }
 
     /// <summary>
@@ -704,28 +767,23 @@ public class TransformationOperatorTests
     /// when the source parameter is null.
     /// </summary>
     [Test]
-    public void WhenGroupByWithSubjectSelectorNullSource_ThenThrowsArgumentNull()
-    {
+    public void WhenGroupByWithSubjectSelectorNullSource_ThenThrowsArgumentNull() =>
         Assert.Throws<ArgumentNullException>(() =>
             ObservableAsync.GroupBy<int, int>(
                 null!,
                 static x => x,
                 static _ => SubjectAsync.Create<int>()));
-    }
 
     /// <summary>
     /// Verifies that the three-argument GroupBy overload throws <see cref="ArgumentNullException"/>
     /// when the keySelector parameter is null.
     /// </summary>
     [Test]
-    public void WhenGroupByWithSubjectSelectorNullKeySelector_ThenThrowsArgumentNull()
-    {
+    public void WhenGroupByWithSubjectSelectorNullKeySelector_ThenThrowsArgumentNull() =>
         Assert.Throws<ArgumentNullException>(() =>
-            ObservableAsync.GroupBy<int, int>(
-                ObservableAsync.Empty<int>(),
+            ObservableAsync.Empty<int>().GroupBy<int, int>(
                 null!,
                 static _ => SubjectAsync.Create<int>()));
-    }
 
     /// <summary>
     /// Verifies that the three-argument GroupBy overload with a custom group subject selector
@@ -735,7 +793,14 @@ public class TransformationOperatorTests
     [Test]
     public async Task WhenGroupByWithCustomSubjectSelector_ThenGroupsByKey()
     {
-        var source = new[] { 1, 2, 3, 4, 5, 6 }.ToObservableAsync();
+        const int ExpectedGroupCount = 2;
+        const int OddSecond = 3;
+        const int OddThird = 5;
+        const int EvenFirst = 2;
+        const int EvenSecond = 4;
+        const int EvenThird = 6;
+
+        var source = Sequence123456.ToObservableAsync();
 
         var groups = new Dictionary<int, List<int>>();
         var tcs = new TaskCompletionSource();
@@ -770,9 +835,9 @@ public class TransformationOperatorTests
             () => tcs.Task.IsCompleted,
             TimeSpan.FromSeconds(5));
 
-        await Assert.That(groups).Count().IsEqualTo(2);
-        await Assert.That(groups[1]).IsEquivalentTo([1, 3, 5]);
-        await Assert.That(groups[0]).IsEquivalentTo([2, 4, 6]);
+        await Assert.That(groups).Count().IsEqualTo(ExpectedGroupCount);
+        await Assert.That(groups[1]).IsCollectionEqualTo([1, OddSecond, OddThird]);
+        await Assert.That(groups[0]).IsCollectionEqualTo([EvenFirst, EvenSecond, EvenThird]);
     }
 
     /// <summary>
@@ -836,21 +901,30 @@ public class TransformationOperatorTests
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
+    [SuppressMessage("Major Code Smell", "S112", Justification = "Deliberately throws a generic exception type to verify operator error-handling pathways.")]
+    [SuppressMessage("Microsoft.Design", "CA2201", Justification = "Deliberately uses a generic exception type to verify operator error-handling pathways with arbitrary exception kinds.")]
     public async Task WhenPrependSourceThrowsAndRawObserverCompletionThrows_ThenRoutedToUnhandledHandler()
     {
         var handlerExceptions = new List<Exception>();
         var completionException = new InvalidOperationException("raw observer completion failed");
         var previousHandler = UnhandledExceptionHandler.CurrentHandler;
 
-        UnhandledExceptionHandler.Register(ex => handlerExceptions.Add(ex));
+        UnhandledExceptionHandler.Register(handlerExceptions.Add);
         try
         {
-            var source = ObservableAsync.Create<int>(async (observer, ct) =>
+            var source = ObservableAsync.Create<int>((_, _) =>
             {
-                throw new ApplicationException("source subscribe error");
+                try
+                {
+                    throw new ApplicationException("source subscribe error");
 #pragma warning disable CS0162 // Unreachable code detected
-                return DisposableAsync.Empty;
+                    return ValueTask.FromResult(DisposableAsync.Empty);
 #pragma warning restore CS0162 // Unreachable code detected
+                }
+                catch (Exception exception)
+                {
+                    return ValueTask.FromException<IAsyncDisposable>(exception);
+                }
             });
 
             var pipeline = source.Prepend(1);
@@ -881,7 +955,10 @@ public class TransformationOperatorTests
         var errors = new List<Exception>();
         var error = new InvalidOperationException("test");
 
-        await using var sub = await directSource.Do(onErrorResume: ex => errors.Add(ex)).SubscribeAsync(
+        await using var sub = await directSource.Do(
+            (Action<int>?)null,
+            ex => errors.Add(ex),
+            (Action<Result>?)null).SubscribeAsync(
             static (_, _) => default,
             static (_, _) => default,
             static _ => default);
@@ -897,11 +974,12 @@ public class TransformationOperatorTests
     [Test]
     public async Task WhenGroupBySourceFails_ThenErrorPropagated()
     {
+        const int GroupModulus = 2;
         var error = new InvalidOperationException("group-fail");
 
         await Assert.ThrowsAsync<InvalidOperationException>(async () =>
             await ObservableAsync.Throw<int>(error)
-                .GroupBy(x => x % 2)
+                .GroupBy(x => x % GroupModulus)
                 .FirstAsync());
     }
 
@@ -915,16 +993,22 @@ public class TransformationOperatorTests
 
         await Assert.ThrowsAsync<InvalidOperationException>(async () =>
             await ObservableAsync.Using(
-                    async _ =>
+                _ =>
                     {
-                        return DisposableAsync.Create(() =>
+                        try
                         {
-                            disposed = true;
-                            return default;
-                        });
+                            return ValueTask.FromResult(DisposableAsync.Create(() =>
+                            {
+                                disposed = true;
+                                return default;
+                            }));
+                        }
+                        catch (Exception exception)
+                        {
+                            return ValueTask.FromException<IAsyncDisposable>(exception);
+                        }
                     },
-                    _ => ObservableAsync.Throw<int>(error))
-                .FirstAsync());
+                _ => ObservableAsync.Throw<int>(error)).FirstAsync());
 
         await Assert.That(disposed).IsTrue();
     }

@@ -2,6 +2,8 @@
 // ReactiveUI Association Incorporated licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
+using System.Collections.Immutable;
+
 namespace ReactiveUI.Extensions.Async.Subjects;
 
 /// <summary>
@@ -15,7 +17,8 @@ namespace ReactiveUI.Extensions.Async.Subjects;
 /// <typeparam name="T">The type of the elements processed by the subject.</typeparam>
 /// <param name="startValue">An optional initial value to be replayed to new observers. If not specified, no value is replayed until the first
 /// value is published.</param>
-public sealed class ConcurrentStatelessReplayLatestSubjectAsync<T>(Optional<T> startValue) : BaseStatelessReplayLastSubjectAsync<T>(startValue)
+public sealed class ConcurrentStatelessReplayLatestSubjectAsync<T>(Optional<T> startValue)
+    : BaseStatelessReplayLastSubjectAsync<T>(startValue)
 {
     /// <summary>
     /// Asynchronously notifies all observers in the collection with the specified value.
@@ -26,7 +29,10 @@ public sealed class ConcurrentStatelessReplayLatestSubjectAsync<T>(Optional<T> s
     /// <param name="value">The value to send to each observer.</param>
     /// <param name="cancellationToken">A cancellation token that can be used to cancel the notification operation.</param>
     /// <returns>A ValueTask that represents the asynchronous notification operation.</returns>
-    protected override ValueTask OnNextAsyncCore(IReadOnlyList<IObserverAsync<T>> observers, T value, CancellationToken cancellationToken) =>
+    protected override ValueTask OnNextAsyncCore(
+        ImmutableArray<IObserverAsync<T>> observers,
+        T value,
+        CancellationToken cancellationToken) =>
         Concurrent.ForwardOnNextConcurrently(observers, value, cancellationToken);
 
     /// <summary>
@@ -36,7 +42,10 @@ public sealed class ConcurrentStatelessReplayLatestSubjectAsync<T>(Optional<T> s
     /// <param name="error">The exception that occurred and is to be forwarded to the observers. Cannot be null.</param>
     /// <param name="cancellationToken">A cancellation token that can be used to cancel the asynchronous operation.</param>
     /// <returns>A ValueTask that represents the asynchronous notification operation.</returns>
-    protected override ValueTask OnErrorResumeAsyncCore(IReadOnlyList<IObserverAsync<T>> observers, Exception error, CancellationToken cancellationToken) =>
+    protected override ValueTask OnErrorResumeAsyncCore(
+        ImmutableArray<IObserverAsync<T>> observers,
+        Exception error,
+        CancellationToken cancellationToken) =>
         Concurrent.ForwardOnErrorResumeConcurrently(observers, error, cancellationToken);
 
     /// <summary>
@@ -49,5 +58,6 @@ public sealed class ConcurrentStatelessReplayLatestSubjectAsync<T>(Optional<T> s
     /// <param name="result">The result information to be passed to each observer upon completion.</param>
     /// <returns>A ValueTask that represents the asynchronous notification operation. The task completes when all observers have
     /// been notified.</returns>
-    protected override ValueTask OnCompletedAsyncCore(IReadOnlyList<IObserverAsync<T>> observers, Result result) => Concurrent.ForwardOnCompletedConcurrently(observers, result);
+    protected override ValueTask OnCompletedAsyncCore(ImmutableArray<IObserverAsync<T>> observers, Result result) =>
+        Concurrent.ForwardOnCompletedConcurrently(observers, result);
 }

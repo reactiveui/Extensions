@@ -37,7 +37,7 @@ public class Continuation : IDisposable
     /// </summary>
     public void Dispose()
     {
-        Dispose(disposing: true);
+        Dispose(true);
         GC.SuppressFinalize(this);
     }
 
@@ -50,7 +50,7 @@ public class Continuation : IDisposable
     /// <returns>
     /// A <see cref="Task" /> representing the asynchronous operation.
     /// </returns>
-    public Task Lock<T>(T item, IObserver<(T value, IDisposable Sync)> observer)
+    public Task Lock<T>(T item, IObserver<(T value, IDisposable Sync)>? observer)
     {
         if (_locked)
         {
@@ -83,15 +83,17 @@ public class Continuation : IDisposable
     /// <param name="disposing"><c>true</c> to release both managed and unmanaged resources; <c>false</c> to release only unmanaged resources.</param>
     protected virtual async void Dispose(bool disposing)
     {
-        if (!_disposedValue)
+        if (_disposedValue)
         {
-            if (disposing)
-            {
-                await UnLock();
-                _phaseSync.Dispose();
-            }
-
-            _disposedValue = true;
+            return;
         }
+
+        if (disposing)
+        {
+            await UnLock().ConfigureAwait(false);
+            _phaseSync.Dispose();
+        }
+
+        _disposedValue = true;
     }
 }

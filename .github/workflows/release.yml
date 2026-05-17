@@ -13,6 +13,8 @@ jobs:
     with:
       solutionFile: ReactiveUI.Extensions.slnx
       installWorkloads: true
+      versioningTool: minver
+      minverMinimumMajorMinor: '2.3'
     secrets:
       ES_USERNAME: ${{ secrets.ES_USERNAME }}
       ES_PASSWORD: ${{ secrets.ES_PASSWORD }}

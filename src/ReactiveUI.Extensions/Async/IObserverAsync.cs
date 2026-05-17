@@ -12,7 +12,7 @@ namespace ReactiveUI.Extensions.Async;
 /// including support for cancellation and proper disposal of resources. This is useful in scenarios where observers
 /// need to process events or data asynchronously, such as in reactive or event-driven programming models.</remarks>
 /// <typeparam name="T">The type of the elements received by the observer.</typeparam>
-public interface IObserverAsync<T> : IAsyncDisposable
+public interface IObserverAsync<in T> : IAsyncDisposable
 {
     /// <summary>
     /// Performs asynchronous completion logic in response to the specified result.

@@ -4,6 +4,7 @@
 
 using ReactiveUI.Extensions.Async.Disposables;
 using ReactiveUI.Extensions.Async.Internals;
+using ReactiveUI.Extensions.Internal;
 
 namespace ReactiveUI.Extensions.Async;
 
@@ -26,18 +27,68 @@ public static partial class ObservableAsync
         /// <typeparam name="TOther">The type of the elements in the other observable sequence that triggers termination of the source sequence.</typeparam>
         /// <param name="other">The observable sequence whose first emission or completion will cause the returned sequence to stop emitting
         /// items from the source.</param>
+        /// <returns>An observable sequence that emits items from the source sequence until the other observable emits an item or
+        /// completes.</returns>
+        /// <exception cref="ArgumentNullException">Thrown if either the source sequence or the other observable is null.</exception>
+        public IObservableAsync<T> TakeUntil<TOther>(IObservableAsync<TOther> other) =>
+            source.TakeUntil(other, null, CancellationToken.None);
+
+        /// <summary>
+        /// Returns an observable sequence that emits items from the source sequence until the specified other
+        /// observable emits an item or completes.
+        /// </summary>
+        /// <typeparam name="TOther">The type of the elements in the other observable sequence that triggers termination of the source sequence.</typeparam>
+        /// <param name="other">The observable sequence whose first emission or completion will cause the returned sequence to stop emitting
+        /// items from the source.</param>
         /// <param name="options">An optional set of options that control the behavior of the take-until operation. If null, default options
         /// are used.</param>
         /// <returns>An observable sequence that emits items from the source sequence until the other observable emits an item or
         /// completes.</returns>
         /// <exception cref="ArgumentNullException">Thrown if either the source sequence or the other observable is null.</exception>
-        public IObservableAsync<T> TakeUntil<TOther>(IObservableAsync<TOther> other, TakeUntilOptions? options = null)
-        {
-            ArgumentExceptionHelper.ThrowIfNull(source, nameof(source));
-            ArgumentExceptionHelper.ThrowIfNull(other, nameof(other));
+        public IObservableAsync<T> TakeUntil<TOther>(IObservableAsync<TOther> other, TakeUntilOptions? options) =>
+            source.TakeUntil(other, options, CancellationToken.None);
 
-            return new TakeUntilAsyncObservable<T, TOther>(source, other, options ?? TakeUntilOptions.Default);
+        /// <summary>
+        /// Returns an observable sequence that emits items from the source until <paramref name="other"/> signals or
+        /// <paramref name="cancellationToken"/> is cancelled — whichever comes first.
+        /// </summary>
+        /// <typeparam name="TOther">Element type of the other sequence.</typeparam>
+        /// <param name="other">The observable sequence whose first emission or completion terminates the result.</param>
+        /// <param name="cancellationToken">A cancellation token that also terminates the result when cancelled.</param>
+        /// <returns>An observable sequence that completes on the first of the two signals.</returns>
+        public IObservableAsync<T> TakeUntil<TOther>(IObservableAsync<TOther> other, CancellationToken cancellationToken) =>
+            source.TakeUntil(other, null, cancellationToken);
+
+        /// <summary>
+        /// Returns an observable sequence that emits items from the source until <paramref name="other"/> signals or
+        /// <paramref name="cancellationToken"/> is cancelled — whichever comes first.
+        /// </summary>
+        /// <typeparam name="TOther">Element type of the other sequence.</typeparam>
+        /// <param name="other">The observable sequence whose first emission or completion terminates the result.</param>
+        /// <param name="options">Options controlling the take-until behavior, or null for defaults.</param>
+        /// <param name="cancellationToken">A cancellation token that also terminates the result when cancelled.</param>
+        /// <returns>An observable sequence that completes on the first of the two signals.</returns>
+        public IObservableAsync<T> TakeUntil<TOther>(
+            IObservableAsync<TOther> other,
+            TakeUntilOptions? options,
+            CancellationToken cancellationToken)
+        {
+            ArgumentExceptionHelper.ThrowIfNull(source);
+            ArgumentExceptionHelper.ThrowIfNull(other);
+
+            var inner = new TakeUntilAsyncObservable<T, TOther>(source, other, options ?? TakeUntilOptions.Default);
+            return cancellationToken.CanBeCanceled ? inner.TakeUntil(cancellationToken) : inner;
         }
+
+        /// <summary>
+        /// Returns an observable sequence that emits items from the source until the specified task completes.
+        /// </summary>
+        /// <param name="task">The task whose completion will signal the termination of the observable sequence. The sequence will stop
+        /// emitting items when this task completes, regardless of its result.</param>
+        /// <returns>An observable sequence that emits items from the source until the specified task completes.</returns>
+        /// <exception cref="ArgumentNullException">Thrown if the source observable is null.</exception>
+        public IObservableAsync<T> TakeUntil(Task task) =>
+            source.TakeUntil(task, null, CancellationToken.None);
 
         /// <summary>
         /// Returns an observable sequence that emits items from the source until the specified task completes.
@@ -48,11 +99,36 @@ public static partial class ObservableAsync
         /// are used.</param>
         /// <returns>An observable sequence that emits items from the source until the specified task completes.</returns>
         /// <exception cref="ArgumentNullException">Thrown if the source observable is null.</exception>
-        public IObservableAsync<T> TakeUntil(Task task, TakeUntilOptions? options = null)
-        {
-            ArgumentExceptionHelper.ThrowIfNull(source, nameof(source));
+        public IObservableAsync<T> TakeUntil(Task task, TakeUntilOptions? options) =>
+            source.TakeUntil(task, options, CancellationToken.None);
 
-            return new TakeUntilTask<T>(source, task, options ?? TakeUntilOptions.Default);
+        /// <summary>
+        /// Returns an observable sequence that emits items from the source until <paramref name="task"/> completes or
+        /// <paramref name="cancellationToken"/> is cancelled — whichever comes first.
+        /// </summary>
+        /// <param name="task">The task whose completion terminates the result.</param>
+        /// <param name="cancellationToken">A cancellation token that also terminates the result when cancelled.</param>
+        /// <returns>An observable sequence that completes on the first of the two signals.</returns>
+        public IObservableAsync<T> TakeUntil(Task task, CancellationToken cancellationToken) =>
+            source.TakeUntil(task, null, cancellationToken);
+
+        /// <summary>
+        /// Returns an observable sequence that emits items from the source until <paramref name="task"/> completes or
+        /// <paramref name="cancellationToken"/> is cancelled — whichever comes first.
+        /// </summary>
+        /// <param name="task">The task whose completion terminates the result.</param>
+        /// <param name="options">Options controlling the take-until behavior, or null for defaults.</param>
+        /// <param name="cancellationToken">A cancellation token that also terminates the result when cancelled.</param>
+        /// <returns>An observable sequence that completes on the first of the two signals.</returns>
+        public IObservableAsync<T> TakeUntil(
+            Task task,
+            TakeUntilOptions? options,
+            CancellationToken cancellationToken)
+        {
+            ArgumentExceptionHelper.ThrowIfNull(source);
+
+            var inner = new TakeUntilTask<T>(source, task, options ?? TakeUntilOptions.Default);
+            return cancellationToken.CanBeCanceled ? inner.TakeUntil(cancellationToken) : inner;
         }
 
         /// <summary>
@@ -78,11 +154,23 @@ public static partial class ObservableAsync
         /// <returns>An observable sequence that contains the elements from the source sequence up to, but not including, the
         /// first element for which the predicate returns true.</returns>
         /// <exception cref="ArgumentNullException">Thrown if <paramref name="predicate"/> is null.</exception>
-        public IObservableAsync<T> TakeUntil(Func<T, bool> predicate)
-        {
-            ArgumentExceptionHelper.ThrowIfNull(predicate, nameof(predicate));
+        public IObservableAsync<T> TakeUntil(Func<T, bool> predicate) =>
+            source.TakeUntil(predicate, CancellationToken.None);
 
-            return new TakeUntilPredicate<T>(source, predicate);
+        /// <summary>
+        /// Returns an observable sequence that emits items from the source until <paramref name="predicate"/> returns
+        /// <see langword="true"/> for an element or <paramref name="cancellationToken"/> is cancelled — whichever
+        /// comes first.
+        /// </summary>
+        /// <param name="predicate">A predicate evaluated for each element; first true terminates the sequence.</param>
+        /// <param name="cancellationToken">A cancellation token that also terminates the result when cancelled.</param>
+        /// <returns>An observable sequence that completes on the first of the two signals.</returns>
+        public IObservableAsync<T> TakeUntil(Func<T, bool> predicate, CancellationToken cancellationToken)
+        {
+            ArgumentExceptionHelper.ThrowIfNull(predicate);
+
+            var inner = new TakeUntilPredicate<T>(source, predicate);
+            return cancellationToken.CanBeCanceled ? inner.TakeUntil(cancellationToken) : inner;
         }
 
         /// <summary>
@@ -94,12 +182,37 @@ public static partial class ObservableAsync
         /// <returns>An observable sequence that contains the elements from the source sequence up to, but not including, the
         /// first element for which the asynchronous predicate returns true.</returns>
         /// <exception cref="ArgumentNullException">Thrown if <paramref name="asyncPredicate"/> is null.</exception>
-        public IObservableAsync<T> TakeUntil(Func<T, CancellationToken, ValueTask<bool>> asyncPredicate)
-        {
-            ArgumentExceptionHelper.ThrowIfNull(asyncPredicate, nameof(asyncPredicate));
+        public IObservableAsync<T> TakeUntil(Func<T, CancellationToken, ValueTask<bool>> asyncPredicate) =>
+            source.TakeUntil(asyncPredicate, CancellationToken.None);
 
-            return new TakeUntilAsyncPredicate<T>(source, asyncPredicate);
+        /// <summary>
+        /// Returns an observable sequence that emits items from the source until <paramref name="asyncPredicate"/>
+        /// returns <see langword="true"/> for an element or <paramref name="cancellationToken"/> is cancelled —
+        /// whichever comes first.
+        /// </summary>
+        /// <param name="asyncPredicate">An async predicate evaluated for each element; first true terminates the sequence.</param>
+        /// <param name="cancellationToken">A cancellation token that also terminates the result when cancelled.</param>
+        /// <returns>An observable sequence that completes on the first of the two signals.</returns>
+        public IObservableAsync<T> TakeUntil(
+            Func<T, CancellationToken, ValueTask<bool>> asyncPredicate,
+            CancellationToken cancellationToken)
+        {
+            ArgumentExceptionHelper.ThrowIfNull(asyncPredicate);
+
+            var inner = new TakeUntilAsyncPredicate<T>(source, asyncPredicate);
+            return cancellationToken.CanBeCanceled ? inner.TakeUntil(cancellationToken) : inner;
         }
+
+        /// <summary>
+        /// Returns an observable sequence that emits items from the source sequence until the specified stop signal
+        /// completes.
+        /// </summary>
+        /// <param name="stopSignalSignal">A delegate that provides a completion signal. The returned observable will stop emitting items when this
+        /// signal completes.</param>
+        /// <returns>An observable sequence that emits items from the source until the stop signal completes.</returns>
+        /// <exception cref="ArgumentNullException">Thrown if <paramref name="stopSignalSignal"/> is null.</exception>
+        public IObservableAsync<T> TakeUntil(CompletionObservableDelegate stopSignalSignal) =>
+            source.TakeUntil(stopSignalSignal, null, CancellationToken.None);
 
         /// <summary>
         /// Returns an observable sequence that emits items from the source sequence until the specified stop signal
@@ -111,11 +224,40 @@ public static partial class ObservableAsync
         /// are used.</param>
         /// <returns>An observable sequence that emits items from the source until the stop signal completes.</returns>
         /// <exception cref="ArgumentNullException">Thrown if <paramref name="stopSignalSignal"/> is null.</exception>
-        public IObservableAsync<T> TakeUntil(CompletionObservableDelegate stopSignalSignal, TakeUntilOptions? options = null)
-        {
-            ArgumentExceptionHelper.ThrowIfNull(stopSignalSignal, nameof(stopSignalSignal));
+        public IObservableAsync<T> TakeUntil(
+            CompletionObservableDelegate stopSignalSignal,
+            TakeUntilOptions? options) =>
+            source.TakeUntil(stopSignalSignal, options, CancellationToken.None);
 
-            return new TakeUntilFromRawSignal<T>(source, stopSignalSignal, options ?? TakeUntilOptions.Default);
+        /// <summary>
+        /// Returns an observable sequence that emits items from the source until <paramref name="stopSignalSignal"/>
+        /// fires or <paramref name="cancellationToken"/> is cancelled — whichever comes first.
+        /// </summary>
+        /// <param name="stopSignalSignal">A delegate that provides the completion stop signal.</param>
+        /// <param name="cancellationToken">A cancellation token that also terminates the result when cancelled.</param>
+        /// <returns>An observable sequence that completes on the first of the two signals.</returns>
+        public IObservableAsync<T> TakeUntil(
+            CompletionObservableDelegate stopSignalSignal,
+            CancellationToken cancellationToken) =>
+            source.TakeUntil(stopSignalSignal, null, cancellationToken);
+
+        /// <summary>
+        /// Returns an observable sequence that emits items from the source until <paramref name="stopSignalSignal"/>
+        /// fires or <paramref name="cancellationToken"/> is cancelled — whichever comes first.
+        /// </summary>
+        /// <param name="stopSignalSignal">A delegate that provides the completion stop signal.</param>
+        /// <param name="options">Options controlling the take-until behavior, or null for defaults.</param>
+        /// <param name="cancellationToken">A cancellation token that also terminates the result when cancelled.</param>
+        /// <returns>An observable sequence that completes on the first of the two signals.</returns>
+        public IObservableAsync<T> TakeUntil(
+            CompletionObservableDelegate stopSignalSignal,
+            TakeUntilOptions? options,
+            CancellationToken cancellationToken)
+        {
+            ArgumentExceptionHelper.ThrowIfNull(stopSignalSignal);
+
+            var inner = new TakeUntilFromRawSignal<T>(source, stopSignalSignal, options ?? TakeUntilOptions.Default);
+            return cancellationToken.CanBeCanceled ? inner.TakeUntil(cancellationToken) : inner;
         }
     }
 
@@ -123,7 +265,8 @@ public static partial class ObservableAsync
     /// Async observable that emits items from the source until the specified predicate returns true.
     /// </summary>
     /// <typeparam name="T">The type of the elements in the source sequence.</typeparam>
-    internal sealed class TakeUntilPredicate<T>(IObservableAsync<T> source, Func<T, bool> predicate) : ObservableAsync<T>
+    internal sealed class TakeUntilPredicate<T>(IObservableAsync<T> source, Func<T, bool> predicate)
+        : ObservableAsync<T>
     {
         /// <summary>The predicate that signals when to stop emitting items.</summary>
         private readonly Func<T, bool> _predicate = predicate;
@@ -132,18 +275,21 @@ public static partial class ObservableAsync
         private readonly IObservableAsync<T> _source = source;
 
         /// <inheritdoc/>
-        protected override async ValueTask<IAsyncDisposable> SubscribeAsyncCore(IObserverAsync<T> observer, CancellationToken cancellationToken)
+        protected override ValueTask<IAsyncDisposable> SubscribeAsyncCore(
+            IObserverAsync<T> observer,
+            CancellationToken cancellationToken)
         {
             var subscription = new TakeUntilPredicateSubscription(this, observer);
-            return await SubscriptionHelper.SubscribeAndDisposeOnFailureAsync(
+            return SubscriptionHelper.SubscribeAndDisposeOnFailureAsync(
                 subscription,
-                () => subscription.SubscribeAsync(cancellationToken));
+                () => subscription.SubscribeSourcesAsync(cancellationToken));
         }
 
         /// <summary>
         /// Observer that forwards items from the source until the predicate returns true.
         /// </summary>
-        internal sealed class TakeUntilPredicateSubscription(TakeUntilPredicate<T> parent, IObserverAsync<T> observer) : ObserverAsync<T>
+        internal sealed class TakeUntilPredicateSubscription(TakeUntilPredicate<T> parent, IObserverAsync<T> observer)
+            : ObserverAsync<T>
         {
             /// <summary>The inner subscription handle.</summary>
             private IAsyncDisposable? _subscription;
@@ -153,7 +299,8 @@ public static partial class ObservableAsync
             /// </summary>
             /// <param name="cancellationToken">A token to cancel the subscription.</param>
             /// <returns>A task representing the asynchronous subscribe operation.</returns>
-            public async ValueTask SubscribeAsync(CancellationToken cancellationToken) => _subscription = await parent._source.SubscribeAsync(this, cancellationToken);
+            public async ValueTask SubscribeSourcesAsync(CancellationToken cancellationToken) =>
+                _subscription = await parent._source.SubscribeAsync(this, cancellationToken).ConfigureAwait(false);
 
             /// <inheritdoc/>
             protected override ValueTask OnNextAsyncCore(T value, CancellationToken cancellationToken)
@@ -167,7 +314,8 @@ public static partial class ObservableAsync
             }
 
             /// <inheritdoc/>
-            protected override ValueTask OnErrorResumeAsyncCore(Exception error, CancellationToken cancellationToken) => observer.OnErrorResumeAsync(error, cancellationToken);
+            protected override ValueTask OnErrorResumeAsyncCore(Exception error, CancellationToken cancellationToken) =>
+                observer.OnErrorResumeAsync(error, cancellationToken);
 
             /// <inheritdoc/>
             protected override ValueTask OnCompletedAsyncCore(Result result) => observer.OnCompletedAsync(result);
@@ -177,10 +325,10 @@ public static partial class ObservableAsync
             {
                 if (_subscription is not null)
                 {
-                    await _subscription.DisposeAsync();
+                    await _subscription.DisposeAsync().ConfigureAwait(false);
                 }
 
-                await base.DisposeAsyncCore();
+                await base.DisposeAsyncCore().ConfigureAwait(false);
             }
         }
     }
@@ -189,7 +337,8 @@ public static partial class ObservableAsync
     /// Async observable that emits items from the source until the specified cancellation token is canceled.
     /// </summary>
     /// <typeparam name="T">The type of the elements in the source sequence.</typeparam>
-    internal sealed class TakeUntilCancellationToken<T>(IObservableAsync<T> source, CancellationToken cancellationToken) : ObservableAsync<T>
+    internal sealed class TakeUntilCancellationToken<T>(IObservableAsync<T> source, CancellationToken cancellationToken)
+        : ObservableAsync<T>
     {
         /// <summary>The source observable sequence.</summary>
         private readonly IObservableAsync<T> _source = source;
@@ -198,12 +347,15 @@ public static partial class ObservableAsync
         private readonly CancellationToken _cancellationToken = cancellationToken;
 
         /// <inheritdoc/>
-        protected override async ValueTask<IAsyncDisposable> SubscribeAsyncCore(IObserverAsync<T> observer, CancellationToken cancellationToken)
+        protected override ValueTask<IAsyncDisposable> SubscribeAsyncCore(
+            IObserverAsync<T> observer,
+            CancellationToken cancellationToken)
         {
             var subscription = new Subscription(this, observer);
-            return await SubscriptionHelper.SubscribeAndDisposeOnFailureAsync(
+            subscription.LinkExternalCancellation(cancellationToken);
+            return SubscriptionHelper.SubscribeAndDisposeOnFailureAsync(
                 subscription,
-                () => subscription.SubscribeAsync(cancellationToken));
+                () => subscription.SubscribeSourcesAsync(cancellationToken));
         }
 
         /// <summary>
@@ -226,11 +378,14 @@ public static partial class ObservableAsync
             /// <summary>A cached token from <see cref="_cts"/> used to link with per-emission tokens.</summary>
             private readonly CancellationToken _disposeCancellationToken;
 
+            /// <summary>Registration that propagates the original subscribe-token cancellation into <see cref="_cts"/>.</summary>
+            private CancellationTokenRegistration _externalLinkRegistration;
+
             /// <summary>The inner subscription handle.</summary>
             private IAsyncDisposable? _subscription;
 
             /// <summary>The registration handle for the external cancellation token callback.</summary>
-            private IDisposable? _tokenRegistration;
+            private CancellationTokenRegistration? _tokenRegistration;
 
             /// <summary>
             /// Initializes a new instance of the <see cref="Subscription"/> class.
@@ -249,10 +404,10 @@ public static partial class ObservableAsync
             /// </summary>
             /// <param name="cancellationToken">A token to cancel the subscription.</param>
             /// <returns>A task representing the asynchronous subscribe operation.</returns>
-            public async ValueTask SubscribeAsync(CancellationToken cancellationToken)
+            public async ValueTask SubscribeSourcesAsync(CancellationToken cancellationToken)
             {
                 _tokenRegistration = _parent._cancellationToken.Register(OnTokenCanceled);
-                _subscription = await _parent._source.SubscribeAsync(new SourceObserver(this), cancellationToken);
+                _subscription = await _parent._source.SubscribeAsync(new SourceObserver(this), cancellationToken).ConfigureAwait(false);
             }
 
             /// <summary>
@@ -261,15 +416,52 @@ public static partial class ObservableAsync
             /// <returns>A task representing the asynchronous dispose operation.</returns>
             public async ValueTask DisposeAsync()
             {
-                _cts.Cancel();
+                await _cts.CancelAsync().ConfigureAwait(false);
+#if NETCOREAPP3_0_OR_GREATER || NETSTANDARD2_1_OR_GREATER
+                await _externalLinkRegistration.DisposeAsync().ConfigureAwait(false);
+#else
+                _externalLinkRegistration.Dispose();
+#endif
                 _cts.Dispose();
-                _tokenRegistration?.Dispose();
+                if (_tokenRegistration is { } reg)
+                {
+#if NET8_0_OR_GREATER
+                    await reg.DisposeAsync().ConfigureAwait(false);
+#else
+                    reg.Dispose();
+#endif
+                }
+
                 if (_subscription is not null)
                 {
-                    await _subscription.DisposeAsync();
+                    await _subscription.DisposeAsync().ConfigureAwait(false);
                 }
 
                 _gate.Dispose();
+            }
+
+            /// <summary>
+            /// Links the original subscribe-time cancellation token into this subscription's dispose chain so
+            /// later per-emission methods can rely on <see cref="_disposeCancellationToken"/> instead of
+            /// allocating a per-emission linked CTS.
+            /// </summary>
+            /// <param name="external">The subscribe-time token.</param>
+            internal void LinkExternalCancellation(CancellationToken external)
+            {
+                if (!external.CanBeCanceled || external == _disposeCancellationToken)
+                {
+                    return;
+                }
+
+                if (external.IsCancellationRequested)
+                {
+                    _cts.Cancel();
+                    return;
+                }
+
+                _externalLinkRegistration = external.UnsafeRegister(
+                    static state => ((CancellationTokenSource)state!).Cancel(),
+                    _cts);
             }
 
             /// <summary>
@@ -278,7 +470,7 @@ public static partial class ObservableAsync
             internal void OnTokenCanceled() => FireAndForgetHelper.Run(async () =>
             {
                 await Task.Yield();
-                await ForwardOnCompletedAsync(Result.Success);
+                await ForwardOnCompletedAsync(Result.Success).ConfigureAwait(false);
             });
 
             /// <summary>
@@ -289,10 +481,10 @@ public static partial class ObservableAsync
             /// <returns>A task representing the asynchronous forward operation.</returns>
             internal async ValueTask ForwardOnNextAsync(T value, CancellationToken cancellationToken)
             {
-                using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(_disposeCancellationToken, cancellationToken);
-                using (await _gate.LockAsync())
+                _ = cancellationToken;
+                using (await _gate.LockAsync(_disposeCancellationToken).ConfigureAwait(false))
                 {
-                    await _observer.OnNextAsync(value, linkedCts.Token);
+                    await _observer.OnNextAsync(value, _disposeCancellationToken).ConfigureAwait(false);
                 }
             }
 
@@ -304,10 +496,10 @@ public static partial class ObservableAsync
             /// <returns>A task representing the asynchronous forward operation.</returns>
             internal async ValueTask ForwardOnErrorResumeAsync(Exception error, CancellationToken cancellationToken)
             {
-                using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(_disposeCancellationToken, cancellationToken);
-                using (await _gate.LockAsync())
+                _ = cancellationToken;
+                using (await _gate.LockAsync(_disposeCancellationToken).ConfigureAwait(false))
                 {
-                    await _observer.OnErrorResumeAsync(error, linkedCts.Token);
+                    await _observer.OnErrorResumeAsync(error, _disposeCancellationToken).ConfigureAwait(false);
                 }
             }
 
@@ -318,9 +510,9 @@ public static partial class ObservableAsync
             /// <returns>A task representing the asynchronous forward operation.</returns>
             internal async ValueTask ForwardOnCompletedAsync(Result result)
             {
-                using (await _gate.LockAsync())
+                using (await _gate.LockAsync().ConfigureAwait(false))
                 {
-                    await _observer.OnCompletedAsync(result);
+                    await _observer.OnCompletedAsync(result).ConfigureAwait(false);
                 }
             }
 
@@ -330,13 +522,17 @@ public static partial class ObservableAsync
             internal sealed class SourceObserver(Subscription parent) : ObserverAsync<T>
             {
                 /// <inheritdoc/>
-                protected override ValueTask OnNextAsyncCore(T value, CancellationToken cancellationToken) => parent.ForwardOnNextAsync(value, cancellationToken);
+                protected override ValueTask OnNextAsyncCore(T value, CancellationToken cancellationToken) =>
+                    parent.ForwardOnNextAsync(value, cancellationToken);
 
                 /// <inheritdoc/>
-                protected override ValueTask OnErrorResumeAsyncCore(Exception error, CancellationToken cancellationToken) => parent.ForwardOnErrorResumeAsync(error, cancellationToken);
+                protected override ValueTask OnErrorResumeAsyncCore(
+                    Exception error,
+                    CancellationToken cancellationToken) => parent.ForwardOnErrorResumeAsync(error, cancellationToken);
 
                 /// <inheritdoc/>
-                protected override ValueTask OnCompletedAsyncCore(Result result) => parent.ForwardOnCompletedAsync(result);
+                protected override ValueTask OnCompletedAsyncCore(Result result) =>
+                    parent.ForwardOnCompletedAsync(result);
             }
         }
     }
@@ -345,7 +541,10 @@ public static partial class ObservableAsync
     /// Async observable that emits items from the source until a raw completion signal fires.
     /// </summary>
     /// <typeparam name="T">The type of the elements in the source sequence.</typeparam>
-    internal sealed class TakeUntilFromRawSignal<T>(IObservableAsync<T> source, CompletionObservableDelegate stopSignalSignal, TakeUntilOptions options) : ObservableAsync<T>
+    internal sealed class TakeUntilFromRawSignal<T>(
+        IObservableAsync<T> source,
+        CompletionObservableDelegate stopSignalSignal,
+        TakeUntilOptions options) : ObservableAsync<T>
     {
         /// <summary>The source observable sequence.</summary>
         private readonly IObservableAsync<T> _source = source;
@@ -357,12 +556,15 @@ public static partial class ObservableAsync
         private readonly TakeUntilOptions _options = options;
 
         /// <inheritdoc/>
-        protected override async ValueTask<IAsyncDisposable> SubscribeAsyncCore(IObserverAsync<T> observer, CancellationToken cancellationToken)
+        protected override ValueTask<IAsyncDisposable> SubscribeAsyncCore(
+            IObserverAsync<T> observer,
+            CancellationToken cancellationToken)
         {
             var subscription = new Subscription(this, observer);
-            return await SubscriptionHelper.SubscribeAndDisposeOnFailureAsync(
+            subscription.LinkExternalCancellation(cancellationToken);
+            return SubscriptionHelper.SubscribeAndDisposeOnFailureAsync(
                 subscription,
-                () => subscription.SubscribeAsync(cancellationToken));
+                () => subscription.SubscribeSourcesAsync(cancellationToken));
         }
 
         /// <summary>
@@ -385,6 +587,9 @@ public static partial class ObservableAsync
             /// <summary>A cached token from <see cref="_cts"/> used to link with per-emission tokens.</summary>
             private readonly CancellationToken _disposeCancellationToken;
 
+            /// <summary>Registration that propagates the original subscribe-token cancellation into <see cref="_cts"/>.</summary>
+            private CancellationTokenRegistration _externalLinkRegistration;
+
             /// <summary>The inner subscription handle.</summary>
             private IAsyncDisposable? _subscription;
 
@@ -405,10 +610,10 @@ public static partial class ObservableAsync
             /// </summary>
             /// <param name="cancellationToken">A token to cancel the subscription.</param>
             /// <returns>A task representing the asynchronous subscribe operation.</returns>
-            public async ValueTask SubscribeAsync(CancellationToken cancellationToken)
+            public async ValueTask SubscribeSourcesAsync(CancellationToken cancellationToken)
             {
                 WaitAndComplete();
-                _subscription = await _parent._source.SubscribeAsync(new SourceObserver(this), cancellationToken);
+                _subscription = await _parent._source.SubscribeAsync(new SourceObserver(this), cancellationToken).ConfigureAwait(false);
             }
 
             /// <summary>
@@ -417,14 +622,43 @@ public static partial class ObservableAsync
             /// <returns>A task representing the asynchronous dispose operation.</returns>
             public async ValueTask DisposeAsync()
             {
-                _cts.Cancel();
+                await _cts.CancelAsync().ConfigureAwait(false);
+#if NETCOREAPP3_0_OR_GREATER || NETSTANDARD2_1_OR_GREATER
+                await _externalLinkRegistration.DisposeAsync().ConfigureAwait(false);
+#else
+                _externalLinkRegistration.Dispose();
+#endif
                 _cts.Dispose();
                 if (_subscription is not null)
                 {
-                    await _subscription.DisposeAsync();
+                    await _subscription.DisposeAsync().ConfigureAwait(false);
                 }
 
                 _gate.Dispose();
+            }
+
+            /// <summary>
+            /// Links the original subscribe-time cancellation token into this subscription's dispose chain so
+            /// later per-emission methods can rely on <see cref="_disposeCancellationToken"/> instead of
+            /// allocating a per-emission linked CTS.
+            /// </summary>
+            /// <param name="external">The subscribe-time token.</param>
+            internal void LinkExternalCancellation(CancellationToken external)
+            {
+                if (!external.CanBeCanceled || external == _disposeCancellationToken)
+                {
+                    return;
+                }
+
+                if (external.IsCancellationRequested)
+                {
+                    _cts.Cancel();
+                    return;
+                }
+
+                _externalLinkRegistration = external.UnsafeRegister(
+                    static state => ((CancellationTokenSource)state!).Cancel(),
+                    _cts);
             }
 
             /// <summary>
@@ -450,23 +684,23 @@ public static partial class ObservableAsync
 
                 try
                 {
-                    await tcs.Task.WaitAsync(System.Threading.Timeout.InfiniteTimeSpan, _disposeCancellationToken);
+                    await tcs.Task.WaitAsync(System.Threading.Timeout.InfiniteTimeSpan, _disposeCancellationToken).ConfigureAwait(false);
                     try
                     {
-                        await disposable.DisposeAsync();
+                        await disposable.DisposeAsync().ConfigureAwait(false);
                     }
                     catch
                     {
                         // Ignored
                     }
 
-                    await ForwardOnCompletedAsync(Result.Success);
+                    await ForwardOnCompletedAsync(Result.Success).ConfigureAwait(false);
                 }
                 catch (Exception e)
                 {
                     try
                     {
-                        await disposable.DisposeAsync();
+                        await disposable.DisposeAsync().ConfigureAwait(false);
                     }
                     catch
                     {
@@ -475,11 +709,11 @@ public static partial class ObservableAsync
 
                     if (_parent._options.SourceFailsWhenOtherFails)
                     {
-                        await ForwardOnCompletedAsync(Result.Failure(e));
+                        await ForwardOnCompletedAsync(Result.Failure(e)).ConfigureAwait(false);
                     }
                     else
                     {
-                        await ForwardOnErrorResumeAsync(e, CancellationToken.None);
+                        await ForwardOnErrorResumeAsync(e, CancellationToken.None).ConfigureAwait(false);
                     }
                 }
             });
@@ -492,10 +726,10 @@ public static partial class ObservableAsync
             /// <returns>A task representing the asynchronous forward operation.</returns>
             internal async ValueTask ForwardOnNextAsync(T value, CancellationToken cancellationToken)
             {
-                using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(_disposeCancellationToken, cancellationToken);
-                using (await _gate.LockAsync())
+                _ = cancellationToken;
+                using (await _gate.LockAsync(_disposeCancellationToken).ConfigureAwait(false))
                 {
-                    await _observer.OnNextAsync(value, linkedCts.Token);
+                    await _observer.OnNextAsync(value, _disposeCancellationToken).ConfigureAwait(false);
                 }
             }
 
@@ -507,10 +741,10 @@ public static partial class ObservableAsync
             /// <returns>A task representing the asynchronous forward operation.</returns>
             internal async ValueTask ForwardOnErrorResumeAsync(Exception error, CancellationToken cancellationToken)
             {
-                using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(_disposeCancellationToken, cancellationToken);
-                using (await _gate.LockAsync())
+                _ = cancellationToken;
+                using (await _gate.LockAsync(_disposeCancellationToken).ConfigureAwait(false))
                 {
-                    await _observer.OnErrorResumeAsync(error, linkedCts.Token);
+                    await _observer.OnErrorResumeAsync(error, _disposeCancellationToken).ConfigureAwait(false);
                 }
             }
 
@@ -521,9 +755,9 @@ public static partial class ObservableAsync
             /// <returns>A task representing the asynchronous forward operation.</returns>
             internal async ValueTask ForwardOnCompletedAsync(Result result)
             {
-                using (await _gate.LockAsync())
+                using (await _gate.LockAsync().ConfigureAwait(false))
                 {
-                    await _observer.OnCompletedAsync(result);
+                    await _observer.OnCompletedAsync(result).ConfigureAwait(false);
                 }
             }
 
@@ -537,7 +771,9 @@ public static partial class ObservableAsync
                     parent.ForwardOnNextAsync(value, cancellationToken);
 
                 /// <inheritdoc/>
-                protected override ValueTask OnErrorResumeAsyncCore(Exception error, CancellationToken cancellationToken) =>
+                protected override ValueTask OnErrorResumeAsyncCore(
+                    Exception error,
+                    CancellationToken cancellationToken) =>
                     parent.ForwardOnErrorResumeAsync(error, cancellationToken);
 
                 /// <inheritdoc/>
@@ -551,7 +787,8 @@ public static partial class ObservableAsync
     /// Async observable that emits items from the source until the specified task completes.
     /// </summary>
     /// <typeparam name="T">The type of the elements in the source sequence.</typeparam>
-    internal sealed class TakeUntilTask<T>(IObservableAsync<T> source, Task task, TakeUntilOptions options) : ObservableAsync<T>
+    internal sealed class TakeUntilTask<T>(IObservableAsync<T> source, Task task, TakeUntilOptions options)
+        : ObservableAsync<T>
     {
         /// <summary>The source observable sequence.</summary>
         private readonly IObservableAsync<T> _source = source;
@@ -563,12 +800,15 @@ public static partial class ObservableAsync
         private readonly TakeUntilOptions _options = options;
 
         /// <inheritdoc/>
-        protected override async ValueTask<IAsyncDisposable> SubscribeAsyncCore(IObserverAsync<T> observer, CancellationToken cancellationToken)
+        protected override ValueTask<IAsyncDisposable> SubscribeAsyncCore(
+            IObserverAsync<T> observer,
+            CancellationToken cancellationToken)
         {
             var subscription = new Subscription(this, observer);
-            return await SubscriptionHelper.SubscribeAndDisposeOnFailureAsync(
+            subscription.LinkExternalCancellation(cancellationToken);
+            return SubscriptionHelper.SubscribeAndDisposeOnFailureAsync(
                 subscription,
-                () => subscription.SubscribeAsync(cancellationToken));
+                () => subscription.SubscribeSourcesAsync(cancellationToken));
         }
 
         /// <summary>
@@ -591,6 +831,9 @@ public static partial class ObservableAsync
             /// <summary>A cached token from <see cref="_cts"/> used to link with per-emission tokens.</summary>
             private readonly CancellationToken _disposeCancellationToken;
 
+            /// <summary>Registration that propagates the original subscribe-token cancellation into <see cref="_cts"/>.</summary>
+            private CancellationTokenRegistration _externalLinkRegistration;
+
             /// <summary>The inner subscription handle.</summary>
             private IAsyncDisposable? _subscription;
 
@@ -611,11 +854,11 @@ public static partial class ObservableAsync
             /// </summary>
             /// <param name="cancellationToken">A token to cancel the subscription.</param>
             /// <returns>A task representing the asynchronous subscribe operation.</returns>
-            public async ValueTask SubscribeAsync(CancellationToken cancellationToken)
+            public async ValueTask SubscribeSourcesAsync(CancellationToken cancellationToken)
             {
                 var task = _parent._task;
                 WaitAndComplete(task);
-                _subscription = await _parent._source.SubscribeAsync(new SourceObserver(this), cancellationToken);
+                _subscription = await _parent._source.SubscribeAsync(new SourceObserver(this), cancellationToken).ConfigureAwait(false);
             }
 
             /// <summary>
@@ -624,14 +867,43 @@ public static partial class ObservableAsync
             /// <returns>A task representing the asynchronous dispose operation.</returns>
             public async ValueTask DisposeAsync()
             {
-                _cts.Cancel();
+                await _cts.CancelAsync().ConfigureAwait(false);
+#if NETCOREAPP3_0_OR_GREATER || NETSTANDARD2_1_OR_GREATER
+                await _externalLinkRegistration.DisposeAsync().ConfigureAwait(false);
+#else
+                _externalLinkRegistration.Dispose();
+#endif
                 _cts.Dispose();
                 if (_subscription is not null)
                 {
-                    await _subscription.DisposeAsync();
+                    await _subscription.DisposeAsync().ConfigureAwait(false);
                 }
 
                 _gate.Dispose();
+            }
+
+            /// <summary>
+            /// Links the original subscribe-time cancellation token into this subscription's dispose chain so
+            /// later per-emission methods can rely on <see cref="_disposeCancellationToken"/> instead of
+            /// allocating a per-emission linked CTS.
+            /// </summary>
+            /// <param name="external">The subscribe-time token.</param>
+            internal void LinkExternalCancellation(CancellationToken external)
+            {
+                if (!external.CanBeCanceled || external == _disposeCancellationToken)
+                {
+                    return;
+                }
+
+                if (external.IsCancellationRequested)
+                {
+                    _cts.Cancel();
+                    return;
+                }
+
+                _externalLinkRegistration = external.UnsafeRegister(
+                    static state => ((CancellationTokenSource)state!).Cancel(),
+                    _cts);
             }
 
             /// <summary>
@@ -642,18 +914,18 @@ public static partial class ObservableAsync
             {
                 try
                 {
-                    await task.WaitAsync(System.Threading.Timeout.InfiniteTimeSpan, _disposeCancellationToken);
-                    await ForwardOnCompletedAsync(Result.Success);
+                    await task.WaitAsync(System.Threading.Timeout.InfiniteTimeSpan, _disposeCancellationToken).ConfigureAwait(false);
+                    await ForwardOnCompletedAsync(Result.Success).ConfigureAwait(false);
                 }
                 catch (Exception e)
                 {
                     if (_parent._options.SourceFailsWhenOtherFails)
                     {
-                        await ForwardOnCompletedAsync(Result.Failure(e));
+                        await ForwardOnCompletedAsync(Result.Failure(e)).ConfigureAwait(false);
                     }
                     else
                     {
-                        await ForwardOnErrorResumeAsync(e, CancellationToken.None);
+                        await ForwardOnErrorResumeAsync(e, CancellationToken.None).ConfigureAwait(false);
                     }
                 }
             });
@@ -666,10 +938,10 @@ public static partial class ObservableAsync
             /// <returns>A task representing the asynchronous forward operation.</returns>
             internal async ValueTask ForwardOnNextAsync(T value, CancellationToken cancellationToken)
             {
-                using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(_disposeCancellationToken, cancellationToken);
-                using (await _gate.LockAsync())
+                _ = cancellationToken;
+                using (await _gate.LockAsync(_disposeCancellationToken).ConfigureAwait(false))
                 {
-                    await _observer.OnNextAsync(value, linkedCts.Token);
+                    await _observer.OnNextAsync(value, _disposeCancellationToken).ConfigureAwait(false);
                 }
             }
 
@@ -681,10 +953,10 @@ public static partial class ObservableAsync
             /// <returns>A task representing the asynchronous forward operation.</returns>
             internal async ValueTask ForwardOnErrorResumeAsync(Exception error, CancellationToken cancellationToken)
             {
-                using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(_disposeCancellationToken, cancellationToken);
-                using (await _gate.LockAsync())
+                _ = cancellationToken;
+                using (await _gate.LockAsync(_disposeCancellationToken).ConfigureAwait(false))
                 {
-                    await _observer.OnErrorResumeAsync(error, linkedCts.Token);
+                    await _observer.OnErrorResumeAsync(error, _disposeCancellationToken).ConfigureAwait(false);
                 }
             }
 
@@ -695,9 +967,9 @@ public static partial class ObservableAsync
             /// <returns>A task representing the asynchronous forward operation.</returns>
             internal async ValueTask ForwardOnCompletedAsync(Result result)
             {
-                using (await _gate.LockAsync())
+                using (await _gate.LockAsync().ConfigureAwait(false))
                 {
-                    await _observer.OnCompletedAsync(result);
+                    await _observer.OnCompletedAsync(result).ConfigureAwait(false);
                 }
             }
 
@@ -711,11 +983,14 @@ public static partial class ObservableAsync
                     parent.ForwardOnNextAsync(value, cancellationToken);
 
                 /// <inheritdoc/>
-                protected override ValueTask OnErrorResumeAsyncCore(Exception error, CancellationToken cancellationToken) =>
+                protected override ValueTask OnErrorResumeAsyncCore(
+                    Exception error,
+                    CancellationToken cancellationToken) =>
                     parent.ForwardOnErrorResumeAsync(error, cancellationToken);
 
                 /// <inheritdoc/>
-                protected override ValueTask OnCompletedAsyncCore(Result result) => parent.ForwardOnCompletedAsync(result);
+                protected override ValueTask OnCompletedAsyncCore(Result result) =>
+                    parent.ForwardOnCompletedAsync(result);
             }
         }
     }
@@ -725,7 +1000,10 @@ public static partial class ObservableAsync
     /// </summary>
     /// <typeparam name="T">The type of the elements in the source sequence.</typeparam>
     /// <typeparam name="TOther">The type of the elements in the signal sequence.</typeparam>
-    internal sealed class TakeUntilAsyncObservable<T, TOther>(IObservableAsync<T> source, IObservableAsync<TOther> other, TakeUntilOptions options) : ObservableAsync<T>
+    internal sealed class TakeUntilAsyncObservable<T, TOther>(
+        IObservableAsync<T> source,
+        IObservableAsync<TOther> other,
+        TakeUntilOptions options) : ObservableAsync<T>
     {
         /// <summary>The source observable sequence.</summary>
         private readonly IObservableAsync<T> _source = source;
@@ -737,12 +1015,15 @@ public static partial class ObservableAsync
         private readonly TakeUntilOptions _options = options;
 
         /// <inheritdoc/>
-        protected override async ValueTask<IAsyncDisposable> SubscribeAsyncCore(IObserverAsync<T> observer, CancellationToken cancellationToken)
+        protected override ValueTask<IAsyncDisposable> SubscribeAsyncCore(
+            IObserverAsync<T> observer,
+            CancellationToken cancellationToken)
         {
             var subscription = new Subscription(this, observer);
-            return await SubscriptionHelper.SubscribeAndDisposeOnFailureAsync(
+            subscription.LinkExternalCancellation(cancellationToken);
+            return SubscriptionHelper.SubscribeAndDisposeOnFailureAsync(
                 subscription,
-                async () => { await subscription.SubscribeAsync(cancellationToken); });
+                async () => await subscription.SubscribeSourcesAsync(cancellationToken).ConfigureAwait(false));
         }
 
         /// <summary>
@@ -771,6 +1052,9 @@ public static partial class ObservableAsync
             /// <summary>A cached token from <see cref="_cts"/> used to link with per-emission tokens.</summary>
             private readonly CancellationToken _disposeCancellationToken;
 
+            /// <summary>Registration that propagates the original subscribe-token cancellation into <see cref="_cts"/>.</summary>
+            private CancellationTokenRegistration _externalLinkRegistration;
+
             /// <summary>
             /// Initializes a new instance of the <see cref="Subscription"/> class.
             /// </summary>
@@ -788,13 +1072,14 @@ public static partial class ObservableAsync
             /// </summary>
             /// <param name="cancellationToken">A token to cancel the subscription.</param>
             /// <returns>This subscription as an async disposable.</returns>
-            public async ValueTask<IAsyncDisposable> SubscribeAsync(CancellationToken cancellationToken)
+            public async ValueTask<IAsyncDisposable> SubscribeSourcesAsync(CancellationToken cancellationToken)
             {
-                var otherSubscription = await _parent._other.SubscribeAsync(new OtherObserver(this), cancellationToken);
-                await _otherDisposable.SetDisposableAsync(otherSubscription);
+                var otherSubscription = await _parent._other.SubscribeAsync(new OtherObserver(this), cancellationToken).ConfigureAwait(false);
+                await _otherDisposable.SetDisposableAsync(otherSubscription).ConfigureAwait(false);
 
-                var sourceSubscription = await _parent._source.SubscribeAsync(new FirstSubscription(this), cancellationToken);
-                await _disposable.SetDisposableAsync(sourceSubscription);
+                var sourceSubscription =
+                    await _parent._source.SubscribeAsync(new FirstSubscription(this), cancellationToken).ConfigureAwait(false);
+                await _disposable.SetDisposableAsync(sourceSubscription).ConfigureAwait(false);
 
                 return this;
             }
@@ -805,11 +1090,40 @@ public static partial class ObservableAsync
             /// <returns>A task representing the asynchronous dispose operation.</returns>
             public async ValueTask DisposeAsync()
             {
-                _cts.Cancel();
-                await _otherDisposable.DisposeAsync();
-                await _disposable.DisposeAsync();
+                await _cts.CancelAsync().ConfigureAwait(false);
+                await _otherDisposable.DisposeAsync().ConfigureAwait(false);
+                await _disposable.DisposeAsync().ConfigureAwait(false);
+#if NETCOREAPP3_0_OR_GREATER || NETSTANDARD2_1_OR_GREATER
+                await _externalLinkRegistration.DisposeAsync().ConfigureAwait(false);
+#else
+                _externalLinkRegistration.Dispose();
+#endif
                 _cts.Dispose();
                 _gate.Dispose();
+            }
+
+            /// <summary>
+            /// Links the original subscribe-time cancellation token into this subscription's dispose chain so
+            /// later per-emission methods can rely on <see cref="_disposeCancellationToken"/> instead of
+            /// allocating a per-emission linked CTS.
+            /// </summary>
+            /// <param name="external">The subscribe-time token.</param>
+            internal void LinkExternalCancellation(CancellationToken external)
+            {
+                if (!external.CanBeCanceled || external == _disposeCancellationToken)
+                {
+                    return;
+                }
+
+                if (external.IsCancellationRequested)
+                {
+                    _cts.Cancel();
+                    return;
+                }
+
+                _externalLinkRegistration = external.UnsafeRegister(
+                    static state => ((CancellationTokenSource)state!).Cancel(),
+                    _cts);
             }
 
             /// <summary>
@@ -820,10 +1134,10 @@ public static partial class ObservableAsync
             /// <returns>A task representing the asynchronous forward operation.</returns>
             internal async ValueTask ForwardOnNextAsync(T value, CancellationToken cancellationToken)
             {
-                using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(_disposeCancellationToken, cancellationToken);
-                using (await _gate.LockAsync())
+                _ = cancellationToken;
+                using (await _gate.LockAsync(_disposeCancellationToken).ConfigureAwait(false))
                 {
-                    await _observer.OnNextAsync(value, linkedCts.Token);
+                    await _observer.OnNextAsync(value, _disposeCancellationToken).ConfigureAwait(false);
                 }
             }
 
@@ -835,10 +1149,10 @@ public static partial class ObservableAsync
             /// <returns>A task representing the asynchronous forward operation.</returns>
             internal async ValueTask ForwardOnErrorResumeAsync(Exception error, CancellationToken cancellationToken)
             {
-                using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(_disposeCancellationToken, cancellationToken);
-                using (await _gate.LockAsync())
+                _ = cancellationToken;
+                using (await _gate.LockAsync(_disposeCancellationToken).ConfigureAwait(false))
                 {
-                    await _observer.OnErrorResumeAsync(error, linkedCts.Token);
+                    await _observer.OnErrorResumeAsync(error, _disposeCancellationToken).ConfigureAwait(false);
                 }
             }
 
@@ -849,9 +1163,9 @@ public static partial class ObservableAsync
             /// <returns>A task representing the asynchronous forward operation.</returns>
             internal async ValueTask ForwardOnCompletedAsync(Result result)
             {
-                using (await _gate.LockAsync())
+                using (await _gate.LockAsync().ConfigureAwait(false))
                 {
-                    await _observer.OnCompletedAsync(result);
+                    await _observer.OnCompletedAsync(result).ConfigureAwait(false);
                 }
             }
 
@@ -861,13 +1175,17 @@ public static partial class ObservableAsync
             internal sealed class FirstSubscription(Subscription parent) : ObserverAsync<T>
             {
                 /// <inheritdoc/>
-                protected override ValueTask OnNextAsyncCore(T value, CancellationToken cancellationToken) => parent.ForwardOnNextAsync(value, cancellationToken);
+                protected override ValueTask OnNextAsyncCore(T value, CancellationToken cancellationToken) =>
+                    parent.ForwardOnNextAsync(value, cancellationToken);
 
                 /// <inheritdoc/>
-                protected override ValueTask OnErrorResumeAsyncCore(Exception error, CancellationToken cancellationToken) => parent.ForwardOnErrorResumeAsync(error, cancellationToken);
+                protected override ValueTask OnErrorResumeAsyncCore(
+                    Exception error,
+                    CancellationToken cancellationToken) => parent.ForwardOnErrorResumeAsync(error, cancellationToken);
 
                 /// <inheritdoc/>
-                protected override ValueTask OnCompletedAsyncCore(Result result) => parent.ForwardOnCompletedAsync(result);
+                protected override ValueTask OnCompletedAsyncCore(Result result) =>
+                    parent.ForwardOnCompletedAsync(result);
             }
 
             /// <summary>
@@ -878,28 +1196,30 @@ public static partial class ObservableAsync
                 /// <inheritdoc/>
                 protected override async ValueTask OnNextAsyncCore(TOther value, CancellationToken cancellationToken)
                 {
-                    await parent.ForwardOnCompletedAsync(Result.Success);
-                    await DisposeAsync();
+                    await parent.ForwardOnCompletedAsync(Result.Success).ConfigureAwait(false);
+                    await DisposeAsync().ConfigureAwait(false);
                 }
 
                 /// <inheritdoc/>
-                protected override ValueTask OnErrorResumeAsyncCore(Exception error, CancellationToken cancellationToken) =>
+                protected override ValueTask OnErrorResumeAsyncCore(
+                    Exception error,
+                    CancellationToken cancellationToken) =>
                     parent.ForwardOnErrorResumeAsync(error, cancellationToken);
 
                 /// <inheritdoc/>
                 protected override ValueTask OnCompletedAsyncCore(Result result)
                 {
-                    if (result.IsFailure)
+                    if (!result.IsFailure)
                     {
-                        if (parent._parent._options.SourceFailsWhenOtherFails)
-                        {
-                            return parent.ForwardOnCompletedAsync(result);
-                        }
-
-                        return parent.ForwardOnCompletedAsync(Result.Success);
+                        return default;
                     }
 
-                    return default;
+                    if (parent._parent._options.SourceFailsWhenOtherFails)
+                    {
+                        return parent.ForwardOnCompletedAsync(result);
+                    }
+
+                    return parent.ForwardOnCompletedAsync(Result.Success);
                 }
             }
         }
@@ -909,7 +1229,9 @@ public static partial class ObservableAsync
     /// Async observable that emits items from the source until the specified asynchronous predicate returns true.
     /// </summary>
     /// <typeparam name="T">The type of the elements in the source sequence.</typeparam>
-    internal sealed class TakeUntilAsyncPredicate<T>(IObservableAsync<T> source, Func<T, CancellationToken, ValueTask<bool>> asyncPredicate) : ObservableAsync<T>
+    internal sealed class TakeUntilAsyncPredicate<T>(
+        IObservableAsync<T> source,
+        Func<T, CancellationToken, ValueTask<bool>> asyncPredicate) : ObservableAsync<T>
     {
         /// <summary>The async predicate that signals when to stop emitting items.</summary>
         private readonly Func<T, CancellationToken, ValueTask<bool>> _asyncPredicate = asyncPredicate;
@@ -918,18 +1240,22 @@ public static partial class ObservableAsync
         private readonly IObservableAsync<T> _source = source;
 
         /// <inheritdoc/>
-        protected override async ValueTask<IAsyncDisposable> SubscribeAsyncCore(IObserverAsync<T> observer, CancellationToken cancellationToken)
+        protected override ValueTask<IAsyncDisposable> SubscribeAsyncCore(
+            IObserverAsync<T> observer,
+            CancellationToken cancellationToken)
         {
             var subscription = new TakeUntilAsyncPredicateSubscription(this, observer);
-            return await SubscriptionHelper.SubscribeAndDisposeOnFailureAsync(
+            return SubscriptionHelper.SubscribeAndDisposeOnFailureAsync(
                 subscription,
-                () => subscription.SubscribeAsync(cancellationToken));
+                () => subscription.SubscribeSourcesAsync(cancellationToken));
         }
 
         /// <summary>
         /// Observer that forwards items from the source until the async predicate returns true.
         /// </summary>
-        internal sealed class TakeUntilAsyncPredicateSubscription(TakeUntilAsyncPredicate<T> parent, IObserverAsync<T> observer) : ObserverAsync<T>
+        internal sealed class TakeUntilAsyncPredicateSubscription(
+            TakeUntilAsyncPredicate<T> parent,
+            IObserverAsync<T> observer) : ObserverAsync<T>
         {
             /// <summary>The inner subscription handle.</summary>
             private IAsyncDisposable? _subscription;
@@ -939,22 +1265,24 @@ public static partial class ObservableAsync
             /// </summary>
             /// <param name="cancellationToken">A token to cancel the subscription.</param>
             /// <returns>A task representing the asynchronous subscribe operation.</returns>
-            public async ValueTask SubscribeAsync(CancellationToken cancellationToken) => _subscription = await parent._source.SubscribeAsync(this, cancellationToken);
+            public async ValueTask SubscribeSourcesAsync(CancellationToken cancellationToken) =>
+                _subscription = await parent._source.SubscribeAsync(this, cancellationToken).ConfigureAwait(false);
 
             /// <inheritdoc/>
             protected override async ValueTask OnNextAsyncCore(T value, CancellationToken cancellationToken)
             {
-                if (await parent._asyncPredicate(value, cancellationToken))
+                if (await parent._asyncPredicate(value, cancellationToken).ConfigureAwait(false))
                 {
-                    await OnCompletedAsyncCore(Result.Success);
+                    await OnCompletedAsyncCore(Result.Success).ConfigureAwait(false);
                     return;
                 }
 
-                await observer.OnNextAsync(value, cancellationToken);
+                await observer.OnNextAsync(value, cancellationToken).ConfigureAwait(false);
             }
 
             /// <inheritdoc/>
-            protected override ValueTask OnErrorResumeAsyncCore(Exception error, CancellationToken cancellationToken) => observer.OnErrorResumeAsync(error, cancellationToken);
+            protected override ValueTask OnErrorResumeAsyncCore(Exception error, CancellationToken cancellationToken) =>
+                observer.OnErrorResumeAsync(error, cancellationToken);
 
             /// <inheritdoc/>
             protected override ValueTask OnCompletedAsyncCore(Result result) => observer.OnCompletedAsync(result);
@@ -964,10 +1292,10 @@ public static partial class ObservableAsync
             {
                 if (_subscription is not null)
                 {
-                    await _subscription.DisposeAsync();
+                    await _subscription.DisposeAsync().ConfigureAwait(false);
                 }
 
-                await base.DisposeAsyncCore();
+                await base.DisposeAsyncCore().ConfigureAwait(false);
             }
         }
     }

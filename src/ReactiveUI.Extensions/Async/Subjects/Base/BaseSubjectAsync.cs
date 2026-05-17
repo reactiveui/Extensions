@@ -4,6 +4,7 @@
 
 using System.Collections.Immutable;
 using ReactiveUI.Extensions.Async.Disposables;
+using ReactiveUI.Extensions.Internal;
 
 namespace ReactiveUI.Extensions.Async.Subjects;
 
@@ -140,10 +141,12 @@ public abstract class BaseSubjectAsync<T> : ObservableAsync<T>, ISubjectAsync<T>
     /// <param name="cancellationToken">A cancellation token that can be used to cancel the subscription operation.</param>
     /// <returns>A task that represents the asynchronous subscription operation. The result contains a disposable object that can
     /// be used to unsubscribe the observer.</returns>
-    protected override async ValueTask<IAsyncDisposable> SubscribeAsyncCore(IObserverAsync<T> observer, CancellationToken cancellationToken)
+    protected override async ValueTask<IAsyncDisposable> SubscribeAsyncCore(
+        IObserverAsync<T> observer,
+        CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        ArgumentExceptionHelper.ThrowIfNull(observer, nameof(observer));
+        ArgumentExceptionHelper.ThrowIfNull(observer);
 
         Result? result;
 
@@ -158,19 +161,21 @@ public abstract class BaseSubjectAsync<T> : ObservableAsync<T>, ISubjectAsync<T>
 
         if (result is not null)
         {
-            await observer.OnCompletedAsync(result.Value);
+            await observer.OnCompletedAsync(result.Value).ConfigureAwait(false);
             return DisposableAsync.Empty;
         }
 
-        return DisposableAsync.Create(() =>
-        {
-            lock (_gate)
+        return DisposableAsync.Create(
+            (subject: this, observer),
+            static state =>
             {
-                _observers = _observers.Remove(observer);
-            }
+                lock (state.subject._gate)
+                {
+                    state.subject._observers = state.subject._observers.Remove(state.observer);
+                }
 
-            return default;
-        });
+                return default;
+            });
     }
 
     /// <summary>
@@ -180,7 +185,10 @@ public abstract class BaseSubjectAsync<T> : ObservableAsync<T>, ISubjectAsync<T>
     /// <param name="value">The value to send to each observer.</param>
     /// <param name="cancellationToken">A cancellation token that can be used to cancel the notification operation.</param>
     /// <returns>A ValueTask that represents the asynchronous notification operation.</returns>
-    protected abstract ValueTask OnNextAsyncCore(IReadOnlyList<IObserverAsync<T>> observers, T value, CancellationToken cancellationToken);
+    protected abstract ValueTask OnNextAsyncCore(
+        ImmutableArray<IObserverAsync<T>> observers,
+        T value,
+        CancellationToken cancellationToken);
 
     /// <summary>
     /// Handles error recovery for the specified observers by resuming asynchronous processing after an error occurs.
@@ -193,7 +201,10 @@ public abstract class BaseSubjectAsync<T> : ObservableAsync<T>, ISubjectAsync<T>
     /// <param name="error">The exception that triggered the error handling logic. Cannot be null.</param>
     /// <param name="cancellationToken">A cancellation token that can be used to cancel the asynchronous error recovery operation.</param>
     /// <returns>A ValueTask that represents the asynchronous error recovery operation.</returns>
-    protected abstract ValueTask OnErrorResumeAsyncCore(IReadOnlyList<IObserverAsync<T>> observers, Exception error, CancellationToken cancellationToken);
+    protected abstract ValueTask OnErrorResumeAsyncCore(
+        ImmutableArray<IObserverAsync<T>> observers,
+        Exception error,
+        CancellationToken cancellationToken);
 
     /// <summary>
     /// Invoked to asynchronously notify all observers of the completion event with the specified result.
@@ -203,5 +214,5 @@ public abstract class BaseSubjectAsync<T> : ObservableAsync<T>, ISubjectAsync<T>
     /// <param name="observers">A read-only list of observers to be notified. Cannot be null.</param>
     /// <param name="result">The result to provide to each observer upon completion.</param>
     /// <returns>A ValueTask that represents the asynchronous notification operation.</returns>
-    protected abstract ValueTask OnCompletedAsyncCore(IReadOnlyList<IObserverAsync<T>> observers, Result result);
+    protected abstract ValueTask OnCompletedAsyncCore(ImmutableArray<IObserverAsync<T>> observers, Result result);
 }

@@ -60,6 +60,6 @@ public class DisposableExtensionsTests
         var result = sut.DisposeWith(compositeDisposable);
 
         // Then
-        await Assert.That(result).IsEquivalentTo(sut);
+        await Assert.That(result).IsCollectionEqualTo(sut);
     }
 }

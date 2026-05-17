@@ -15,6 +15,27 @@ namespace ReactiveUI.Extensions.Tests.Async;
 /// </summary>
 public class BridgeTests
 {
+    /// <summary>Sentinel value (42) used by tests.</summary>
+    private const int SentinelValue = 42;
+
+    /// <summary>Propagation delay ms (200).</summary>
+    private const int PropagationDelayMs = 200;
+
+    /// <summary>Sequence item two (2).</summary>
+    private const int SequenceItemTwo = 2;
+
+    /// <summary>Sequence item three (3).</summary>
+    private const int SequenceItemThree = 3;
+
+    /// <summary>Sequence item four (4).</summary>
+    private const int SequenceItemFour = 4;
+
+    /// <summary>Sequence item five (5).</summary>
+    private const int SequenceItemFive = 5;
+
+    /// <summary>Hoisted source array used by tests (was inline literal).</summary>
+    private static readonly string[] SequenceABC = ["a", "b", "c"];
+
     /// <summary>
     /// Tests that ToObservableAsync forwards all items from IObservable.
     /// </summary>
@@ -27,7 +48,7 @@ public class BridgeTests
 
         var result = await asyncObs.ToListAsync();
 
-        await Assert.That(result).IsEquivalentTo([1, 2, 3, 4, 5]);
+        await Assert.That(result).IsCollectionEqualTo([1, SequenceItemTwo, SequenceItemThree, SequenceItemFour, SequenceItemFive]);
     }
 
     /// <summary>
@@ -56,8 +77,7 @@ public class BridgeTests
         var rxSource = Observable.Throw<int>(ex);
         var asyncObs = rxSource.ToObservableAsync();
 
-        await Assert.ThrowsAsync<InvalidOperationException>(
-            async () => await asyncObs.ToListAsync());
+        await Assert.ThrowsAsync<InvalidOperationException>(async () => await asyncObs.ToListAsync());
     }
 
     /// <summary>
@@ -70,9 +90,9 @@ public class BridgeTests
         var asyncSource = AsyncObs.Range(1, 5);
         var rxObs = asyncSource.ToObservable();
 
-        var result = await rxObs.ToList();
+        var result = rxObs.ToList().WaitForValue();
 
-        await Assert.That(result).IsEquivalentTo([1, 2, 3, 4, 5]);
+        await Assert.That(result).IsCollectionEqualTo([1, SequenceItemTwo, SequenceItemThree, SequenceItemFour, SequenceItemFive]);
     }
 
     /// <summary>
@@ -85,7 +105,7 @@ public class BridgeTests
         var asyncSource = AsyncObs.Empty<int>();
         var rxObs = asyncSource.ToObservable();
 
-        var result = await rxObs.ToList();
+        var result = rxObs.ToList().WaitForValue();
 
         await Assert.That(result).IsEmpty();
     }
@@ -93,35 +113,33 @@ public class BridgeTests
     /// <summary>
     /// Tests that ToObservable forwards errors from ObservableAsync.
     /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
-    public void WhenObservableAsyncToObservable_ThenForwardsError()
+    public async Task WhenObservableAsyncToObservable_ThenForwardsError()
     {
         var asyncSource = AsyncObs.Throw<int>(new InvalidOperationException("async error"));
         var rxObs = asyncSource.ToObservable();
 
-        Assert.ThrowsAsync<InvalidOperationException>(
-            async () => await rxObs.ToList());
+        var error = rxObs.ToList().WaitForError();
+
+        await Assert.That(error).IsTypeOf<InvalidOperationException>();
     }
 
     /// <summary>
     /// Tests that ToObservableAsync rejects null source.
     /// </summary>
     [Test]
-    public void WhenToObservableAsyncNullSource_ThenThrowsArgumentNull()
-    {
+    public void WhenToObservableAsyncNullSource_ThenThrowsArgumentNull() =>
         Assert.Throws<ArgumentNullException>(() =>
             ((IObservable<int>)null!).ToObservableAsync());
-    }
 
     /// <summary>
     /// Tests that ToObservable rejects null source.
     /// </summary>
     [Test]
-    public void WhenToObservableNullSource_ThenThrowsArgumentNull()
-    {
+    public void WhenToObservableNullSource_ThenThrowsArgumentNull() =>
         Assert.Throws<ArgumentNullException>(() =>
             ((ObservableAsync<int>)null!).ToObservable());
-    }
 
     /// <summary>
     /// Tests round-trip IObservable through ObservableAsync.
@@ -136,9 +154,9 @@ public class BridgeTests
             .ToObservableAsync()
             .ToObservable();
 
-        var result = await roundTripped.ToList();
+        var result = roundTripped.ToList().WaitForValue();
 
-        await Assert.That(result).IsEquivalentTo([1, 2, 3, 4, 5]);
+        await Assert.That(result).IsCollectionEqualTo([1, SequenceItemTwo, SequenceItemThree, SequenceItemFour, SequenceItemFive]);
     }
 
     /// <summary>
@@ -156,7 +174,7 @@ public class BridgeTests
 
         var result = await roundTripped.ToListAsync();
 
-        await Assert.That(result).IsEquivalentTo([1, 2, 3, 4, 5]);
+        await Assert.That(result).IsCollectionEqualTo([1, SequenceItemTwo, SequenceItemThree, SequenceItemFour, SequenceItemFive]);
     }
 
     /// <summary>
@@ -166,6 +184,9 @@ public class BridgeTests
     [Test]
     public async Task WhenBridgedObservableWithAsyncOperators_ThenPipelineWorks()
     {
+        const int ExpectedFirst = 20;
+        const int ExpectedSecond = 40;
+        const int ExpectedThird = 60;
         var rxSource = Observable.Range(1, 10);
 
         var result = await rxSource.ToObservableAsync()
@@ -174,7 +195,7 @@ public class BridgeTests
             .Take(3)
             .ToListAsync();
 
-        await Assert.That(result).IsEquivalentTo([20, 40, 60]);
+        await Assert.That(result).IsCollectionEqualTo([ExpectedFirst, ExpectedSecond, ExpectedThird]);
     }
 
     /// <summary>
@@ -184,6 +205,9 @@ public class BridgeTests
     [Test]
     public async Task WhenAsyncObservableWithRxOperators_ThenPipelineWorks()
     {
+        const int ExpectedFirst = 12;
+        const int ExpectedSecond = 14;
+        const int ExpectedThird = 16;
         var asyncSource = AsyncObs.Range(1, 10);
 
         var result = await asyncSource.ToObservable()
@@ -192,7 +216,7 @@ public class BridgeTests
             .Select(x => x * 2)
             .ToList();
 
-        await Assert.That(result).IsEquivalentTo([12, 14, 16]);
+        await Assert.That(result).IsCollectionEqualTo([ExpectedFirst, ExpectedSecond, ExpectedThird]);
     }
 
     /// <summary>
@@ -202,6 +226,11 @@ public class BridgeTests
     [Test]
     public async Task WhenIObservableSubjectToAsyncPipeline_ThenBidirectionalFlows()
     {
+        const int Input1 = 3;
+        const int Input2 = 5;
+        const int Input3 = 2;
+        const int ExpectedFirst = 6;
+        const int ExpectedSecond = 10;
         var rxSubject = new Subject<int>();
         var asyncPipeline = rxSubject.ToObservableAsync()
             .Select(x => x * 2)
@@ -214,18 +243,17 @@ public class BridgeTests
                 items.Add(x);
                 return default;
             },
-            null,
             null);
 
-        rxSubject.OnNext(1);  // 2 -> filtered
-        rxSubject.OnNext(3);  // 6 -> passes
-        rxSubject.OnNext(5);  // 10 -> passes
-        rxSubject.OnNext(2);  // 4 -> filtered
+        rxSubject.OnNext(1); // 2 -> filtered
+        rxSubject.OnNext(Input1); // 6 -> passes
+        rxSubject.OnNext(Input2); // 10 -> passes
+        rxSubject.OnNext(Input3); // 4 -> filtered
         rxSubject.OnCompleted();
 
-        await Task.Delay(200);
+        await Task.Delay(PropagationDelayMs);
 
-        await Assert.That(items).IsEquivalentTo([6, 10]);
+        await Assert.That(items).IsCollectionEqualTo([ExpectedFirst, ExpectedSecond]);
     }
 
     /// <summary>
@@ -241,16 +269,19 @@ public class BridgeTests
             .ToObservable();
 
         var items = new List<int>();
-        using var sub = rxPipeline.Subscribe(x => items.Add(x));
+        using var sub = rxPipeline.Subscribe(items.Add);
 
+        const int ExpectedFirst = 101;
+        const int ExpectedSecond = 102;
+        const int ExpectedThird = 103;
         await asyncSubject.OnNextAsync(1, CancellationToken.None);
-        await asyncSubject.OnNextAsync(2, CancellationToken.None);
-        await asyncSubject.OnNextAsync(3, CancellationToken.None);
+        await asyncSubject.OnNextAsync(SequenceItemTwo, CancellationToken.None);
+        await asyncSubject.OnNextAsync(SequenceItemThree, CancellationToken.None);
         await asyncSubject.OnCompletedAsync(Result.Success);
 
-        await Task.Delay(200);
+        await Task.Delay(PropagationDelayMs);
 
-        await Assert.That(items).IsEquivalentTo([101, 102, 103]);
+        await Assert.That(items).IsCollectionEqualTo([ExpectedFirst, ExpectedSecond, ExpectedThird]);
     }
 
     /// <summary>
@@ -263,11 +294,13 @@ public class BridgeTests
         var rxSource = Observable.Range(1, 3);
         var asyncSource = AsyncObs.Range(10, 3);
 
+        const int ExpectedTotalCount = 6;
+        const int ExpectedAsyncStart = 10;
         var result = await rxSource.ToObservableAsync().Concat(asyncSource).ToListAsync();
 
-        await Assert.That(result).Count().IsEqualTo(6);
+        await Assert.That(result).Count().IsEqualTo(ExpectedTotalCount);
         await Assert.That(result).Contains(1);
-        await Assert.That(result).Contains(10);
+        await Assert.That(result).Contains(ExpectedAsyncStart);
     }
 
     /// <summary>
@@ -284,7 +317,7 @@ public class BridgeTests
             .Concat(asyncSource)
             .ToListAsync();
 
-        await Assert.That(result).IsEquivalentTo([1, 2, 3, 4]);
+        await Assert.That(result).IsCollectionEqualTo([1, SequenceItemTwo, SequenceItemThree, SequenceItemFour]);
     }
 
     /// <summary>
@@ -300,10 +333,14 @@ public class BridgeTests
             .SelectMany(x => AsyncObs.Return(x * 100))
             .ToListAsync();
 
-        await Assert.That(result).Count().IsEqualTo(3);
-        await Assert.That(result).Contains(100);
-        await Assert.That(result).Contains(200);
-        await Assert.That(result).Contains(300);
+        const int ExpectedCount = 3;
+        const int ExpectedFirst = 100;
+        const int ExpectedSecond = 200;
+        const int ExpectedThird = 300;
+        await Assert.That(result).Count().IsEqualTo(ExpectedCount);
+        await Assert.That(result).Contains(ExpectedFirst);
+        await Assert.That(result).Contains(ExpectedSecond);
+        await Assert.That(result).Contains(ExpectedThird);
     }
 
     /// <summary>
@@ -314,21 +351,22 @@ public class BridgeTests
     public async Task WhenZipRxAndAsync_ThenPairsCorrectly()
     {
         var rxSource = Observable.Range(1, 3);
-        var asyncSource = new[] { "a", "b", "c" }.ToObservableAsync();
+        var asyncSource = SequenceABC.ToObservableAsync();
 
         var result = await rxSource.ToObservableAsync()
             .Zip(asyncSource, (n, s) => $"{n}{s}")
             .ToListAsync();
 
-        await Assert.That(result).IsEquivalentTo(["1a", "2b", "3c"]);
+        await Assert.That(result).IsCollectionEqualTo(["1a", "2b", "3c"]);
     }
 
     /// <summary>
-    /// Tests that ProcessAsync swallows OperationCanceledException without routing to the handler.
+    /// Tests that the bridge dispatcher swallows OperationCanceledException raised by the downstream async observer
+    /// without routing it to the unhandled-exception handler.
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
-    public async Task WhenProcessAsyncThrowsOperationCanceled_ThenExceptionIsSwallowed()
+    public async Task WhenBridgeDispatchThrowsOperationCanceled_ThenExceptionIsSwallowed()
     {
         var handlerCalled = false;
         var previousHandler = UnhandledExceptionHandler.CurrentHandler;
@@ -336,8 +374,10 @@ public class BridgeTests
 
         try
         {
-            ObservableBridgeExtensions.ObservableToObservableAsync<int>.BridgeObserver.ProcessAsync(
-                static () => Task.FromException(new OperationCanceledException()));
+            var throwing = new ThrowingObserverAsync<int>(new OperationCanceledException());
+            var bridge = new ObservableBridgeExtensions.ObservableToObservableAsync<int>.BridgeObserver(throwing, CancellationToken.None);
+
+            bridge.OnNext(SentinelValue);
 
             await Assert.That(handlerCalled).IsFalse();
         }
@@ -348,11 +388,12 @@ public class BridgeTests
     }
 
     /// <summary>
-    /// Tests that ProcessAsync routes general exceptions to the UnhandledExceptionHandler.
+    /// Tests that the bridge dispatcher routes general exceptions raised by the downstream async observer to the
+    /// unhandled-exception handler.
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
-    public async Task WhenProcessAsyncThrowsGeneralException_ThenRoutesToUnhandledHandler()
+    public async Task WhenBridgeDispatchThrowsGeneralException_ThenRoutesToUnhandledHandler()
     {
         Exception? captured = null;
         var previousHandler = UnhandledExceptionHandler.CurrentHandler;
@@ -360,8 +401,10 @@ public class BridgeTests
 
         try
         {
-            ObservableBridgeExtensions.ObservableToObservableAsync<int>.BridgeObserver.ProcessAsync(
-                static () => Task.FromException(new InvalidOperationException("test error")));
+            var throwing = new ThrowingObserverAsync<int>(new InvalidOperationException("test error"));
+            var bridge = new ObservableBridgeExtensions.ObservableToObservableAsync<int>.BridgeObserver(throwing, CancellationToken.None);
+
+            bridge.OnNext(SentinelValue);
 
             await Assert.That(captured).IsNotNull();
             await Assert.That(captured!.Message).IsEqualTo("test error");
@@ -379,6 +422,7 @@ public class BridgeTests
     [Test]
     public async Task WhenEnqueueCalledWhileDrainIsBusy_ThenSecondCallReturnsEarlyAndItemIsProcessed()
     {
+        const int SecondItem = 2;
         var items = new List<int>();
         var firstItemStarted = new TaskCompletionSource();
         var allowFirstToComplete = new TaskCompletionSource();
@@ -387,18 +431,16 @@ public class BridgeTests
         var asyncObs = rxSource.ToObservableAsync();
 
         await using var sub = await asyncObs.SubscribeAsync(
-            (x, _) =>
+            async (x, _) =>
             {
                 if (x == 1)
                 {
                     firstItemStarted.TrySetResult();
-                    allowFirstToComplete.Task.GetAwaiter().GetResult();
+                    await allowFirstToComplete.Task.ConfigureAwait(false);
                 }
 
                 items.Add(x);
-                return default;
             },
-            null,
             null);
 
         // First OnNext starts drain loop and blocks inside the observer callback.
@@ -413,7 +455,7 @@ public class BridgeTests
         var secondEnqueued = new TaskCompletionSource();
         _ = Task.Run(() =>
         {
-            rxSource.OnNext(2);
+            rxSource.OnNext(SecondItem);
             secondEnqueued.TrySetResult();
         });
 
@@ -428,7 +470,7 @@ public class BridgeTests
             TimeSpan.FromSeconds(5));
 
         await Assert.That(conditionMet).IsTrue();
-        await Assert.That(items).IsEquivalentTo([1, 2]);
+        await Assert.That(items).IsCollectionEqualTo([1, SecondItem]);
     }
 
     /// <summary>
@@ -438,9 +480,8 @@ public class BridgeTests
     [Test]
     public async Task WhenToObservableDisposalThrowsOperationCanceled_ThenExceptionIsSwallowed()
     {
-        var source = AsyncObs.Create<int>(static (observer, ct) =>
-            new ValueTask<IAsyncDisposable>(DisposableAsync.Create(
-                static () => new ValueTask(Task.FromException(new OperationCanceledException())))));
+        var source = AsyncObs.Create<int>(static (_, _) =>
+            new(DisposableAsync.Create(static () => new(Task.FromException(new OperationCanceledException())))));
 
         var handlerCalled = false;
         var previousHandler = UnhandledExceptionHandler.CurrentHandler;
@@ -476,9 +517,9 @@ public class BridgeTests
 
         try
         {
-            var source = AsyncObs.Create<int>(static (observer, ct) =>
-                new ValueTask<IAsyncDisposable>(DisposableAsync.Create(
-                    static () => new ValueTask(Task.FromException(new InvalidOperationException("dispose error"))))));
+            var source = AsyncObs.Create<int>(static (_, _) =>
+                new(DisposableAsync.Create(static () =>
+                    new(Task.FromException(new InvalidOperationException("dispose error"))))));
 
             var rxObs = source.ToObservable();
             var sub = rxObs.Subscribe(_ => { });
@@ -506,7 +547,7 @@ public class BridgeTests
         var asyncObs = rxSource.ToObservableAsync();
 
         using var cts = new CancellationTokenSource();
-        cts.Cancel();
+        await cts.CancelAsync();
 
         var items = new List<int>();
         await using var sub = await asyncObs.SubscribeAsync(
@@ -551,14 +592,14 @@ public class BridgeTests
                 return default;
             });
 
-        RxSubjectOnNextThenError(rxSource, 42, error);
+        RxSubjectOnNextThenError(rxSource, SentinelValue, error);
 
         var conditionMet = await AsyncTestHelpers.WaitForConditionAsync(
             () => completionResult is not null,
             TimeSpan.FromSeconds(5));
 
         await Assert.That(conditionMet).IsTrue();
-        await Assert.That(items).IsEquivalentTo([42]);
+        await Assert.That(items).IsCollectionEqualTo([SentinelValue]);
         await Assert.That(completionResult!.Value.IsFailure).IsTrue();
         await Assert.That(completionResult!.Value.Exception).IsSameReferenceAs(error);
 
@@ -580,7 +621,7 @@ public class BridgeTests
         var subscribeStarted = new TaskCompletionSource();
         var allowSubscribeToComplete = new TaskCompletionSource();
 
-        var source = AsyncObs.Create<int>(async (observer, ct) =>
+        var source = AsyncObs.Create<int>(async (observer, _) =>
         {
             subscribeStarted.TrySetResult();
             await allowSubscribeToComplete.Task;
@@ -592,7 +633,7 @@ public class BridgeTests
         var items = new List<int>();
 
         // Subscribe starts SubscribeAndCaptureAsync which will block
-        var sub = rxObs.Subscribe(x => items.Add(x));
+        var sub = rxObs.Subscribe(items.Add);
 
         // Wait until subscribe has started
         await subscribeStarted.Task;
@@ -622,7 +663,7 @@ public class BridgeTests
     [Test]
     public async Task WhenSubscribeAndCaptureAsyncThrowsOperationCanceled_ThenReturnsNull()
     {
-        var source = AsyncObs.Create<int>(static (observer, ct) =>
+        var source = AsyncObs.Create<int>(static (_, _) =>
             throw new OperationCanceledException());
 
         var handlerCalled = false;
@@ -657,7 +698,7 @@ public class BridgeTests
 
         try
         {
-            var source = AsyncObs.Create<int>(static (observer, ct) =>
+            var source = AsyncObs.Create<int>(static (_, _) =>
                 throw new InvalidOperationException("subscribe failed"));
 
             var rxObs = source.ToObservable();
@@ -683,7 +724,7 @@ public class BridgeTests
     [Test]
     public async Task WhenAsyncSourceEmitsErrorResume_ThenBridgeAsyncObserverForwardsToSyncOnError()
     {
-        var directSource = AsyncTestHelpers.CreateDirectSource<int>();
+        var directSource = new DirectSource<int>();
         var rxObs = directSource.ToObservable();
         var error = new InvalidOperationException("resume error");
 
@@ -715,7 +756,7 @@ public class BridgeTests
     [Test]
     public async Task WhenAsyncSourceCompletesWithFailure_ThenBridgeAsyncObserverForwardsToSyncOnError()
     {
-        var directSource = AsyncTestHelpers.CreateDirectSource<int>();
+        var directSource = new DirectSource<int>();
         var rxObs = directSource.ToObservable();
         var error = new InvalidOperationException("completion failure");
 
@@ -749,13 +790,38 @@ public class BridgeTests
         var bridged = source.ToObservable();
         var items = new List<int>();
 
-        var sub = bridged.Subscribe(x => items.Add(x));
+        var sub = bridged.Subscribe(items.Add);
 
-        await source.EmitNext(42);
-        await Task.Delay(50);
+        const int EmitDelayMs = 50;
+        await source.EmitNext(SentinelValue);
+        await Task.Delay(EmitDelayMs);
 
         sub.Dispose();
 
-        await Assert.That(items).Contains(42);
+        await Assert.That(items).Contains(SentinelValue);
+    }
+
+    /// <summary>
+    /// Async observer whose <see cref="OnNextAsync"/> returns a faulted ValueTask carrying a preconfigured
+    /// exception. Used by the bridge dispatch tests to verify exception routing. Implements
+    /// <see cref="IObserverAsync{T}"/> directly (not via <see cref="ObserverAsync{T}"/>) so the framework's
+    /// internal exception-handling pipeline doesn't intercept the throw before it reaches the bridge.
+    /// </summary>
+    /// <typeparam name="T">The element type.</typeparam>
+    /// <param name="toThrow">The exception to throw on every <c>OnNext</c>.</param>
+    private sealed class ThrowingObserverAsync<T>(Exception toThrow) : IObserverAsync<T>
+    {
+        /// <inheritdoc/>
+        public ValueTask OnNextAsync(T value, CancellationToken cancellationToken) =>
+            ValueTask.FromException(toThrow);
+
+        /// <inheritdoc/>
+        public ValueTask OnErrorResumeAsync(Exception error, CancellationToken cancellationToken) => default;
+
+        /// <inheritdoc/>
+        public ValueTask OnCompletedAsync(Result result) => default;
+
+        /// <inheritdoc/>
+        public ValueTask DisposeAsync() => default;
     }
 }

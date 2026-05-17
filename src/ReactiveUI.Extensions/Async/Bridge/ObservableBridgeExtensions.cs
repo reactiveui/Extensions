@@ -2,7 +2,10 @@
 // ReactiveUI Association Incorporated licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
+using System.Diagnostics.CodeAnalysis;
 using ReactiveUI.Extensions.Async.Disposables;
+using ReactiveUI.Extensions.Internal;
+using ReactiveUI.Extensions.Internal.Disposables;
 
 namespace ReactiveUI.Extensions.Async;
 
@@ -32,9 +35,13 @@ public static class ObservableBridgeExtensions
     /// <param name="source">The classic observable sequence to bridge. Cannot be null.</param>
     /// <returns>An <see cref="ObservableAsync{T}"/> that mirrors the source observable sequence.</returns>
     /// <exception cref="ArgumentNullException">Thrown if <paramref name="source"/> is null.</exception>
+    [SuppressMessage(
+        "Roslynator",
+        "RCS1047:Non-asynchronous method name should not end with \'Async\'",
+        Justification = "This is an existing method")]
     public static IObservableAsync<T> ToObservableAsync<T>(this IObservable<T> source)
     {
-        ArgumentExceptionHelper.ThrowIfNull(source, nameof(source));
+        ArgumentExceptionHelper.ThrowIfNull(source);
 
         return new ObservableToObservableAsync<T>(source);
     }
@@ -56,7 +63,7 @@ public static class ObservableBridgeExtensions
     /// <exception cref="ArgumentNullException">Thrown if <paramref name="source"/> is null.</exception>
     public static IObservable<T> ToObservable<T>(this IObservableAsync<T> source)
     {
-        ArgumentExceptionHelper.ThrowIfNull(source, nameof(source));
+        ArgumentExceptionHelper.ThrowIfNull(source);
 
         return new ObservableAsyncToObservable<T>(source);
     }
@@ -68,17 +75,37 @@ public static class ObservableBridgeExtensions
     internal sealed class ObservableToObservableAsync<T>(IObservable<T> source) : ObservableAsync<T>
     {
         /// <summary>
+        /// Kind discriminator for queued bridge notifications.
+        /// </summary>
+        internal enum WorkKind
+        {
+            /// <summary>OnNext with a value.</summary>
+            Next,
+
+            /// <summary>OnCompleted with success.</summary>
+            CompletedSuccess,
+
+            /// <summary>OnCompleted with failure.</summary>
+            CompletedFailure,
+        }
+
+        /// <summary>
         /// Subscribes an async observer to the underlying synchronous observable, bridging notifications asynchronously.
         /// </summary>
         /// <param name="observer">The async observer to receive bridged notifications.</param>
         /// <param name="cancellationToken">A token to cancel the subscription.</param>
         /// <returns>An async disposable that disposes the underlying synchronous subscription.</returns>
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Reliability", "CA2000:Dispose objects before losing scope", Justification = "Disposed by the async disposable returned to the caller")]
-        protected override ValueTask<IAsyncDisposable> SubscribeAsyncCore(IObserverAsync<T> observer, CancellationToken cancellationToken)
+        [SuppressMessage(
+            "Reliability",
+            "CA2000:Dispose objects before losing scope",
+            Justification = "Disposed by the async disposable returned to the caller")]
+        protected override ValueTask<IAsyncDisposable> SubscribeAsyncCore(
+            IObserverAsync<T> observer,
+            CancellationToken cancellationToken)
         {
             if (cancellationToken.IsCancellationRequested)
             {
-                return new ValueTask<IAsyncDisposable>(DisposableAsync.Empty);
+                return new(DisposableAsync.Empty);
             }
 
             var bridgeObserver = new BridgeObserver(observer, cancellationToken);
@@ -88,13 +115,24 @@ public static class ObservableBridgeExtensions
                 subscription.Dispose();
                 return default;
             });
-            return new ValueTask<IAsyncDisposable>(asyncDisposable);
+            return new(asyncDisposable);
         }
+
+        /// <summary>
+        /// Discriminated payload for one queued sync→async notification. Replaces the per-emission
+        /// <c>Func&lt;Task&gt;</c> + outer <c>Action</c> + <c>.AsTask()</c> trio with a single struct enqueued
+        /// by value.
+        /// </summary>
+        /// <param name="Kind">The notification kind.</param>
+        /// <param name="Value">The element forwarded by <see cref="WorkKind.Next"/>; default otherwise.</param>
+        /// <param name="Error">The error forwarded by <see cref="WorkKind.CompletedFailure"/>; null otherwise.</param>
+        internal readonly record struct WorkItem(WorkKind Kind, T Value, Exception? Error);
 
         /// <summary>
         /// Synchronous observer that forwards to an async observer, queuing items to ensure sequential delivery.
         /// </summary>
-        internal sealed class BridgeObserver(IObserverAsync<T> observer, CancellationToken cancellationToken) : IObserver<T>
+        internal sealed class BridgeObserver(IObserverAsync<T> observer, CancellationToken cancellationToken)
+            : IObserver<T>
         {
             /// <summary>
             /// Synchronization gate protecting the work queue and busy flag.
@@ -108,7 +146,7 @@ public static class ObservableBridgeExtensions
             /// <summary>
             /// Queue of pending work items to be drained sequentially.
             /// </summary>
-            private readonly Queue<Action> _queue = new();
+            private readonly Queue<WorkItem> _queue = new();
 
             /// <summary>
             /// Indicates whether a drain loop is currently executing.
@@ -119,28 +157,68 @@ public static class ObservableBridgeExtensions
             /// Enqueues a forwarding of the element to the async observer.
             /// </summary>
             /// <param name="value">The element to forward.</param>
-            public void OnNext(T value) => Enqueue(() => observer.OnNextAsync(value, cancellationToken).AsTask());
+            public void OnNext(T value) => Enqueue(new WorkItem(WorkKind.Next, value, null));
 
             /// <summary>
             /// Enqueues a failure completion on the async observer.
             /// </summary>
             /// <param name="error">The error to forward.</param>
-            public void OnError(Exception error) => Enqueue(() => observer.OnCompletedAsync(Result.Failure(error)).AsTask());
+            public void OnError(Exception error) =>
+                Enqueue(new WorkItem(WorkKind.CompletedFailure, default!, error));
 
             /// <summary>
             /// Enqueues a successful completion on the async observer.
             /// </summary>
-            public void OnCompleted() => Enqueue(() => observer.OnCompletedAsync(Result.Success).AsTask());
+            public void OnCompleted() => Enqueue(new WorkItem(WorkKind.CompletedSuccess, default!, null));
 
             /// <summary>
-            /// Synchronously executes the specified async action, routing exceptions to the unhandled exception handler.
+            /// Converts a <see cref="ValueTask"/> to a <see cref="Task"/> so the bridge can synchronously
+            /// await it via <c>GetAwaiter().GetResult()</c>. Routing the conversion through a helper keeps the
+            /// analyzer's single-consumption analysis local and avoids per-emission false positives.
             /// </summary>
-            /// <param name="action">The async action to execute.</param>
-            internal static void ProcessAsync(Func<Task> action)
+            /// <param name="valueTask">The <see cref="ValueTask"/> to convert.</param>
+            /// <returns>A <see cref="Task"/> that represents the same operation.</returns>
+            internal static Task ToTask(ValueTask valueTask) => valueTask.AsTask();
+
+            /// <summary>
+            /// Synchronously dispatches one queued work item to the async observer, routing exceptions to the
+            /// unhandled exception handler.
+            /// </summary>
+            /// <param name="work">The queued notification to dispatch.</param>
+            [SuppressMessage(
+                "Major Bug",
+                "S4462:Calls to async methods should not be blocking",
+                Justification = "This is the explicit serialization point that drains async work onto the synchronous IObserver<T> pump; the whole purpose of the method is to bridge async→sync.")]
+            internal void Dispatch(WorkItem work)
             {
                 try
                 {
-                    action().GetAwaiter().GetResult();
+                    Task task;
+                    switch (work.Kind)
+                    {
+                        case WorkKind.Next:
+                        {
+                            task = ToTask(observer.OnNextAsync(work.Value, cancellationToken));
+                            break;
+                        }
+
+                        case WorkKind.CompletedSuccess:
+                        {
+                            task = ToTask(observer.OnCompletedAsync(Result.Success));
+                            break;
+                        }
+
+                        case WorkKind.CompletedFailure:
+                        {
+                            task = ToTask(observer.OnCompletedAsync(Result.Failure(work.Error!)));
+                            break;
+                        }
+
+                        default:
+                            return;
+                    }
+
+                    task.GetAwaiter().GetResult();
                 }
                 catch (OperationCanceledException)
                 {
@@ -153,14 +231,14 @@ public static class ObservableBridgeExtensions
             }
 
             /// <summary>
-            /// Enqueues the specified async action and starts draining if not already in progress.
+            /// Enqueues the specified work item and starts draining if not already in progress.
             /// </summary>
-            /// <param name="action">The async action to enqueue.</param>
-            internal void Enqueue(Func<Task> action)
+            /// <param name="work">The work item to enqueue.</param>
+            internal void Enqueue(WorkItem work)
             {
                 lock (_gate)
                 {
-                    _queue.Enqueue(() => ProcessAsync(action));
+                    _queue.Enqueue(work);
                     if (_busy)
                     {
                         return;
@@ -179,7 +257,7 @@ public static class ObservableBridgeExtensions
             {
                 while (true)
                 {
-                    Action work;
+                    WorkItem work;
                     lock (_gate)
                     {
                         if (_queue.Count == 0)
@@ -191,7 +269,7 @@ public static class ObservableBridgeExtensions
                         work = _queue.Dequeue();
                     }
 
-                    work();
+                    Dispatch(work);
                 }
             }
         }
@@ -208,15 +286,19 @@ public static class ObservableBridgeExtensions
         /// </summary>
         /// <param name="observer">The synchronous observer to receive notifications.</param>
         /// <returns>A disposable that tears down the async subscription when disposed.</returns>
+        [SuppressMessage(
+            "Major Bug",
+            "S4462:Calls to async methods should not be blocking",
+            Justification = "The IDisposable.Dispose callback is intrinsically synchronous and must tear down the async subscription it bridged on subscribe.")]
         public IDisposable Subscribe(IObserver<T> observer)
         {
-            ArgumentExceptionHelper.ThrowIfNull(observer, nameof(observer));
+            ArgumentExceptionHelper.ThrowIfNull(observer);
 
             var cts = new CancellationTokenSource();
             var asyncObserver = new BridgeAsyncObserver(observer);
             var subscriptionTask = SubscribeAndCaptureAsync(asyncObserver, cts.Token);
 
-            return Disposable.Create(() =>
+            return new ActionDisposable(() =>
             {
                 cts.Cancel();
 
@@ -257,7 +339,9 @@ public static class ObservableBridgeExtensions
         /// <param name="observer">The bridge observer to subscribe.</param>
         /// <param name="cancellationToken">A token to cancel the subscription.</param>
         /// <returns>The async disposable subscription, or <see langword="null"/> if the subscription failed or was cancelled.</returns>
-        private async Task<IAsyncDisposable?> SubscribeAndCaptureAsync(BridgeAsyncObserver observer, CancellationToken cancellationToken)
+        private async Task<IAsyncDisposable?> SubscribeAndCaptureAsync(
+            BridgeAsyncObserver observer,
+            CancellationToken cancellationToken)
         {
             try
             {

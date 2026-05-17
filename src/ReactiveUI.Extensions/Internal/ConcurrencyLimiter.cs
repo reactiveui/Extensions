@@ -2,6 +2,9 @@
 // ReactiveUI Association Incorporated licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
+using System.Diagnostics.CodeAnalysis;
+using ReactiveUI.Extensions.Internal.Disposables;
+
 namespace ReactiveUI.Extensions.Internal;
 
 /// <summary>
@@ -20,14 +23,11 @@ internal class ConcurrencyLimiter<T>
 #endif
 
     /// <summary>
-    /// A dedicated lock object for thread-safe access to the <see cref="_disposed"/> flag.
+    /// Indicates whether this limiter has been disposed. Updated and read lock-free
+    /// via <see cref="Interlocked"/> / <see cref="Volatile"/>; the disposal path is a
+    /// single-field flip, so no monitor is needed.
     /// </summary>
-    private readonly object _disposalLocker = new();
-
-    /// <summary>
-    /// Indicates whether this limiter has been disposed.
-    /// </summary>
-    private bool _disposed;
+    private int _disposed;
 
     /// <summary>
     /// The number of tasks currently in flight that have not yet completed.
@@ -47,21 +47,21 @@ internal class ConcurrencyLimiter<T>
     public ConcurrencyLimiter(IEnumerable<Task<T>> taskFunctions, int maxConcurrency)
     {
         _rator = taskFunctions.GetEnumerator();
-        IObservable = Observable.Create<T>(observer =>
+        Observable = new DelegateObservable<T>(observer =>
         {
             for (var i = 0; i < maxConcurrency; i++)
             {
                 PullNextTask(observer);
             }
 
-            return Disposable.Create(() => Disposed = true);
+            return new ActionDisposable(() => Disposed = true);
         });
     }
 
     /// <summary>
     /// Gets the i observable.
     /// </summary>
-    public IObservable<T> IObservable { get; }
+    public IObservable<T> Observable { get; }
 
     /// <summary>
     /// Gets or sets a value indicating whether this <see cref="ConcurrencyLimiter{T}"/> is disposed.
@@ -69,21 +69,8 @@ internal class ConcurrencyLimiter<T>
     /// <value><c>true</c> if disposed; otherwise, <c>false</c>.</value>
     internal bool Disposed
     {
-        get
-        {
-            lock (_disposalLocker)
-            {
-                return _disposed;
-            }
-        }
-
-        set
-        {
-            lock (_disposalLocker)
-            {
-                _disposed = value;
-            }
-        }
+        get => Volatile.Read(ref _disposed) != 0;
+        set => Interlocked.Exchange(ref _disposed, value ? 1 : 0);
     }
 
     /// <summary>
@@ -100,6 +87,10 @@ internal class ConcurrencyLimiter<T>
     /// </summary>
     /// <param name="observer">The observer.</param>
     /// <param name="decendantTask">The decendant Task.</param>
+    [SuppressMessage(
+        "Major Bug",
+        "S4462:Calls to async methods should not be blocking",
+        Justification = "Task is guaranteed complete at this call site (IsFaulted/IsCanceled were both false above); reading .Result drives the synchronous IObserver<T> contract without blocking.")]
     internal void ProcessTaskCompletion(IObserver<T> observer, Task<T> decendantTask)
     {
         lock (_gate)
@@ -109,7 +100,9 @@ internal class ConcurrencyLimiter<T>
                 ClearRator();
                 if (!Disposed)
                 {
-                    observer.OnError((decendantTask.Exception == null ? new OperationCanceledException() : decendantTask.Exception.InnerException)!);
+                    observer.OnError((decendantTask.Exception == null
+                        ? new OperationCanceledException()
+                        : decendantTask.Exception.InnerException)!);
                 }
             }
             else
@@ -157,8 +150,17 @@ internal class ConcurrencyLimiter<T>
             }
 
             _outstanding++;
-            _rator?.Current?.ContinueWith(
-                ant => ProcessTaskCompletion(observer, ant),
+
+            // State-carrying ContinueWith so the continuation lambda doesn't capture `this` + `observer`
+            // in a closure. The state tuple is value-typed; boxing happens once at scheduling time inside
+            // ContinueWith itself, but no per-call closure object is allocated for the lambda.
+            _rator.Current?.ContinueWith(
+                static (ant, state) =>
+                {
+                    var (limiter, observer) = ((ConcurrencyLimiter<T> Limiter, IObserver<T> Observer))state!;
+                    limiter.ProcessTaskCompletion(observer, ant);
+                },
+                (this, observer),
                 CancellationToken.None,
                 TaskContinuationOptions.ExecuteSynchronously,
                 TaskScheduler.Default);

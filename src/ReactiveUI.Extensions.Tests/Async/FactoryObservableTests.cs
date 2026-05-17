@@ -13,6 +13,12 @@ namespace ReactiveUI.Extensions.Tests.Async;
 /// </summary>
 public class FactoryObservableTests
 {
+    /// <summary>Sentinel value (42) used by tests.</summary>
+    private const int SentinelValue = 42;
+
+    /// <summary>Hoisted source array used by tests (was inline literal).</summary>
+    private static readonly int[] Sequence123 = [1, 2, 3];
+
     /// <summary>
     /// Tests Return emits single value.
     /// </summary>
@@ -20,10 +26,10 @@ public class FactoryObservableTests
     [Test]
     public async Task WhenReturnSingleValue_ThenEmitsValueAndCompletes()
     {
-        var result = await ObservableAsync.Return(42).ToListAsync();
+        var result = await ObservableAsync.Return(SentinelValue).ToListAsync();
 
         await Assert.That(result).Count().IsEqualTo(1);
-        await Assert.That(result[0]).IsEqualTo(42);
+        await Assert.That(result[0]).IsEqualTo(SentinelValue);
     }
 
     /// <summary>
@@ -35,7 +41,7 @@ public class FactoryObservableTests
     {
         var result = await ObservableAsync.Return("hello").ToListAsync();
 
-        await Assert.That(result).IsEquivalentTo(["hello"]);
+        await Assert.That(result).IsCollectionEqualTo(["hello"]);
     }
 
     /// <summary>
@@ -78,10 +84,8 @@ public class FactoryObservableTests
     /// Tests Throw rejects null exception.
     /// </summary>
     [Test]
-    public void WhenThrowNullException_ThenThrowsArgumentNull()
-    {
+    public void WhenThrowNullException_ThenThrowsArgumentNull() =>
         Assert.Throws<ArgumentNullException>(() => ObservableAsync.Throw<int>(null!));
-    }
 
     /// <summary>
     /// Tests Never does not complete within timeout.
@@ -90,6 +94,7 @@ public class FactoryObservableTests
     [Test]
     public async Task WhenNever_ThenDoesNotCompleteWithinTimeout()
     {
+        const int ObservationWindowMs = 250;
         using var cts = new CancellationTokenSource(200);
         var items = new List<int>();
         var completed = false;
@@ -108,7 +113,7 @@ public class FactoryObservableTests
             },
             cts.Token);
 
-        await Task.Delay(250);
+        await Task.Delay(ObservationWindowMs);
 
         await Assert.That(items).IsEmpty();
         await Assert.That(completed).IsFalse();
@@ -121,9 +126,12 @@ public class FactoryObservableTests
     [Test]
     public async Task WhenRangeFromZero_ThenEmitsSequentialIntegers()
     {
+        const int ExpectedThird = 2;
+        const int ExpectedFourth = 3;
+        const int ExpectedFifth = 4;
         var result = await ObservableAsync.Range(0, 5).ToListAsync();
 
-        await Assert.That(result).IsEquivalentTo([0, 1, 2, 3, 4]);
+        await Assert.That(result).IsCollectionEqualTo([0, 1, ExpectedThird, ExpectedFourth, ExpectedFifth]);
     }
 
     /// <summary>
@@ -133,9 +141,12 @@ public class FactoryObservableTests
     [Test]
     public async Task WhenRangeFromNonZero_ThenEmitsCorrectRange()
     {
+        const int ExpectedFirst = 10;
+        const int ExpectedSecond = 11;
+        const int ExpectedThird = 12;
         var result = await ObservableAsync.Range(10, 3).ToListAsync();
 
-        await Assert.That(result).IsEquivalentTo([10, 11, 12]);
+        await Assert.That(result).IsCollectionEqualTo([ExpectedFirst, ExpectedSecond, ExpectedThird]);
     }
 
     /// <summary>
@@ -157,15 +168,16 @@ public class FactoryObservableTests
     [Test]
     public async Task WhenFromAsyncWithValue_ThenEmitsSingleValue()
     {
-        var source = ObservableAsync.FromAsync(async ct =>
+        const int ExpectedValue = 99;
+        var source = ObservableAsync.FromAsync(async _ =>
         {
             await Task.Yield();
-            return 99;
+            return ExpectedValue;
         });
 
         var result = await source.ToListAsync();
 
-        await Assert.That(result).IsEquivalentTo([99]);
+        await Assert.That(result).IsCollectionEqualTo([ExpectedValue]);
     }
 
     /// <summary>
@@ -176,7 +188,7 @@ public class FactoryObservableTests
     public async Task WhenFromAsyncVoid_ThenEmitsUnit()
     {
         var executed = false;
-        var source = ObservableAsync.FromAsync(async ct =>
+        var source = ObservableAsync.FromAsync(async _ =>
         {
             await Task.Yield();
             executed = true;
@@ -194,6 +206,7 @@ public class FactoryObservableTests
     [Test]
     public async Task WhenDefer_ThenCreatesNewSequencePerSubscription()
     {
+        const int ExpectedSecondValue = 2;
         var counter = 0;
         var source = ObservableAsync.Defer(() =>
         {
@@ -205,7 +218,7 @@ public class FactoryObservableTests
         var second = await source.FirstAsync();
 
         await Assert.That(first).IsEqualTo(1);
-        await Assert.That(second).IsEqualTo(2);
+        await Assert.That(second).IsEqualTo(ExpectedSecondValue);
     }
 
     /// <summary>
@@ -215,8 +228,9 @@ public class FactoryObservableTests
     [Test]
     public async Task WhenDeferAsync_ThenCreatesNewSequencePerSubscription()
     {
+        const int ExpectedSecondValue = 2;
         var counter = 0;
-        var source = ObservableAsync.Defer(async ct =>
+        var source = ObservableAsync.Defer(async _ =>
         {
             await Task.Yield();
             counter++;
@@ -227,7 +241,7 @@ public class FactoryObservableTests
         var second = await source.FirstAsync();
 
         await Assert.That(first).IsEqualTo(1);
-        await Assert.That(second).IsEqualTo(2);
+        await Assert.That(second).IsEqualTo(ExpectedSecondValue);
     }
 
     /// <summary>
@@ -237,28 +251,27 @@ public class FactoryObservableTests
     [Test]
     public async Task WhenCreate_ThenCustomSubscriptionLogicRuns()
     {
+        const int SecondItem = 2;
         var source = ObservableAsync.Create<int>(async (observer, ct) =>
         {
             await observer.OnNextAsync(1, ct);
-            await observer.OnNextAsync(2, ct);
+            await observer.OnNextAsync(SecondItem, ct);
             await observer.OnCompletedAsync(Result.Success);
             return DisposableAsync.Empty;
         });
 
         var result = await source.ToListAsync();
 
-        await Assert.That(result).IsEquivalentTo([1, 2]);
+        await Assert.That(result).IsCollectionEqualTo([1, SecondItem]);
     }
 
     /// <summary>
     /// Tests Create with null subscribe function.
     /// </summary>
     [Test]
-    public void WhenCreateWithNullSubscribeFunc_ThenThrowsArgumentNull()
-    {
+    public void WhenCreateWithNullSubscribeFunc_ThenThrowsArgumentNull() =>
         Assert.Throws<ArgumentNullException>(() =>
             ObservableAsync.Create<int>(null!));
-    }
 
     /// <summary>
     /// Tests CreateAsBackgroundJob runs on background.
@@ -267,16 +280,18 @@ public class FactoryObservableTests
     [Test]
     public async Task WhenCreateAsBackgroundJob_ThenRunsOnBackground()
     {
-        var source = ObservableAsync.CreateAsBackgroundJob<int>(async (observer, ct) =>
+        var source = ObservableAsync.CreateAsBackgroundJob<int>(
+            async (observer, ct) =>
         {
             await Task.Yield();
-            await observer.OnNextAsync(42, ct);
+            await observer.OnNextAsync(SentinelValue, ct);
             await observer.OnCompletedAsync(Result.Success);
-        });
+        },
+            NewThreadTaskScheduler.Instance);
 
         var result = await source.ToListAsync();
 
-        await Assert.That(result).IsEquivalentTo([42]);
+        await Assert.That(result).IsCollectionEqualTo([SentinelValue]);
     }
 
     /// <summary>
@@ -301,6 +316,7 @@ public class FactoryObservableTests
     [Test]
     public async Task WhenTimerPeriodic_ThenEmitsMultipleValues()
     {
+        const int MinimumEmissions = 2;
         var source = ObservableAsync.Timer(
             TimeSpan.FromMilliseconds(10),
             TimeSpan.FromMilliseconds(50));
@@ -312,14 +328,13 @@ public class FactoryObservableTests
                 items.Add(x);
                 return default;
             },
-            null,
             null);
 
         await AsyncTestHelpers.WaitForConditionAsync(
-            () => items.Count >= 2,
+            () => items.Count >= MinimumEmissions,
             TimeSpan.FromSeconds(5));
 
-        await Assert.That(items.Count).IsGreaterThanOrEqualTo(2);
+        await Assert.That(items.Count).IsGreaterThanOrEqualTo(MinimumEmissions);
         await Assert.That(items[0]).IsEqualTo(0L);
     }
 
@@ -327,21 +342,17 @@ public class FactoryObservableTests
     /// Tests Timer negative due time.
     /// </summary>
     [Test]
-    public void WhenTimerNegativeDueTime_ThenThrowsArgumentOutOfRange()
-    {
+    public void WhenTimerNegativeDueTime_ThenThrowsArgumentOutOfRange() =>
         Assert.Throws<ArgumentOutOfRangeException>(() =>
             ObservableAsync.Timer(TimeSpan.FromMilliseconds(-1)));
-    }
 
     /// <summary>
     /// Tests Timer periodic with non-positive period.
     /// </summary>
     [Test]
-    public void WhenTimerPeriodicNonPositivePeriod_ThenThrowsArgumentOutOfRange()
-    {
+    public void WhenTimerPeriodicNonPositivePeriod_ThenThrowsArgumentOutOfRange() =>
         Assert.Throws<ArgumentOutOfRangeException>(() =>
             ObservableAsync.Timer(TimeSpan.Zero, TimeSpan.Zero));
-    }
 
     /// <summary>
     /// Tests IEnumerable to ObservableAsync.
@@ -350,11 +361,13 @@ public class FactoryObservableTests
     [Test]
     public async Task WhenEnumerableToObservableAsync_ThenEmitsAllItems()
     {
-        var source = new[] { 1, 2, 3 }.ToObservableAsync();
+        const int ExpectedSecond = 2;
+        const int ExpectedThird = 3;
+        var source = Sequence123.ToObservableAsync();
 
         var result = await source.ToListAsync();
 
-        await Assert.That(result).IsEquivalentTo([1, 2, 3]);
+        await Assert.That(result).IsCollectionEqualTo([1, ExpectedSecond, ExpectedThird]);
     }
 
     /// <summary>
@@ -364,19 +377,25 @@ public class FactoryObservableTests
     [Test]
     public async Task WhenAsyncEnumerableToObservableAsync_ThenEmitsAllItems()
     {
+        const int FirstYield = 10;
+        const int SecondYield = 20;
+        const int ThirdYield = 30;
         var source = AsyncEnumerable().ToObservableAsync();
 
         var result = await source.ToListAsync();
 
-        await Assert.That(result).IsEquivalentTo([10, 20, 30]);
+        await Assert.That(result).IsCollectionEqualTo([FirstYield, SecondYield, ThirdYield]);
 
         static async IAsyncEnumerable<int> AsyncEnumerable()
         {
-            yield return 10;
+            const int FirstYield = 10;
+            const int SecondYield = 20;
+            const int ThirdYield = 30;
+            yield return FirstYield;
             await Task.Yield();
-            yield return 20;
+            yield return SecondYield;
             await Task.Yield();
-            yield return 30;
+            yield return ThirdYield;
         }
     }
 
@@ -387,12 +406,13 @@ public class FactoryObservableTests
     [Test]
     public async Task WhenTaskToObservableAsync_ThenEmitsTaskResult()
     {
+        const int ExpectedResult = 7;
         var task = Task.FromResult(7);
         var source = task.ToObservableAsync();
 
         var result = await source.FirstAsync();
 
-        await Assert.That(result).IsEqualTo(7);
+        await Assert.That(result).IsEqualTo(ExpectedResult);
     }
 
     /// <summary>
@@ -415,6 +435,7 @@ public class FactoryObservableTests
     [Test]
     public async Task WhenIntervalWithCancellation_ThenEmitsPeriodicValues()
     {
+        const int MinimumEmissions = 2;
         using var cts = new CancellationTokenSource();
         var source = ObservableAsync.Interval(TimeSpan.FromMilliseconds(50));
 
@@ -437,17 +458,18 @@ public class FactoryObservableTests
         }
         catch (OperationCanceledException)
         {
+            // Expected — the timer is being cancelled to end the test.
         }
         finally
         {
             if (!cts.IsCancellationRequested)
             {
-                cts.Cancel();
+                await cts.CancelAsync();
             }
         }
 
         await Assert.That(received).IsTrue();
-        await Assert.That(items.Count).IsGreaterThanOrEqualTo(2);
+        await Assert.That(items.Count).IsGreaterThanOrEqualTo(MinimumEmissions);
         await Assert.That(items[0]).IsEqualTo(1L);
     }
 
@@ -460,7 +482,7 @@ public class FactoryObservableTests
     {
         var items = new List<int>();
         using var cts = new CancellationTokenSource();
-        cts.Cancel();
+        await cts.CancelAsync();
 
         var observer = new AnonymousObserverAsync<int>((x, _) =>
         {
@@ -468,7 +490,8 @@ public class FactoryObservableTests
             return default;
         });
 
-        await ObservableAsync.EmitEnumerableAsync(Enumerable.Range(0, 100), observer, cts.Token);
+        const int RangeCount = 100;
+        await ObservableAsync.EmitEnumerableAsync(Enumerable.Range(0, RangeCount), observer, cts.Token);
 
         await Assert.That(items).IsEmpty();
     }
@@ -495,17 +518,17 @@ public class FactoryObservableTests
         var items = new List<int>();
         var received = new TaskCompletionSource();
 
-        await using var sub = await ObservableAsync.Return(77).SubscribeAsync(
-            (x, _) =>
-            {
-                items.Add(x);
-                received.TrySetResult();
-                return default;
-            });
+        const int EmittedValue = 77;
+        await using var sub = await ObservableAsync.Return(EmittedValue).SubscribeAsync((x, _) =>
+        {
+            items.Add(x);
+            received.TrySetResult();
+            return default;
+        });
 
         await received.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
-        await Assert.That(items).IsEquivalentTo([77]);
+        await Assert.That(items).IsCollectionEqualTo([EmittedValue]);
     }
 
     /// <summary>
@@ -519,7 +542,8 @@ public class FactoryObservableTests
         var received = new TaskCompletionSource();
         using var cts = new CancellationTokenSource();
 
-        await using var sub = await ObservableAsync.Return(55).SubscribeAsync(
+        const int EmittedValue = 55;
+        await using var sub = await ObservableAsync.Return(EmittedValue).SubscribeAsync(
             (x, _) =>
             {
                 items.Add(x);
@@ -530,7 +554,7 @@ public class FactoryObservableTests
 
         await received.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
-        await Assert.That(items).IsEquivalentTo([55]);
+        await Assert.That(items).IsCollectionEqualTo([EmittedValue]);
     }
 
     /// <summary>
@@ -549,9 +573,10 @@ public class FactoryObservableTests
         });
 
         await using var sub = await source.SubscribeAsync(
-            _ => { },
+            (Action<int>)(_ => { }),
             onErrorResume: ex => errorReceived.TrySetResult(ex),
-            onCompleted: null);
+            onCompleted: null,
+            CancellationToken.None);
 
         var error = await errorReceived.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
@@ -569,9 +594,10 @@ public class FactoryObservableTests
         var completedResult = new TaskCompletionSource<Result>();
 
         await using var sub = await ObservableAsync.Return(1).SubscribeAsync(
-            _ => { },
+            (Action<int>)(_ => { }),
             onErrorResume: null,
-            onCompleted: r => completedResult.TrySetResult(r));
+            onCompleted: r => completedResult.TrySetResult(r),
+            CancellationToken.None);
 
         var result = await completedResult.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
@@ -588,14 +614,15 @@ public class FactoryObservableTests
         var items = new List<int>();
         var completed = new TaskCompletionSource();
 
-        await using var sub = await ObservableAsync.Return(42).SubscribeAsync(
-            x => items.Add(x),
+        await using var sub = await ObservableAsync.Return(SentinelValue).SubscribeAsync(
+            (Action<int>)items.Add,
             onErrorResume: null,
-            onCompleted: _ => completed.TrySetResult());
+            onCompleted: _ => completed.TrySetResult(),
+            CancellationToken.None);
 
         await completed.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
-        await Assert.That(items).IsEquivalentTo([42]);
+        await Assert.That(items).IsCollectionEqualTo([SentinelValue]);
     }
 
     /// <summary>
@@ -608,18 +635,19 @@ public class FactoryObservableTests
         var items = new List<int>();
         var received = new TaskCompletionSource();
 
-        await using var sub = await ObservableAsync.Return(42).SubscribeAsync(
-            x =>
+        await using var sub = await ObservableAsync.Return(SentinelValue).SubscribeAsync(
+            (Action<int>)(x =>
             {
                 items.Add(x);
                 received.TrySetResult();
-            },
+            }),
             onErrorResume: _ => { },
-            onCompleted: null);
+            onCompleted: null,
+            CancellationToken.None);
 
         await received.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
-        await Assert.That(items).IsEquivalentTo([42]);
+        await Assert.That(items).IsCollectionEqualTo([SentinelValue]);
     }
 
     /// <summary>
@@ -629,7 +657,7 @@ public class FactoryObservableTests
     [Test]
     public void WhenFromAsyncWithNullFactory_ThenThrowsArgumentNull()
     {
-        Func<CancellationToken, ValueTask> factory = null!;
-        Assert.Throws<ArgumentNullException>(() => ObservableAsync.FromAsync(factory));
+        const Func<CancellationToken, ValueTask> Factory = null!;
+        Assert.Throws<ArgumentNullException>(() => ObservableAsync.FromAsync(Factory));
     }
 }

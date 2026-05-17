@@ -4,6 +4,7 @@
 
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.ExceptionServices;
+using ReactiveUI.Extensions.Internal;
 
 namespace ReactiveUI.Extensions.Async;
 
@@ -25,7 +26,7 @@ public readonly record struct Result
     /// <exception cref="ArgumentNullException">Thrown if <paramref name="exception"/> is null.</exception>
     public Result(Exception exception)
     {
-        ArgumentExceptionHelper.ThrowIfNull(exception, nameof(exception));
+        ArgumentExceptionHelper.ThrowIfNull(exception);
 
         Exception = exception;
     }
@@ -70,10 +71,12 @@ public readonly record struct Result
     /// the state does not represent a failure, no action is taken and no exception is thrown.</remarks>
     public void TryThrow()
     {
-        if (IsFailure)
+        if (!IsFailure)
         {
-            ExceptionDispatchInfo.Capture(Exception).Throw();
+            return;
         }
+
+        ExceptionDispatchInfo.Capture(Exception).Throw();
     }
 
     /// <summary>

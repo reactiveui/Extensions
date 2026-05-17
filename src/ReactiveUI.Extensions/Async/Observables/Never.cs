@@ -2,6 +2,8 @@
 // ReactiveUI Association Incorporated licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
+using System.Diagnostics.CodeAnalysis;
+
 using ReactiveUI.Extensions.Async.Disposables;
 
 namespace ReactiveUI.Extensions.Async;
@@ -22,6 +24,10 @@ public static partial class ObservableAsync
     /// error.</remarks>
     /// <typeparam name="T">The type of elements in the observable sequence.</typeparam>
     /// <returns>An observable sequence of type <typeparamref name="T"/> that never emits any items and never terminates.</returns>
+    [SuppressMessage(
+        "Major Code Smell",
+        "S4018:Generic methods should provide type parameters",
+        Justification = "Public factory API — caller specifies T explicitly: ObservableAsync.Never<int>().")]
     public static IObservableAsync<T> Never<T>() => NeverObservableAsync<T>.Instance;
 
     /// <summary>
@@ -36,7 +42,9 @@ public static partial class ObservableAsync
         public static NeverObservableAsync<T> Instance { get; } = new();
 
         /// <inheritdoc/>
-        protected override ValueTask<IAsyncDisposable> SubscribeAsyncCore(IObserverAsync<T> observer, CancellationToken cancellationToken) =>
+        protected override ValueTask<IAsyncDisposable> SubscribeAsyncCore(
+            IObserverAsync<T> observer,
+            CancellationToken cancellationToken) =>
             new(DisposableAsync.Empty);
     }
 }

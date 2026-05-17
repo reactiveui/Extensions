@@ -2,6 +2,9 @@
 // ReactiveUI Association Incorporated licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
+using System.Diagnostics.CodeAnalysis;
+using ReactiveUI.Extensions.Internal;
+
 namespace ReactiveUI.Extensions.Async;
 
 /// <summary>
@@ -21,12 +24,13 @@ public static class DisposableAsyncMixins
     /// <param name="this">The <see cref="IDisposable"/> instance to wrap as an <see cref="IAsyncDisposable"/>.</param>
     /// <returns>An <see cref="IAsyncDisposable"/> that disposes the underlying <see cref="IDisposable"/> when disposed
     /// asynchronously.</returns>
+    [SuppressMessage(
+        "Roslynator",
+        "RCS1047:Non-asynchronous method name should not end with \'Async\'",
+        Justification = "This is an existing method")]
     public static IAsyncDisposable ToDisposableAsync(this IDisposable @this)
     {
-        if (@this == null)
-        {
-            throw new ArgumentNullException(nameof(@this), "Cannot convert a null IDisposable to IAsyncDisposable.");
-        }
+        ArgumentExceptionHelper.ThrowIfNull(@this);
 
         return new DisposableToDisposableAsync(@this);
     }

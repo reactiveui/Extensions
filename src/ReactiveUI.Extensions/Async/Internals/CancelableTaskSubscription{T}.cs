@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2019-2026 ReactiveUI Association Incorporated. All rights reserved.
+// Copyright (c) 2019-2026 ReactiveUI Association Incorporated. All rights reserved.
 // ReactiveUI Association Incorporated licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
@@ -59,10 +59,10 @@ internal abstract class CancelableTaskSubscription<T>(IObserverAsync<T> observer
             return;
         }
 
-        _cts.Cancel();
+        await _cts.CancelAsync().ConfigureAwait(false);
         if (!_reentrant.Value)
         {
-            await _tcs.Task;
+            await _tcs.Task.ConfigureAwait(false);
         }
 
         _cts.Dispose();
@@ -79,7 +79,7 @@ internal abstract class CancelableTaskSubscription<T>(IObserverAsync<T> observer
     {
         try
         {
-            await observer.OnCompletedAsync(Result.Failure(error));
+            await observer.OnCompletedAsync(Result.Failure(error)).ConfigureAwait(false);
         }
         catch (Exception exception)
         {
@@ -97,11 +97,11 @@ internal abstract class CancelableTaskSubscription<T>(IObserverAsync<T> observer
         _reentrant.Value = true;
         try
         {
-            await RunAsyncCore(observer, cancellationToken);
+            await RunAsyncCore(observer, cancellationToken).ConfigureAwait(false);
         }
         catch (Exception e)
         {
-            await CompleteWithFailureAsync(observer, e);
+            await CompleteWithFailureAsync(observer, e).ConfigureAwait(false);
         }
         finally
         {

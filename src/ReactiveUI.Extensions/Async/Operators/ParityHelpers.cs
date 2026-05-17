@@ -2,7 +2,9 @@
 // ReactiveUI Association Incorporated licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using ReactiveUI.Extensions.Async;
+using System.Diagnostics.CodeAnalysis;
+using System.Reactive;
+using ReactiveUI.Extensions.Internal;
 
 namespace ReactiveUI.Extensions.Async;
 
@@ -12,6 +14,10 @@ namespace ReactiveUI.Extensions.Async;
 /// </summary>
 /// <remarks>These members intentionally compose existing async operators from this namespace so parity is achieved via
 /// the library's own async primitives instead of by delegating to System.Reactive implementations.</remarks>
+[SuppressMessage(
+    "StyleCop.CSharp.OrderingRules",
+    "SA1201:ElementsShouldAppearInTheCorrectOrder",
+    Justification = "C# 14 extension methods")]
 public static partial class ObservableAsync
 {
     extension<T>(IObservableAsync<T> source)
@@ -22,9 +28,9 @@ public static partial class ObservableAsync
         /// <returns>An observable sequence of <see cref="Unit"/> values.</returns>
         public IObservableAsync<Unit> AsSignal()
         {
-            ArgumentExceptionHelper.ThrowIfNull(source, nameof(source));
+            ArgumentExceptionHelper.ThrowIfNull(source);
 
-            return source.Select(static _ => Unit.Default);
+            return new AsSignalObservable<T>(source);
         }
 
         /// <summary>
@@ -33,7 +39,7 @@ public static partial class ObservableAsync
         /// <returns>A sequence that suppresses terminal failures and completes instead.</returns>
         public IObservableAsync<T> CatchIgnore()
         {
-            ArgumentExceptionHelper.ThrowIfNull(source, nameof(source));
+            ArgumentExceptionHelper.ThrowIfNull(source);
 
             return source.Catch(static _ => Empty<T>());
         }
@@ -47,8 +53,8 @@ public static partial class ObservableAsync
         public IObservableAsync<T> CatchIgnore<TException>(Action<TException> errorAction)
             where TException : Exception
         {
-            ArgumentExceptionHelper.ThrowIfNull(source, nameof(source));
-            ArgumentExceptionHelper.ThrowIfNull(errorAction, nameof(errorAction));
+            ArgumentExceptionHelper.ThrowIfNull(source);
+            ArgumentExceptionHelper.ThrowIfNull(errorAction);
 
             return source.Catch(ex =>
             {
@@ -69,7 +75,7 @@ public static partial class ObservableAsync
         /// <returns>A sequence that emits either the original values or the fallback value on terminal failure.</returns>
         public IObservableAsync<T> CatchAndReturn(T fallback)
         {
-            ArgumentExceptionHelper.ThrowIfNull(source, nameof(source));
+            ArgumentExceptionHelper.ThrowIfNull(source);
 
             return source.Catch(_ => Return(fallback));
         }
@@ -83,10 +89,11 @@ public static partial class ObservableAsync
         public IObservableAsync<T> CatchAndReturn<TException>(Func<TException, T> fallbackFactory)
             where TException : Exception
         {
-            ArgumentExceptionHelper.ThrowIfNull(source, nameof(source));
-            ArgumentExceptionHelper.ThrowIfNull(fallbackFactory, nameof(fallbackFactory));
+            ArgumentExceptionHelper.ThrowIfNull(source);
+            ArgumentExceptionHelper.ThrowIfNull(fallbackFactory);
 
-            return source.Catch(ex => ex is TException typedException ? Return(fallbackFactory(typedException)) : Throw<T>(ex));
+            return source.Catch(ex =>
+                ex is TException typedException ? Return(fallbackFactory(typedException)) : Throw<T>(ex));
         }
 
         /// <summary>
@@ -96,13 +103,13 @@ public static partial class ObservableAsync
         /// <returns>The original source sequence with the subscription side effect applied.</returns>
         public IObservableAsync<T> DoOnSubscribe(Action action)
         {
-            ArgumentExceptionHelper.ThrowIfNull(source, nameof(source));
-            ArgumentExceptionHelper.ThrowIfNull(action, nameof(action));
+            ArgumentExceptionHelper.ThrowIfNull(source);
+            ArgumentExceptionHelper.ThrowIfNull(action);
 
-            return Create<T>(async (observer, cancellationToken) =>
+            return Create<T>((observer, cancellationToken) =>
             {
                 action();
-                return await source.SubscribeAsync(observer.Wrap(), cancellationToken);
+                return source.SubscribeAsync(observer.Wrap(), cancellationToken);
             });
         }
 
@@ -113,13 +120,13 @@ public static partial class ObservableAsync
         /// <returns>The original source sequence with the subscription side effect applied.</returns>
         public IObservableAsync<T> DoOnSubscribe(Func<CancellationToken, ValueTask> action)
         {
-            ArgumentExceptionHelper.ThrowIfNull(source, nameof(source));
-            ArgumentExceptionHelper.ThrowIfNull(action, nameof(action));
+            ArgumentExceptionHelper.ThrowIfNull(source);
+            ArgumentExceptionHelper.ThrowIfNull(action);
 
             return Create<T>(async (observer, cancellationToken) =>
             {
-                await action(cancellationToken);
-                return await source.SubscribeAsync(observer.Wrap(), cancellationToken);
+                await action(cancellationToken).ConfigureAwait(false);
+                return await source.SubscribeAsync(observer.Wrap(), cancellationToken).ConfigureAwait(false);
             });
         }
 
@@ -130,34 +137,10 @@ public static partial class ObservableAsync
         /// <returns>A sequence that emits only values that were accepted while the operator was idle.</returns>
         public IObservableAsync<T> DropIfBusy(Func<T, CancellationToken, ValueTask> asyncAction)
         {
-            ArgumentExceptionHelper.ThrowIfNull(source, nameof(source));
-            ArgumentExceptionHelper.ThrowIfNull(asyncAction, nameof(asyncAction));
+            ArgumentExceptionHelper.ThrowIfNull(source);
+            ArgumentExceptionHelper.ThrowIfNull(asyncAction);
 
-            return Create<T>(async (observer, subscribeToken) =>
-            {
-                var isBusy = 0;
-                return await source.SubscribeAsync(
-                    async (value, token) =>
-                    {
-                        if (Interlocked.CompareExchange(ref isBusy, 1, 0) != 0)
-                        {
-                            return;
-                        }
-
-                        try
-                        {
-                            await asyncAction(value, token);
-                            await observer.OnNextAsync(value, token);
-                        }
-                        finally
-                        {
-                            Volatile.Write(ref isBusy, 0);
-                        }
-                    },
-                    observer.OnErrorResumeAsync,
-                    observer.OnCompletedAsync,
-                    subscribeToken);
-            });
+            return new DropIfBusyObservable<T>(source, asyncAction);
         }
 
         /// <summary>
@@ -169,9 +152,9 @@ public static partial class ObservableAsync
         /// <returns>A sequence that starts with the provided default value and then emits distinct source updates.</returns>
         public IObservableAsync<T> LatestOrDefault(T defaultValue)
         {
-            ArgumentExceptionHelper.ThrowIfNull(source, nameof(source));
+            ArgumentExceptionHelper.ThrowIfNull(source);
 
-            return source.StartWith(defaultValue).DistinctUntilChanged();
+            return new LatestOrDefaultObservable<T>(source, defaultValue);
         }
 
         /// <summary>
@@ -181,10 +164,10 @@ public static partial class ObservableAsync
         /// <returns>The original sequence with error side effects attached.</returns>
         public IObservableAsync<T> LogErrors(Action<Exception> logger)
         {
-            ArgumentExceptionHelper.ThrowIfNull(source, nameof(source));
-            ArgumentExceptionHelper.ThrowIfNull(logger, nameof(logger));
+            ArgumentExceptionHelper.ThrowIfNull(source);
+            ArgumentExceptionHelper.ThrowIfNull(logger);
 
-            return Create<T>(async (observer, subscribeToken) => await source.SubscribeAsync(
+            return Create<T>((observer, subscribeToken) => source.SubscribeAsync(
                 observer.OnNextAsync,
                 (exception, token) =>
                 {
@@ -202,11 +185,18 @@ public static partial class ObservableAsync
         /// <returns>A sequence containing the first matching value.</returns>
         public IObservableAsync<T> WaitUntil(Func<T, bool> predicate)
         {
-            ArgumentExceptionHelper.ThrowIfNull(source, nameof(source));
-            ArgumentExceptionHelper.ThrowIfNull(predicate, nameof(predicate));
+            ArgumentExceptionHelper.ThrowIfNull(source);
+            ArgumentExceptionHelper.ThrowIfNull(predicate);
 
-            return source.Where(predicate).Take(1);
+            return new WaitUntilObservable<T>(source, predicate);
         }
+
+        /// <summary>
+        /// Uses ObserveOn only when a context is provided.
+        /// </summary>
+        /// <param name="asyncContext">The target async context, or <see langword="null"/> to leave the sequence unchanged.</param>
+        /// <returns>The source sequence, optionally observed on the provided context.</returns>
+        public IObservableAsync<T> ObserveOnSafe(AsyncContext? asyncContext) => source.ObserveOnSafe(asyncContext, false);
 
         /// <summary>
         /// Uses ObserveOn only when a context is provided.
@@ -214,9 +204,9 @@ public static partial class ObservableAsync
         /// <param name="asyncContext">The target async context, or <see langword="null"/> to leave the sequence unchanged.</param>
         /// <param name="forceYielding">Whether to force yielding when switching context.</param>
         /// <returns>The source sequence, optionally observed on the provided context.</returns>
-        public IObservableAsync<T> ObserveOnSafe(AsyncContext? asyncContext, bool forceYielding = false)
+        public IObservableAsync<T> ObserveOnSafe(AsyncContext? asyncContext, bool forceYielding)
         {
-            ArgumentExceptionHelper.ThrowIfNull(source, nameof(source));
+            ArgumentExceptionHelper.ThrowIfNull(source);
 
             return asyncContext is null ? source : source.ObserveOn(asyncContext, forceYielding);
         }
@@ -225,11 +215,18 @@ public static partial class ObservableAsync
         /// Uses ObserveOn only when a scheduler is provided.
         /// </summary>
         /// <param name="taskScheduler">The target scheduler, or <see langword="null"/> to leave the sequence unchanged.</param>
+        /// <returns>The source sequence, optionally observed on the provided scheduler.</returns>
+        public IObservableAsync<T> ObserveOnSafe(TaskScheduler? taskScheduler) => source.ObserveOnSafe(taskScheduler, false);
+
+        /// <summary>
+        /// Uses ObserveOn only when a scheduler is provided.
+        /// </summary>
+        /// <param name="taskScheduler">The target scheduler, or <see langword="null"/> to leave the sequence unchanged.</param>
         /// <param name="forceYielding">Whether to force yielding when switching context.</param>
         /// <returns>The source sequence, optionally observed on the provided scheduler.</returns>
-        public IObservableAsync<T> ObserveOnSafe(TaskScheduler? taskScheduler, bool forceYielding = false)
+        public IObservableAsync<T> ObserveOnSafe(TaskScheduler? taskScheduler, bool forceYielding)
         {
-            ArgumentExceptionHelper.ThrowIfNull(source, nameof(source));
+            ArgumentExceptionHelper.ThrowIfNull(source);
 
             return taskScheduler is null ? source : source.ObserveOn(taskScheduler, forceYielding);
         }
@@ -239,12 +236,20 @@ public static partial class ObservableAsync
         /// </summary>
         /// <param name="condition">A value indicating whether to switch context.</param>
         /// <param name="asyncContext">The target async context.</param>
+        /// <returns>The source sequence, optionally observed on the provided context.</returns>
+        public IObservableAsync<T> ObserveOnIf(bool condition, AsyncContext asyncContext) => source.ObserveOnIf(condition, asyncContext, false);
+
+        /// <summary>
+        /// Observes the source on the provided context only when the condition is true.
+        /// </summary>
+        /// <param name="condition">A value indicating whether to switch context.</param>
+        /// <param name="asyncContext">The target async context.</param>
         /// <param name="forceYielding">Whether to force yielding when switching context.</param>
         /// <returns>The source sequence, optionally observed on the provided context.</returns>
-        public IObservableAsync<T> ObserveOnIf(bool condition, AsyncContext asyncContext, bool forceYielding = false)
+        public IObservableAsync<T> ObserveOnIf(bool condition, AsyncContext asyncContext, bool forceYielding)
         {
-            ArgumentExceptionHelper.ThrowIfNull(source, nameof(source));
-            ArgumentExceptionHelper.ThrowIfNull(asyncContext, nameof(asyncContext));
+            ArgumentExceptionHelper.ThrowIfNull(source);
+            ArgumentExceptionHelper.ThrowIfNull(asyncContext);
 
             return condition ? source.ObserveOn(asyncContext, forceYielding) : source;
         }
@@ -254,12 +259,20 @@ public static partial class ObservableAsync
         /// </summary>
         /// <param name="condition">A value indicating whether to switch context.</param>
         /// <param name="taskScheduler">The target scheduler.</param>
+        /// <returns>The source sequence, optionally observed on the provided scheduler.</returns>
+        public IObservableAsync<T> ObserveOnIf(bool condition, TaskScheduler taskScheduler) => source.ObserveOnIf(condition, taskScheduler, false);
+
+        /// <summary>
+        /// Observes the source on the provided scheduler only when the condition is true.
+        /// </summary>
+        /// <param name="condition">A value indicating whether to switch context.</param>
+        /// <param name="taskScheduler">The target scheduler.</param>
         /// <param name="forceYielding">Whether to force yielding when switching context.</param>
         /// <returns>The source sequence, optionally observed on the provided scheduler.</returns>
-        public IObservableAsync<T> ObserveOnIf(bool condition, TaskScheduler taskScheduler, bool forceYielding = false)
+        public IObservableAsync<T> ObserveOnIf(bool condition, TaskScheduler taskScheduler, bool forceYielding)
         {
-            ArgumentExceptionHelper.ThrowIfNull(source, nameof(source));
-            ArgumentExceptionHelper.ThrowIfNull(taskScheduler, nameof(taskScheduler));
+            ArgumentExceptionHelper.ThrowIfNull(source);
+            ArgumentExceptionHelper.ThrowIfNull(taskScheduler);
 
             return condition ? source.ObserveOn(taskScheduler, forceYielding) : source;
         }
@@ -270,31 +283,9 @@ public static partial class ObservableAsync
         /// <returns>A sequence of adjacent (previous, current) pairs.</returns>
         public IObservableAsync<(T Previous, T Current)> Pairwise()
         {
-            ArgumentExceptionHelper.ThrowIfNull(source, nameof(source));
+            ArgumentExceptionHelper.ThrowIfNull(source);
 
-            return Create<(T Previous, T Current)>(async (observer, subscribeToken) =>
-            {
-                var hasPrevious = false;
-                T? previous = default;
-
-                return await source.SubscribeAsync(
-                    async (value, token) =>
-                    {
-                        if (!hasPrevious)
-                        {
-                            previous = value;
-                            hasPrevious = true;
-                            return;
-                        }
-
-                        var pair = (previous!, value);
-                        previous = value;
-                        await observer.OnNextAsync(pair, token);
-                    },
-                    observer.OnErrorResumeAsync,
-                    observer.OnCompletedAsync,
-                    subscribeToken);
-            });
+            return new PairwiseObservable<T>(source);
         }
 
         /// <summary>
@@ -305,13 +296,11 @@ public static partial class ObservableAsync
         /// <returns>A tuple of true and false partitions.</returns>
         public (IObservableAsync<T> True, IObservableAsync<T> False) Partition(Func<T, bool> predicate)
         {
-            ArgumentExceptionHelper.ThrowIfNull(source, nameof(source));
-            ArgumentExceptionHelper.ThrowIfNull(predicate, nameof(predicate));
+            ArgumentExceptionHelper.ThrowIfNull(source);
+            ArgumentExceptionHelper.ThrowIfNull(predicate);
 
-            var shared = source.Select(value => (value, matches: predicate(value))).Publish().RefCount();
-            return (
-                shared.Where(static pair => pair.matches).Select(static pair => pair.value),
-                shared.Where(static pair => !pair.matches).Select(static pair => pair.value));
+            var coordinator = new PartitionCoordinator<T>(source, predicate);
+            return (coordinator.TrueBranch, coordinator.FalseBranch);
         }
 
         /// <summary>
@@ -321,7 +310,7 @@ public static partial class ObservableAsync
         /// <returns>A replaying shared observable sequence.</returns>
         public IObservableAsync<T> ReplayLastOnSubscribe(T initialValue)
         {
-            ArgumentExceptionHelper.ThrowIfNull(source, nameof(source));
+            ArgumentExceptionHelper.ThrowIfNull(source);
 
             return source.Publish(initialValue).RefCount();
         }
@@ -330,13 +319,28 @@ public static partial class ObservableAsync
         /// Emits only the first value in each throttle window and suppresses duplicates before and after throttling.
         /// </summary>
         /// <param name="throttle">The throttle duration.</param>
+        /// <returns>A throttled distinct sequence.</returns>
+        public IObservableAsync<T> ThrottleDistinct(TimeSpan throttle) => source.ThrottleDistinct(throttle, null);
+
+        /// <summary>
+        /// Emits only the first value in each throttle window and suppresses duplicates before and after throttling.
+        /// </summary>
+        /// <param name="throttle">The throttle duration.</param>
         /// <param name="timeProvider">The optional time provider.</param>
         /// <returns>A throttled distinct sequence.</returns>
-        public IObservableAsync<T> ThrottleDistinct(TimeSpan throttle, TimeProvider? timeProvider = null)
+        public IObservableAsync<T> ThrottleDistinct(TimeSpan throttle, TimeProvider? timeProvider)
         {
-            ArgumentExceptionHelper.ThrowIfNull(source, nameof(source));
+            ArgumentExceptionHelper.ThrowIfNull(source);
+#if NET8_0_OR_GREATER
+            ArgumentOutOfRangeException.ThrowIfLessThan(throttle, TimeSpan.Zero);
+#else
+            if (throttle < TimeSpan.Zero)
+            {
+                throw new ArgumentOutOfRangeException(nameof(throttle));
+            }
+#endif
 
-            return source.DistinctUntilChanged().Throttle(throttle, timeProvider).DistinctUntilChanged();
+            return new ThrottleDistinctObservable<T>(source, throttle, timeProvider ?? TimeProvider.System);
         }
 
         /// <summary>
@@ -350,29 +354,10 @@ public static partial class ObservableAsync
             TAccumulate initial,
             Func<TAccumulate, T, TAccumulate> accumulator)
         {
-            ArgumentExceptionHelper.ThrowIfNull(source, nameof(source));
-            ArgumentExceptionHelper.ThrowIfNull(accumulator, nameof(accumulator));
+            ArgumentExceptionHelper.ThrowIfNull(source);
+            ArgumentExceptionHelper.ThrowIfNull(accumulator);
 
-            return Return(initial).Concat(source.Scan(initial, accumulator));
-        }
-
-        /// <summary>
-        /// Delays values until the condition becomes true immediately or the debounce interval elapses.
-        /// </summary>
-        /// <param name="debounce">The debounce interval.</param>
-        /// <param name="condition">The condition that bypasses the delay when true.</param>
-        /// <param name="timeProvider">The optional time provider.</param>
-        /// <returns>A debounced observable sequence.</returns>
-        public IObservableAsync<T> DebounceUntil(TimeSpan debounce, Func<T, bool> condition, TimeProvider? timeProvider = null)
-        {
-            ArgumentExceptionHelper.ThrowIfNull(source, nameof(source));
-            ArgumentExceptionHelper.ThrowIfNull(condition, nameof(condition));
-
-            return source
-                .Select(value => condition(value)
-                    ? Return(value)
-                    : Return(value).Delay(debounce, timeProvider))
-                .Switch();
+            return new ScanWithInitialObservable<T, TAccumulate>(source, initial, accumulator);
         }
 
         /// <summary>
@@ -386,10 +371,46 @@ public static partial class ObservableAsync
             TAccumulate initial,
             Func<TAccumulate, T, CancellationToken, ValueTask<TAccumulate>> accumulator)
         {
-            ArgumentExceptionHelper.ThrowIfNull(source, nameof(source));
-            ArgumentExceptionHelper.ThrowIfNull(accumulator, nameof(accumulator));
+            ArgumentExceptionHelper.ThrowIfNull(source);
+            ArgumentExceptionHelper.ThrowIfNull(accumulator);
 
-            return Return(initial).Concat(source.Scan(initial, accumulator));
+            return new ScanWithInitialAsyncObservable<T, TAccumulate>(source, initial, accumulator);
+        }
+
+        /// <summary>
+        /// Delays values until the condition becomes true immediately or the debounce interval elapses.
+        /// </summary>
+        /// <param name="debounce">The debounce interval.</param>
+        /// <param name="condition">The condition that bypasses the delay when true.</param>
+        /// <returns>A debounced observable sequence.</returns>
+        public IObservableAsync<T> DebounceUntil(
+            TimeSpan debounce,
+            Func<T, bool> condition) => source.DebounceUntil(debounce, condition, null);
+
+        /// <summary>
+        /// Delays values until the condition becomes true immediately or the debounce interval elapses.
+        /// </summary>
+        /// <param name="debounce">The debounce interval.</param>
+        /// <param name="condition">The condition that bypasses the delay when true.</param>
+        /// <param name="timeProvider">The optional time provider.</param>
+        /// <returns>A debounced observable sequence.</returns>
+        public IObservableAsync<T> DebounceUntil(
+            TimeSpan debounce,
+            Func<T, bool> condition,
+            TimeProvider? timeProvider)
+        {
+            ArgumentExceptionHelper.ThrowIfNull(source);
+            ArgumentExceptionHelper.ThrowIfNull(condition);
+#if NET8_0_OR_GREATER
+            ArgumentOutOfRangeException.ThrowIfLessThan(debounce, TimeSpan.Zero);
+#else
+            if (debounce < TimeSpan.Zero)
+            {
+                throw new ArgumentOutOfRangeException(nameof(debounce));
+            }
+#endif
+
+            return new DebounceUntilObservable<T>(source, debounce, condition, timeProvider ?? TimeProvider.System);
         }
     }
 
@@ -403,8 +424,8 @@ public static partial class ObservableAsync
     public static IObservableAsync<T> GetMin<T>(this IObservableAsync<T> source, params IObservableAsync<T>[] sources)
         where T : struct
     {
-        ArgumentExceptionHelper.ThrowIfNull(source, nameof(source));
-        ArgumentExceptionHelper.ThrowIfNull(sources, nameof(sources));
+        ArgumentExceptionHelper.ThrowIfNull(source);
+        ArgumentExceptionHelper.ThrowIfNull(sources);
 
         var allSources = new IObservableAsync<T>[sources.Length + 1];
         allSources[0] = source;
@@ -434,8 +455,8 @@ public static partial class ObservableAsync
     public static IObservableAsync<T> GetMax<T>(this IObservableAsync<T> source, params IObservableAsync<T>[] sources)
         where T : struct
     {
-        ArgumentExceptionHelper.ThrowIfNull(source, nameof(source));
-        ArgumentExceptionHelper.ThrowIfNull(sources, nameof(sources));
+        ArgumentExceptionHelper.ThrowIfNull(source);
+        ArgumentExceptionHelper.ThrowIfNull(sources);
 
         var allSources = new IObservableAsync<T>[sources.Length + 1];
         allSources[0] = source;
@@ -460,12 +481,13 @@ public static partial class ObservableAsync
     /// </summary>
     /// <param name="sources">The boolean source sequences.</param>
     /// <returns>A sequence of aggregate boolean states.</returns>
-    public static IObservableAsync<bool> CombineLatestValuesAreAllFalse(this IEnumerable<IObservableAsync<bool>> sources)
+    public static IObservableAsync<bool> CombineLatestValuesAreAllFalse(
+        this IEnumerable<IObservableAsync<bool>> sources)
     {
-        ArgumentExceptionHelper.ThrowIfNull(sources, nameof(sources));
+        ArgumentExceptionHelper.ThrowIfNull(sources);
 
-        var materializedSources = sources as IReadOnlyCollection<IObservableAsync<bool>> ?? sources.ToList();
-        return materializedSources.Count == 0
+        var materializedSources = sources as IObservableAsync<bool>[] ?? [.. sources];
+        return materializedSources.Length == 0
             ? Return(true)
             : materializedSources.CombineLatest(static values =>
             {
@@ -488,10 +510,10 @@ public static partial class ObservableAsync
     /// <returns>A sequence of aggregate boolean states.</returns>
     public static IObservableAsync<bool> CombineLatestValuesAreAllTrue(this IEnumerable<IObservableAsync<bool>> sources)
     {
-        ArgumentExceptionHelper.ThrowIfNull(sources, nameof(sources));
+        ArgumentExceptionHelper.ThrowIfNull(sources);
 
-        var materializedSources = sources as IReadOnlyCollection<IObservableAsync<bool>> ?? sources.ToList();
-        return materializedSources.Count == 0
+        var materializedSources = sources as IObservableAsync<bool>[] ?? [.. sources];
+        return materializedSources.Length == 0
             ? Return(true)
             : materializedSources.CombineLatest(static values =>
             {
@@ -515,9 +537,9 @@ public static partial class ObservableAsync
     /// <returns>A flattened observable sequence.</returns>
     public static IObservableAsync<T> ForEach<T>(this IObservableAsync<IEnumerable<T>> source)
     {
-        ArgumentExceptionHelper.ThrowIfNull(source, nameof(source));
+        ArgumentExceptionHelper.ThrowIfNull(source);
 
-        return source.SelectMany(values => values.ToObservableAsync());
+        return new ForEachEnumerableObservable<T>(source);
     }
 
     /// <summary>
@@ -527,9 +549,9 @@ public static partial class ObservableAsync
     /// <returns>A sequence of negated boolean values.</returns>
     public static IObservableAsync<bool> Not(this IObservableAsync<bool> source)
     {
-        ArgumentExceptionHelper.ThrowIfNull(source, nameof(source));
+        ArgumentExceptionHelper.ThrowIfNull(source);
 
-        return source.Select(static value => !value);
+        return new NotObservable(source);
     }
 
     /// <summary>
@@ -541,10 +563,17 @@ public static partial class ObservableAsync
     public static IObservableAsync<T> SkipWhileNull<T>(this IObservableAsync<T?> source)
         where T : class
     {
-        ArgumentExceptionHelper.ThrowIfNull(source, nameof(source));
+        ArgumentExceptionHelper.ThrowIfNull(source);
 
-        return source.SkipWhile(static value => value is null).Select(static value => value!);
+        return new SkipWhileNullObservable<T>(source);
     }
+
+    /// <summary>
+    /// Creates an observable sequence that executes the supplied action and emits <see cref="Unit.Default"/>.
+    /// </summary>
+    /// <param name="action">The action to execute.</param>
+    /// <returns>An observable sequence that completes after the action has run.</returns>
+    public static IObservableAsync<Unit> Start(Action action) => Start(action, null);
 
     /// <summary>
     /// Creates an observable sequence that executes the supplied action and emits <see cref="Unit.Default"/>.
@@ -552,9 +581,9 @@ public static partial class ObservableAsync
     /// <param name="action">The action to execute.</param>
     /// <param name="taskScheduler">An optional scheduler used to start the action.</param>
     /// <returns>An observable sequence that completes after the action has run.</returns>
-    public static IObservableAsync<Unit> Start(Action action, TaskScheduler? taskScheduler = null)
+    public static IObservableAsync<Unit> Start(Action action, TaskScheduler? taskScheduler)
     {
-        ArgumentExceptionHelper.ThrowIfNull(action, nameof(action));
+        ArgumentExceptionHelper.ThrowIfNull(action);
 
         return taskScheduler is null
             ? FromAsync(_ =>
@@ -566,8 +595,8 @@ public static partial class ObservableAsync
                 async (observer, cancellationToken) =>
                 {
                     action();
-                    await observer.OnNextAsync(Unit.Default, cancellationToken);
-                    await observer.OnCompletedAsync(Async.Result.Success);
+                    await observer.OnNextAsync(Unit.Default, cancellationToken).ConfigureAwait(false);
+                    await observer.OnCompletedAsync(Result.Success).ConfigureAwait(false);
                 },
                 taskScheduler);
     }
@@ -577,19 +606,27 @@ public static partial class ObservableAsync
     /// </summary>
     /// <typeparam name="TResult">The result type.</typeparam>
     /// <param name="function">The function to execute.</param>
+    /// <returns>An observable sequence that emits the function result and then completes.</returns>
+    public static IObservableAsync<TResult> Start<TResult>(Func<TResult> function) => Start(function, null);
+
+    /// <summary>
+    /// Creates an observable sequence that executes the supplied function and emits its result.
+    /// </summary>
+    /// <typeparam name="TResult">The result type.</typeparam>
+    /// <param name="function">The function to execute.</param>
     /// <param name="taskScheduler">An optional scheduler used to start the function.</param>
     /// <returns>An observable sequence that emits the function result and then completes.</returns>
-    public static IObservableAsync<TResult> Start<TResult>(Func<TResult> function, TaskScheduler? taskScheduler = null)
+    public static IObservableAsync<TResult> Start<TResult>(Func<TResult> function, TaskScheduler? taskScheduler)
     {
-        ArgumentExceptionHelper.ThrowIfNull(function, nameof(function));
+        ArgumentExceptionHelper.ThrowIfNull(function);
 
         return taskScheduler is null
             ? FromAsync(_ => new ValueTask<TResult>(function()))
             : CreateAsBackgroundJob<TResult>(
                 async (observer, cancellationToken) =>
                 {
-                    await observer.OnNextAsync(function(), cancellationToken);
-                    await observer.OnCompletedAsync(Async.Result.Success);
+                    await observer.OnNextAsync(function(), cancellationToken).ConfigureAwait(false);
+                    await observer.OnCompletedAsync(Result.Success).ConfigureAwait(false);
                 },
                 taskScheduler);
     }
@@ -601,9 +638,9 @@ public static partial class ObservableAsync
     /// <returns>A sequence containing only <see langword="false"/> values.</returns>
     public static IObservableAsync<bool> WhereFalse(this IObservableAsync<bool> source)
     {
-        ArgumentExceptionHelper.ThrowIfNull(source, nameof(source));
+        ArgumentExceptionHelper.ThrowIfNull(source);
 
-        return source.Where(static value => !value);
+        return new WhereFalseObservable(source);
     }
 
     /// <summary>
@@ -615,9 +652,9 @@ public static partial class ObservableAsync
     public static IObservableAsync<T> WhereIsNotNull<T>(this IObservableAsync<T?> source)
         where T : class
     {
-        ArgumentExceptionHelper.ThrowIfNull(source, nameof(source));
+        ArgumentExceptionHelper.ThrowIfNull(source);
 
-        return source.Where(static value => value is not null).Select(static value => value!);
+        return new WhereIsNotNullObservable<T>(source);
     }
 
     /// <summary>
@@ -627,8 +664,8 @@ public static partial class ObservableAsync
     /// <returns>A sequence containing only <see langword="true"/> values.</returns>
     public static IObservableAsync<bool> WhereTrue(this IObservableAsync<bool> source)
     {
-        ArgumentExceptionHelper.ThrowIfNull(source, nameof(source));
+        ArgumentExceptionHelper.ThrowIfNull(source);
 
-        return source.Where(static value => value);
+        return new WhereTrueObservable(source);
     }
 }

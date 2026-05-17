@@ -17,12 +17,13 @@ public class ErrorHandlingOperatorTests
     [Test]
     public async Task WhenCatchWithFallback_ThenSwitchesToFallback()
     {
+        const int FallbackValue = 42;
         var source = ObservableAsync.Throw<int>(new InvalidOperationException("fail"));
-        var fallback = ObservableAsync.Return(42);
+        var fallback = ObservableAsync.Return(FallbackValue);
 
         var result = await source.Catch(_ => fallback).ToListAsync();
 
-        await Assert.That(result).IsEquivalentTo([42]);
+        await Assert.That(result).IsCollectionEqualTo([FallbackValue]);
     }
 
     /// <summary>Tests Catch on success completes original sequence.</summary>
@@ -30,11 +31,13 @@ public class ErrorHandlingOperatorTests
     [Test]
     public async Task WhenCatchOnSuccess_ThenOriginalSequenceCompletes()
     {
+        const int SecondElement = 2;
+        const int ThirdElement = 3;
         var result = await ObservableAsync.Range(1, 3)
             .Catch(_ => ObservableAsync.Return(99))
             .ToListAsync();
 
-        await Assert.That(result).IsEquivalentTo([1, 2, 3]);
+        await Assert.That(result).IsCollectionEqualTo([1, SecondElement, ThirdElement]);
     }
 
     /// <summary>Tests CatchAndIgnoreErrorResume ignores and continues.</summary>
@@ -42,12 +45,13 @@ public class ErrorHandlingOperatorTests
     [Test]
     public async Task WhenCatchAndIgnoreErrorResume_ThenIgnoresAndContinues()
     {
+        const int FallbackValue = 100;
         var source = ObservableAsync.Throw<int>(new InvalidOperationException("fail"));
-        var fallback = ObservableAsync.Return(100);
+        var fallback = ObservableAsync.Return(FallbackValue);
 
         var result = await source.CatchAndIgnoreErrorResume(_ => fallback).ToListAsync();
 
-        await Assert.That(result).IsEquivalentTo([100]);
+        await Assert.That(result).IsCollectionEqualTo([FallbackValue]);
     }
 
     /// <summary>Tests OnErrorResumeAsFailure converts error resume to failure.</summary>
@@ -76,7 +80,8 @@ public class ErrorHandlingOperatorTests
                     return default;
                 });
 
-        await Task.Delay(200);
+        const int SettleDelayMs = 200;
+        await Task.Delay(SettleDelayMs);
 
         await Assert.That(errorSent).IsTrue();
         await Assert.That(completionResult).IsNotNull();
@@ -87,9 +92,8 @@ public class ErrorHandlingOperatorTests
     [Test]
     public void WhenOnErrorResumeAsFailureWithNullSource_ThenThrowsArgumentNullException()
     {
-        IObservableAsync<int> source = null!;
-
-        Assert.Throws<ArgumentNullException>(() => source.OnErrorResumeAsFailure());
+        const IObservableAsync<int> Source = null!;
+        Assert.Throws<ArgumentNullException>(() => Source.OnErrorResumeAsFailure());
     }
 
     /// <summary>Tests that OnErrorResumeAsFailure forwards emitted values to the downstream observer.</summary>
@@ -106,9 +110,11 @@ public class ErrorHandlingOperatorTests
             return DisposableAsync.Empty;
         });
 
+        const int SecondElement = 2;
+        const int ThirdElement = 3;
         var result = await source.OnErrorResumeAsFailure().ToListAsync();
 
-        await Assert.That(result).IsEquivalentTo([1, 2, 3]);
+        await Assert.That(result).IsCollectionEqualTo([1, SecondElement, ThirdElement]);
     }
 
     /// <summary>Tests Retry on transient error succeeds after retry.</summary>
@@ -116,8 +122,11 @@ public class ErrorHandlingOperatorTests
     [Test]
     public async Task WhenRetryOnTransientError_ThenSucceedsAfterRetry()
     {
+        const int SuccessValue = 42;
+        const int ExpectedAttempts = 3;
         var attempt = 0;
-        var source = ObservableAsync.CreateAsBackgroundJob<int>(async (obs, ct) =>
+        var source = ObservableAsync.CreateAsBackgroundJob<int>(
+            async (obs, ct) =>
         {
             attempt++;
             if (attempt < 3)
@@ -126,42 +135,42 @@ public class ErrorHandlingOperatorTests
                 return;
             }
 
-            await obs.OnNextAsync(42, ct);
+            await obs.OnNextAsync(SuccessValue, ct);
             await obs.OnCompletedAsync(Result.Success);
-        });
+        },
+            NewThreadTaskScheduler.Instance);
 
         var result = await source.Retry(5).ToListAsync();
 
-        await Assert.That(result).IsEquivalentTo([42]);
-        await Assert.That(attempt).IsEqualTo(3);
+        await Assert.That(result).IsCollectionEqualTo([SuccessValue]);
+        await Assert.That(attempt).IsEqualTo(ExpectedAttempts);
     }
 
     /// <summary>Tests Retry exhausted propagates last error.</summary>
     [Test]
     public void WhenRetryExhausted_ThenPropagatesLastError()
     {
+        const int RetryCount = 2;
         var source = ObservableAsync.Throw<int>(new InvalidOperationException("permanent failure"));
 
-        Assert.ThrowsAsync<InvalidOperationException>(
-            async () => await source.Retry(2).ToListAsync());
+        Assert.ThrowsAsync<InvalidOperationException>(async () => await source.Retry(RetryCount).ToListAsync());
     }
 
     /// <summary>Tests Retry negative count throws.</summary>
     [Test]
-    public void WhenRetryNegativeCount_ThenThrowsArgumentOutOfRange()
-    {
+    public void WhenRetryNegativeCount_ThenThrowsArgumentOutOfRange() =>
         Assert.Throws<ArgumentOutOfRangeException>(() =>
             ObservableAsync.Return(1).Retry(-1));
-    }
 
     /// <summary>Tests Retry on success completes normally.</summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
     public async Task WhenRetryInfiniteOnSuccess_ThenCompletesNormally()
     {
+        const int ExpectedValue = 7;
         var result = await ObservableAsync.Return(7).Retry().ToListAsync();
 
-        await Assert.That(result).IsEquivalentTo([7]);
+        await Assert.That(result).IsCollectionEqualTo([ExpectedValue]);
     }
 
     /// <summary>Tests Catch with error resume callback is invoked.</summary>
@@ -169,6 +178,7 @@ public class ErrorHandlingOperatorTests
     [Test]
     public async Task WhenCatchWithErrorResumeCallback_ThenCallbackInvoked()
     {
+        const int FallbackValue = 99;
         var errorResumes = new List<Exception>();
         var source = ObservableAsync.Create<int>(async (observer, ct) =>
         {
@@ -179,10 +189,20 @@ public class ErrorHandlingOperatorTests
 
         var result = await source.Catch(
             _ => ObservableAsync.Return(99),
-            async (ex, ct) => errorResumes.Add(ex))
-            .ToListAsync();
+            (ex, _) =>
+                {
+                    try
+                    {
+                        errorResumes.Add(ex);
+                        return ValueTask.CompletedTask;
+                    }
+                    catch (Exception exception)
+                    {
+                        return ValueTask.FromException(exception);
+                    }
+                }).ToListAsync();
 
-        await Assert.That(result).Contains(99);
+        await Assert.That(result).Contains(FallbackValue);
     }
 
     /// <summary>Tests Retry with count zero propagates error immediately without retrying.</summary>
@@ -193,11 +213,13 @@ public class ErrorHandlingOperatorTests
         var attempt = 0;
         var completed = new TaskCompletionSource<Result>(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        var source = ObservableAsync.CreateAsBackgroundJob<int>(async (obs, ct) =>
+        var source = ObservableAsync.CreateAsBackgroundJob<int>(
+            async (obs, _) =>
         {
             attempt++;
             await obs.OnCompletedAsync(Result.Failure(new InvalidOperationException($"attempt {attempt}")));
-        });
+        },
+            NewThreadTaskScheduler.Instance);
 
         await using var sub = await source
             .Retry(0)
@@ -220,14 +242,17 @@ public class ErrorHandlingOperatorTests
     [Test]
     public async Task WhenRetryCountExhausted_ThenPropagatesLastError()
     {
+        const int ExpectedAttempts = 3;
         var attempt = 0;
         var completed = new TaskCompletionSource<Result>(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        var source = ObservableAsync.CreateAsBackgroundJob<int>(async (obs, ct) =>
+        var source = ObservableAsync.CreateAsBackgroundJob<int>(
+            async (obs, _) =>
         {
             attempt++;
             await obs.OnCompletedAsync(Result.Failure(new InvalidOperationException($"attempt {attempt}")));
-        });
+        },
+            NewThreadTaskScheduler.Instance);
 
         await using var sub = await source
             .Retry(2)
@@ -242,7 +267,7 @@ public class ErrorHandlingOperatorTests
 
         var completionResult = await completed.Task.WaitAsync(TimeSpan.FromSeconds(5));
         await Assert.That(completionResult.IsFailure).IsTrue();
-        await Assert.That(attempt).IsEqualTo(3);
+        await Assert.That(attempt).IsEqualTo(ExpectedAttempts);
     }
 
     /// <summary>Tests Retry with count one retries exactly once then propagates the error.</summary>
@@ -250,14 +275,17 @@ public class ErrorHandlingOperatorTests
     [Test]
     public async Task WhenRetryWithCountOne_ThenRetriesOnceAndPropagates()
     {
+        const int ExpectedAttempts = 2;
         var attempt = 0;
         var completed = new TaskCompletionSource<Result>(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        var source = ObservableAsync.CreateAsBackgroundJob<int>(async (obs, ct) =>
+        var source = ObservableAsync.CreateAsBackgroundJob<int>(
+            async (obs, _) =>
         {
             attempt++;
             await obs.OnCompletedAsync(Result.Failure(new InvalidOperationException($"attempt {attempt}")));
-        });
+        },
+            NewThreadTaskScheduler.Instance);
 
         await using var sub = await source
             .Retry(1)
@@ -272,7 +300,7 @@ public class ErrorHandlingOperatorTests
 
         var completionResult = await completed.Task.WaitAsync(TimeSpan.FromSeconds(5));
         await Assert.That(completionResult.IsFailure).IsTrue();
-        await Assert.That(attempt).IsEqualTo(2);
+        await Assert.That(attempt).IsEqualTo(ExpectedAttempts);
     }
 
     /// <summary>Tests that Catch handler throwing an exception routes to OnCompletedAsync with failure.</summary>
@@ -284,7 +312,7 @@ public class ErrorHandlingOperatorTests
         var source = ObservableAsync.Throw<int>(new InvalidOperationException("source error"));
 
         await using var sub = await source
-            .Catch<int>(new Func<Exception, IObservableAsync<int>>(_ => throw new ArithmeticException("handler error")))
+            .Catch<int>(_ => throw new ArithmeticException("handler error"))
             .SubscribeAsync(
                 (_, _) => default,
                 null,
@@ -333,7 +361,7 @@ public class ErrorHandlingOperatorTests
     public async Task WhenCatchAndIgnoreErrorResume_ThenReportsToUnhandledExceptionHandler()
     {
         var reportedExceptions = new List<Exception>();
-        UnhandledExceptionHandler.Register(ex => reportedExceptions.Add(ex));
+        UnhandledExceptionHandler.Register(reportedExceptions.Add);
 
         var source = ObservableAsync.Create<int>(async (observer, ct) =>
         {
@@ -342,9 +370,10 @@ public class ErrorHandlingOperatorTests
             return DisposableAsync.Empty;
         });
 
+        const int ExpectedFallback = 99;
         var result = await source.CatchAndIgnoreErrorResume(_ => ObservableAsync.Return(99)).ToListAsync();
 
-        await Assert.That(result).IsEquivalentTo([99]);
+        await Assert.That(result).IsCollectionEqualTo([ExpectedFallback]);
         await Assert.That(reportedExceptions).Count().IsEqualTo(1);
         await Assert.That(reportedExceptions[0].Message).IsEqualTo("resume error");
     }
@@ -357,7 +386,7 @@ public class ErrorHandlingOperatorTests
         var attempt = 0;
         var completed = new TaskCompletionSource<Result>(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        var source = ObservableAsync.Create<int>(async (observer, ct) =>
+        var source = ObservableAsync.Create<int>(async (observer, _) =>
         {
             attempt++;
             if (attempt == 1)
@@ -385,8 +414,9 @@ public class ErrorHandlingOperatorTests
         // The OperationCanceledException is swallowed, so completion should not fire.
         // Give a short window to verify no completion occurs.
         var completedInTime = completed.Task.WaitAsync(TimeSpan.FromMilliseconds(500));
+        const int ExpectedAttempts = 2;
         await Assert.ThrowsAsync<TimeoutException>(async () => await completedInTime);
-        await Assert.That(attempt).IsEqualTo(2);
+        await Assert.That(attempt).IsEqualTo(ExpectedAttempts);
     }
 
     /// <summary>Tests that Retry catches generic exceptions during re-subscription and completes with failure.</summary>
@@ -397,7 +427,7 @@ public class ErrorHandlingOperatorTests
         var attempt = 0;
         var completed = new TaskCompletionSource<Result>(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        var source = ObservableAsync.Create<int>(async (observer, ct) =>
+        var source = ObservableAsync.Create<int>(async (observer, _) =>
         {
             attempt++;
             if (attempt == 1)
@@ -424,8 +454,9 @@ public class ErrorHandlingOperatorTests
 
         var completionResult = await completed.Task.WaitAsync(TimeSpan.FromSeconds(5));
         await Assert.That(completionResult.IsFailure).IsTrue();
+        const int ExpectedAttempts = 2;
         await Assert.That(completionResult.Exception).IsTypeOf<ArithmeticException>();
-        await Assert.That(attempt).IsEqualTo(2);
+        await Assert.That(attempt).IsEqualTo(ExpectedAttempts);
     }
 
     /// <summary>Tests that parameterless Retry retries indefinitely until success (covers the int.MaxValue path).</summary>
@@ -434,7 +465,8 @@ public class ErrorHandlingOperatorTests
     public async Task WhenRetryParameterless_ThenRetriesUntilSuccess()
     {
         var attempt = 0;
-        var source = ObservableAsync.CreateAsBackgroundJob<int>(async (obs, ct) =>
+        var source = ObservableAsync.CreateAsBackgroundJob<int>(
+            async (obs, ct) =>
         {
             attempt++;
             if (attempt < 5)
@@ -445,11 +477,14 @@ public class ErrorHandlingOperatorTests
 
             await obs.OnNextAsync(100, ct);
             await obs.OnCompletedAsync(Result.Success);
-        });
+        },
+            NewThreadTaskScheduler.Instance);
 
+        const int SuccessValue = 100;
+        const int ExpectedAttempts = 5;
         var result = await source.Retry().ToListAsync();
 
-        await Assert.That(result).IsEquivalentTo([100]);
-        await Assert.That(attempt).IsEqualTo(5);
+        await Assert.That(result).IsCollectionEqualTo([SuccessValue]);
+        await Assert.That(attempt).IsEqualTo(ExpectedAttempts);
     }
 }

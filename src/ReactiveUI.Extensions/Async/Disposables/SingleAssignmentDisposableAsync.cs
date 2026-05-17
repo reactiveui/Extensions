@@ -105,19 +105,20 @@ public sealed class SingleAssignmentDisposableAsync : IAsyncDisposable
     internal static ValueTask DisposeAsync(ref IAsyncDisposable? field)
     {
         var current = Interlocked.Exchange(ref field, DisposedSentinel.Instance);
-        if (!ReferenceEquals(current, DisposedSentinel.Instance) && current is not null)
+        if (ReferenceEquals(current, DisposedSentinel.Instance) || current is null)
         {
-            return current.DisposeAsync();
+            return default;
         }
 
-        return default;
+        return current.DisposeAsync();
     }
 
     /// <summary>
     /// Creates an exception indicating that the disposable has already been assigned.
     /// </summary>
     /// <returns>An <see cref="InvalidOperationException"/> with the already-assigned message.</returns>
-    internal static InvalidOperationException CreateAlreadyAssignedException() => new("Disposable is already assigned.");
+    internal static InvalidOperationException CreateAlreadyAssignedException() =>
+        new("Disposable is already assigned.");
 
     /// <summary>
     /// A sentinel object used to indicate that the <see cref="SingleAssignmentDisposableAsync"/> has been disposed.
@@ -130,6 +131,6 @@ public sealed class SingleAssignmentDisposableAsync : IAsyncDisposable
         public static readonly DisposedSentinel Instance = new();
 
         /// <inheritdoc/>
-        public ValueTask DisposeAsync() => default;
+        ValueTask IAsyncDisposable.DisposeAsync() => default;
     }
 }

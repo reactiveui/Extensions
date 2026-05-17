@@ -51,5 +51,7 @@ public readonly record struct Optional<T>
     /// <remarks>Accessing this property when the optional object does not have a value will throw an
     /// exception. Use the HasValue property to determine whether a value is present before accessing this
     /// property.</remarks>
-    public T? Value => HasValue ? _value : throw new InvalidOperationException("Impossible retrieve a value for an empty optional");
+    public T? Value => HasValue
+        ? _value
+        : throw new InvalidOperationException("Impossible retrieve a value for an empty optional");
 }

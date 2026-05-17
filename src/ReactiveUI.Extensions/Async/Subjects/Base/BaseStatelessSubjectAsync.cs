@@ -81,14 +81,21 @@ public abstract class BaseStatelessSubjectAsync<T> : ObservableAsync<T>, ISubjec
     /// <param name="cancellationToken">A cancellation token that can be used to cancel the subscription operation.</param>
     /// <returns>A value task that represents the asynchronous subscription operation. The result is an <see
     /// cref="IAsyncDisposable"/> that can be disposed to unsubscribe the observer.</returns>
-    protected override ValueTask<IAsyncDisposable> SubscribeAsyncCore(IObserverAsync<T> observer, CancellationToken cancellationToken)
+    protected override ValueTask<IAsyncDisposable> SubscribeAsyncCore(
+        IObserverAsync<T> observer,
+        CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var disposable = DisposableAsync.Create(() =>
-        {
-            ImmutableInterlocked.Update(ref _observers, static (observers, observer) => observers.Remove(observer), observer);
-            return default;
-        });
+        var disposable = DisposableAsync.Create(
+            (subject: this, observer),
+            static state =>
+            {
+                ImmutableInterlocked.Update(
+                    ref state.subject._observers,
+                    static (observers, observer) => observers.Remove(observer),
+                    state.observer);
+                return default;
+            });
 
         ImmutableInterlocked.Update(ref _observers, static (observers, observer) => observers.Add(observer), observer);
         return new(disposable);
@@ -101,7 +108,10 @@ public abstract class BaseStatelessSubjectAsync<T> : ObservableAsync<T>, ISubjec
     /// <param name="value">The value to send to each observer.</param>
     /// <param name="cancellationToken">A cancellation token that can be used to cancel the notification operation.</param>
     /// <returns>A ValueTask that represents the asynchronous notification operation.</returns>
-    protected abstract ValueTask OnNextAsyncCore(IReadOnlyList<IObserverAsync<T>> observers, T value, CancellationToken cancellationToken);
+    protected abstract ValueTask OnNextAsyncCore(
+        ImmutableArray<IObserverAsync<T>> observers,
+        T value,
+        CancellationToken cancellationToken);
 
     /// <summary>
     /// Handles error recovery for the specified observers by resuming asynchronous processing after an error occurs.
@@ -113,7 +123,10 @@ public abstract class BaseStatelessSubjectAsync<T> : ObservableAsync<T>, ISubjec
     /// <param name="error">The exception that triggered the error recovery logic. Cannot be null.</param>
     /// <param name="cancellationToken">A cancellation token that can be used to cancel the asynchronous operation.</param>
     /// <returns>A ValueTask that represents the asynchronous error recovery operation.</returns>
-    protected abstract ValueTask OnErrorResumeAsyncCore(IReadOnlyList<IObserverAsync<T>> observers, Exception error, CancellationToken cancellationToken);
+    protected abstract ValueTask OnErrorResumeAsyncCore(
+        ImmutableArray<IObserverAsync<T>> observers,
+        Exception error,
+        CancellationToken cancellationToken);
 
     /// <summary>
     /// Invoked to asynchronously notify all observers of the completion event with the specified result.
@@ -123,5 +136,5 @@ public abstract class BaseStatelessSubjectAsync<T> : ObservableAsync<T>, ISubjec
     /// <param name="observers">The collection of observers to be notified. Cannot be null.</param>
     /// <param name="result">The result to provide to each observer upon completion.</param>
     /// <returns>A ValueTask that represents the asynchronous notification operation.</returns>
-    protected abstract ValueTask OnCompletedAsyncCore(IReadOnlyList<IObserverAsync<T>> observers, Result result);
+    protected abstract ValueTask OnCompletedAsyncCore(ImmutableArray<IObserverAsync<T>> observers, Result result);
 }

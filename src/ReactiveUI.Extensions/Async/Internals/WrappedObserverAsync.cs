@@ -12,10 +12,12 @@ namespace ReactiveUI.Extensions.Async.Internals;
 internal sealed class WrappedObserverAsync<T>(IObserverAsync<T> observer) : ObserverAsync<T>
 {
     /// <inheritdoc/>
-    protected override ValueTask OnNextAsyncCore(T value, CancellationToken cancellationToken) => observer.OnNextAsync(value, cancellationToken);
+    protected override ValueTask OnNextAsyncCore(T value, CancellationToken cancellationToken) =>
+        observer.OnNextAsync(value, cancellationToken);
 
     /// <inheritdoc/>
-    protected override ValueTask OnErrorResumeAsyncCore(Exception error, CancellationToken cancellationToken) => observer.OnErrorResumeAsync(error, cancellationToken);
+    protected override ValueTask OnErrorResumeAsyncCore(Exception error, CancellationToken cancellationToken) =>
+        observer.OnErrorResumeAsync(error, cancellationToken);
 
     /// <inheritdoc/>
     protected override ValueTask OnCompletedAsyncCore(Result result) => observer.OnCompletedAsync(result);

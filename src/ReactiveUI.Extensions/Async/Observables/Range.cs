@@ -24,15 +24,21 @@ public static partial class ObservableAsync
     /// <returns>An observable sequence that emits integers from <paramref name="start"/> to <paramref name="start"/> + <paramref
     /// name="count"/> - 1, in order.</returns>
     public static IObservableAsync<int> Range(int start, int count) => CreateAsBackgroundJob<int>(
-            async (observer, cancellationToken) =>
+        async (observer, cancellationToken) =>
         {
             for (var i = 0; i < count; i++)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                await observer.OnNextAsync(start + i, cancellationToken);
+
+                // Pass CancellationToken.None to the observer so its TryEnter takes the
+                // None fast path; the pump loop's ThrowIfCancellationRequested still terminates
+                // the sequence on subscription disposal. Without this, every observer in the
+                // chain allocated a Linked2CancellationTokenSource per emission, dominating the
+                // GC profile of CountAsync / LastAsync / ToListAsync.
+                await observer.OnNextAsync(start + i, CancellationToken.None).ConfigureAwait(false);
             }
 
-            await observer.OnCompletedAsync(Result.Success);
+            await observer.OnCompletedAsync(Result.Success).ConfigureAwait(false);
         },
-            true);
+        true);
 }

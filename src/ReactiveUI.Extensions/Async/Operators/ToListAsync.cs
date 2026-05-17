@@ -14,21 +14,30 @@ namespace ReactiveUI.Extensions.Async;
 /// intended to simplify common tasks when consuming asynchronous observable streams.</remarks>
 public static partial class ObservableAsync
 {
-    extension<T>(IObservableAsync<T> @this)
+    /// <summary>
+    /// Asynchronously collects all elements from the source sequence into a list.
+    /// </summary>
+    /// <typeparam name="T">The type of elements in the sequence.</typeparam>
+    /// <param name="this">The source observable sequence.</param>
+    /// <returns>A task that represents the asynchronous operation. The task result contains a list of all elements in the
+    /// source sequence, in the order they were received.</returns>
+    public static ValueTask<List<T>> ToListAsync<T>(this IObservableAsync<T> @this)
+        => @this.ToListAsync(CancellationToken.None);
+
+    /// <summary>
+    /// Asynchronously collects all elements from the source sequence into a list.
+    /// </summary>
+    /// <typeparam name="T">The type of elements in the sequence.</typeparam>
+    /// <param name="this">The source observable sequence.</param>
+    /// <param name="cancellationToken">A cancellation token that can be used to cancel the asynchronous operation.</param>
+    /// <returns>A task that represents the asynchronous operation. The task result contains a list of all elements in the
+    /// source sequence, in the order they were received.</returns>
+    public static async ValueTask<List<T>> ToListAsync<T>(this IObservableAsync<T> @this, CancellationToken cancellationToken)
     {
-        /// <summary>
-        /// Asynchronously collects all elements from the source sequence into a list.
-        /// </summary>
-        /// <param name="cancellationToken">A cancellation token that can be used to cancel the asynchronous operation.</param>
-        /// <returns>A task that represents the asynchronous operation. The task result contains a list of all elements in the
-        /// source sequence, in the order they were received.</returns>
-        public async ValueTask<List<T>> ToListAsync(CancellationToken cancellationToken = default)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            var observer = new ToListAsyncObserver<T>(cancellationToken);
-            _ = await @this.SubscribeAsync(observer, cancellationToken);
-            return await observer.WaitValueAsync();
-        }
+        cancellationToken.ThrowIfCancellationRequested();
+        var observer = new ToListAsyncObserver<T>(cancellationToken);
+        await using var subscription = await @this.SubscribeAsync(observer, cancellationToken).ConfigureAwait(false);
+        return await observer.WaitValueAsync().ConfigureAwait(false);
     }
 
     /// <summary>
@@ -36,12 +45,13 @@ public static partial class ObservableAsync
     /// </summary>
     /// <typeparam name="T">The type of elements in the source sequence.</typeparam>
     /// <param name="cancellationToken">A cancellation token for the operation.</param>
-    internal sealed class ToListAsyncObserver<T>(CancellationToken cancellationToken) : TaskObserverAsyncBase<T, List<T>>(cancellationToken)
+    internal sealed class ToListAsyncObserver<T>(CancellationToken cancellationToken)
+        : TaskObserverAsyncBase<T, List<T>>(cancellationToken)
     {
         /// <summary>
         /// The list that accumulates all elements received from the source sequence.
         /// </summary>
-        private readonly List<T> _items = new();
+        private readonly List<T> _items = [];
 
         /// <inheritdoc/>
         protected override ValueTask OnNextAsyncCore(T value, CancellationToken cancellationToken)
@@ -51,7 +61,8 @@ public static partial class ObservableAsync
         }
 
         /// <inheritdoc/>
-        protected override ValueTask OnErrorResumeAsyncCore(Exception error, CancellationToken cancellationToken) => TrySetException(error);
+        protected override ValueTask OnErrorResumeAsyncCore(Exception error, CancellationToken cancellationToken) =>
+            TrySetException(error);
 
         /// <inheritdoc/>
         protected override ValueTask OnCompletedAsyncCore(Result result) =>

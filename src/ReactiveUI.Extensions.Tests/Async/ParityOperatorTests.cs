@@ -3,7 +3,6 @@
 // See the LICENSE file in the project root for full license information.
 
 using ReactiveUI.Extensions.Async;
-using ReactiveUI.Extensions.Async.Disposables;
 using ReactiveUI.Extensions.Async.Subjects;
 using AsyncObs = ReactiveUI.Extensions.Async.ObservableAsync;
 
@@ -12,8 +11,36 @@ namespace ReactiveUI.Extensions.Tests.Async;
 /// <summary>
 /// Tests for async parity helpers that mirror the synchronous helper surface in the repository.
 /// </summary>
+[SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "TUnit requires instance methods")]
 public class ParityOperatorTests
 {
+    /// <summary>Sentinel value (42) used by tests.</summary>
+    private const int CanonicalAnswer = 42;
+
+    /// <summary>Sentinel value (99) used by tests.</summary>
+    private const int FallbackSentinel = 99;
+
+    /// <summary>Single source value (7).</summary>
+    private const int SingleSourceValue = 7;
+
+    /// <summary>Bool sequence [true, false, true] used by ParityOperatorTests.</summary>
+    private static readonly bool[] ParityBoolSequenceTft = [true, false, true];
+
+    /// <summary>Bool sequence [true, false, true, false, false] used by ParityOperatorTests.</summary>
+    private static readonly bool[] ParityBoolSequenceTftff = [true, false, true, false, false];
+
+    /// <summary>Bool sequence [true, false, true, false, true] used by ParityOperatorTests.</summary>
+    private static readonly bool[] ParityBoolSequenceTftft = [true, false, true, false, true];
+
+    /// <summary>Hoisted source array used by tests (was inline literal).</summary>
+    private static readonly int[] Sequence123 = [1, 2, 3];
+
+    /// <summary>Hoisted source array used by tests (was inline literal).</summary>
+    private static readonly int[] Sequence12345 = [1, 2, 3, 4, 5];
+
+    /// <summary>Hoisted source array used by tests (was inline literal).</summary>
+    private static readonly int[] Sequence42 = [42];
+
     /// <summary>
     /// Tests that WhereIsNotNull filters null values and narrows the result type.
     /// </summary>
@@ -28,7 +55,7 @@ public class ParityOperatorTests
             .WhereIsNotNull()
             .ToListAsync();
 
-        await Assert.That(result).IsEquivalentTo(["alpha", "beta"]);
+        await Assert.That(result).IsCollectionEqualTo(["alpha", "beta"]);
     }
 
     /// <summary>
@@ -80,11 +107,15 @@ public class ParityOperatorTests
     [Test]
     public async Task WhenGetMax_ThenReturnsMaximumLatestValue()
     {
-        var result = await AsyncObs.Return(2)
-            .GetMax(AsyncObs.Return(5), AsyncObs.Return(3))
+        const int FirstValue = 2;
+        const int LargestValue = 5;
+        const int ThirdValue = 3;
+
+        var result = await AsyncObs.Return(FirstValue)
+            .GetMax(AsyncObs.Return(LargestValue), AsyncObs.Return(ThirdValue))
             .FirstAsync();
 
-        await Assert.That(result).IsEqualTo(5);
+        await Assert.That(result).IsEqualTo(LargestValue);
     }
 
     /// <summary>
@@ -94,11 +125,11 @@ public class ParityOperatorTests
     [Test]
     public async Task WhenGetMax_WithSingleSource_ThenReturnsThatValue()
     {
-        var result = await AsyncObs.Return(7)
+        var result = await AsyncObs.Return(SingleSourceValue)
             .GetMax()
             .FirstAsync();
 
-        await Assert.That(result).IsEqualTo(7);
+        await Assert.That(result).IsEqualTo(SingleSourceValue);
     }
 
     /// <summary>
@@ -108,11 +139,17 @@ public class ParityOperatorTests
     [Test]
     public async Task WhenScanWithInitial_ThenSeedIsEmittedFirst()
     {
-        var result = await AsyncObs.Range(1, 3)
-            .ScanWithInitial(0, static (acc, value) => acc + value)
+        const int RangeStart = 1;
+        const int RangeCount = 3;
+        const int Seed = 0;
+        const int SumAfterTwo = 3;
+        const int SumAfterThree = 6;
+
+        var result = await AsyncObs.Range(RangeStart, RangeCount)
+            .ScanWithInitial(Seed, static (acc, value) => acc + value)
             .ToListAsync();
 
-        await Assert.That(result).IsEquivalentTo([0, 1, 3, 6]);
+        await Assert.That(result).IsCollectionEqualTo([Seed, 1, SumAfterTwo, SumAfterThree]);
     }
 
     /// <summary>
@@ -122,14 +159,24 @@ public class ParityOperatorTests
     [Test]
     public async Task WhenPairwise_ThenAdjacentPairsAreProduced()
     {
-        var result = await AsyncObs.Range(1, 4)
+        const int RangeStart = 1;
+        const int RangeCount = 4;
+        const int ExpectedPairCount = 3;
+        const int FirstPairSecond = 2;
+        const int SecondPairFirst = 2;
+        const int SecondPairSecond = 3;
+        const int ThirdPairIndex = 2;
+        const int ThirdPairFirst = 3;
+        const int ThirdPairSecond = 4;
+
+        var result = await AsyncObs.Range(RangeStart, RangeCount)
             .Pairwise()
             .ToListAsync();
 
-        await Assert.That(result).Count().IsEqualTo(3);
-        await Assert.That(result[0]).IsEqualTo((1, 2));
-        await Assert.That(result[1]).IsEqualTo((2, 3));
-        await Assert.That(result[2]).IsEqualTo((3, 4));
+        await Assert.That(result).Count().IsEqualTo(ExpectedPairCount);
+        await Assert.That(result[0]).IsEqualTo((1, FirstPairSecond));
+        await Assert.That(result[1]).IsEqualTo((SecondPairFirst, SecondPairSecond));
+        await Assert.That(result[ThirdPairIndex]).IsEqualTo((ThirdPairFirst, ThirdPairSecond));
     }
 
     /// <summary>
@@ -139,7 +186,7 @@ public class ParityOperatorTests
     [Test]
     public async Task WhenPairwise_WithSingleElement_ThenProducesEmptySequence()
     {
-        var result = await new[] { 42 }
+        var result = await Sequence42
             .ToObservableAsync()
             .Pairwise()
             .ToListAsync();
@@ -152,26 +199,37 @@ public class ParityOperatorTests
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
+    [SuppressMessage(
+        "Usage",
+        "CA1849:Await task instead of getting result",
+        Justification = "Asserting on task results after completion.")]
     public async Task WhenPartition_ThenSourceIsSplitIntoBranches()
     {
+        const int EvenDivisor = 2;
+        const int Emit2 = 2;
+        const int Emit3 = 3;
+        const int Emit4 = 4;
+        const int Emit5 = 5;
+        const int Emit6 = 6;
+
         var subject = SubjectAsync.Create<int>();
-        var (trueBranch, falseBranch) = subject.Values.Partition(static value => value % 2 == 0);
+        var (trueBranch, falseBranch) = subject.Values.Partition(static value => value % EvenDivisor == 0);
 
         var trueTask = trueBranch.ToListAsync().AsTask();
         var falseTask = falseBranch.ToListAsync().AsTask();
 
         await subject.OnNextAsync(1, CancellationToken.None);
-        await subject.OnNextAsync(2, CancellationToken.None);
-        await subject.OnNextAsync(3, CancellationToken.None);
-        await subject.OnNextAsync(4, CancellationToken.None);
-        await subject.OnNextAsync(5, CancellationToken.None);
-        await subject.OnNextAsync(6, CancellationToken.None);
+        await subject.OnNextAsync(Emit2, CancellationToken.None);
+        await subject.OnNextAsync(Emit3, CancellationToken.None);
+        await subject.OnNextAsync(Emit4, CancellationToken.None);
+        await subject.OnNextAsync(Emit5, CancellationToken.None);
+        await subject.OnNextAsync(Emit6, CancellationToken.None);
         await subject.OnCompletedAsync(Result.Success);
 
         await Task.WhenAll(trueTask, falseTask);
 
-        await Assert.That(trueTask.Result).IsEquivalentTo([2, 4, 6]);
-        await Assert.That(falseTask.Result).IsEquivalentTo([1, 3, 5]);
+        await Assert.That(trueTask.Result).IsCollectionEqualTo([Emit2, Emit4, Emit6]);
+        await Assert.That(falseTask.Result).IsCollectionEqualTo([1, Emit3, Emit5]);
     }
 
     /// <summary>
@@ -179,15 +237,20 @@ public class ParityOperatorTests
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
+    [SuppressMessage(
+        "Usage",
+        "CA1849:Await task instead of getting result",
+        Justification = "Asserting on task results after completion.")]
     public async Task WhenDoOnSubscribe_ThenRunsPerSubscription()
     {
+        const int ExpectedSubscriptions = 2;
         var subscriptions = 0;
-        var source = AsyncObs.Return(42).DoOnSubscribe(() => subscriptions++);
+        var source = AsyncObs.Return(CanonicalAnswer).DoOnSubscribe(() => subscriptions++);
 
         await source.WaitCompletionAsync();
         await source.WaitCompletionAsync();
 
-        await Assert.That(subscriptions).IsEqualTo(2);
+        await Assert.That(subscriptions).IsEqualTo(ExpectedSubscriptions);
     }
 
     /// <summary>
@@ -211,9 +274,9 @@ public class ParityOperatorTests
     [Test]
     public async Task WhenStartFunction_ThenPublishesFunctionResult()
     {
-        var result = await AsyncObs.Start(() => 42).FirstAsync();
+        var result = await AsyncObs.Start(() => CanonicalAnswer).FirstAsync();
 
-        await Assert.That(result).IsEqualTo(42);
+        await Assert.That(result).IsEqualTo(CanonicalAnswer);
     }
 
     /// <summary>
@@ -223,15 +286,17 @@ public class ParityOperatorTests
     [Test]
     public async Task WhenAsSignal_ThenEmitsUnitForEachValue()
     {
-        var result = await new[] { 1, 2, 3 }
+        var result = await Sequence123
             .ToObservableAsync()
             .AsSignal()
             .ToListAsync();
 
-        await Assert.That(result).Count().IsEqualTo(3);
+        const int ExpectedCount = 3;
+        const int LastIndex = 2;
+        await Assert.That(result).Count().IsEqualTo(ExpectedCount);
         await Assert.That(result[0]).IsEqualTo(Unit.Default);
         await Assert.That(result[1]).IsEqualTo(Unit.Default);
-        await Assert.That(result[2]).IsEqualTo(Unit.Default);
+        await Assert.That(result[LastIndex]).IsEqualTo(Unit.Default);
     }
 
     /// <summary>
@@ -239,6 +304,10 @@ public class ParityOperatorTests
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
+    [SuppressMessage(
+        "Usage",
+        "CA1849:Await task instead of getting result",
+        Justification = "Asserting on task results after completion.")]
     public async Task WhenCatchIgnoreTyped_WithMatchingException_ThenSuppressesAndInvokesAction()
     {
         Exception? captured = null;
@@ -262,7 +331,7 @@ public class ParityOperatorTests
         var error = new ArgumentException("wrong type");
 
         var resultTask = AsyncObs.Throw<int>(error)
-            .CatchIgnore<int, InvalidOperationException>(_ => { })
+            .CatchIgnore<int, InvalidOperationException>(static _ => { })
             .ToListAsync()
             .AsTask();
 
@@ -277,10 +346,10 @@ public class ParityOperatorTests
     public async Task WhenCatchAndReturn_ThenEmitsFallbackOnFailure()
     {
         var result = await AsyncObs.Throw<int>(new InvalidOperationException("fail"))
-            .CatchAndReturn(99)
+            .CatchAndReturn(FallbackSentinel)
             .ToListAsync();
 
-        await Assert.That(result).IsEquivalentTo([99]);
+        await Assert.That(result).IsCollectionEqualTo([FallbackSentinel]);
     }
 
     /// <summary>
@@ -291,10 +360,10 @@ public class ParityOperatorTests
     public async Task WhenCatchAndReturnTyped_WithMatchingException_ThenEmitsFactoryResult()
     {
         var result = await AsyncObs.Throw<string>(new InvalidOperationException("boom"))
-            .CatchAndReturn<string, InvalidOperationException>(ex => $"caught: {ex.Message}")
+            .CatchAndReturn<string, InvalidOperationException>(static ex => $"caught: {ex.Message}")
             .ToListAsync();
 
-        await Assert.That(result).IsEquivalentTo(["caught: boom"]);
+        await Assert.That(result).IsCollectionEqualTo(["caught: boom"]);
     }
 
     /// <summary>
@@ -305,7 +374,7 @@ public class ParityOperatorTests
     public async Task WhenCatchAndReturnTyped_WithNonMatchingException_ThenPropagatesError()
     {
         var resultTask = AsyncObs.Throw<string>(new ArgumentException("nope"))
-            .CatchAndReturn<string, InvalidOperationException>(_ => "fallback")
+            .CatchAndReturn<string, InvalidOperationException>(static _ => "fallback")
             .ToListAsync()
             .AsTask();
 
@@ -317,11 +386,16 @@ public class ParityOperatorTests
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
+    [SuppressMessage(
+        "Usage",
+        "CA1849:Await task instead of getting result",
+        Justification = "Asserting on task results after completion.")]
     public async Task WhenDoOnSubscribeAsync_ThenAsyncActionRunsBeforeSubscription()
     {
+        const int SourceValue = 10;
         var executed = false;
 
-        var result = await AsyncObs.Return(10)
+        var result = await AsyncObs.Return(SourceValue)
             .DoOnSubscribe(_ =>
             {
                 executed = true;
@@ -330,7 +404,7 @@ public class ParityOperatorTests
             .FirstAsync();
 
         await Assert.That(executed).IsTrue();
-        await Assert.That(result).IsEqualTo(10);
+        await Assert.That(result).IsEqualTo(SourceValue);
     }
 
     /// <summary>
@@ -338,8 +412,15 @@ public class ParityOperatorTests
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
+    [SuppressMessage(
+        "Usage",
+        "CA1849:Await task instead of getting result",
+        Justification = "Asserting on task results after completion.")]
     public async Task WhenDropIfBusy_WithBusyAction_ThenDropsValues()
     {
+        const int DroppedValueA = 2;
+        const int DroppedValueB = 3;
+        const int PassthroughValue = 4;
         var subject = SubjectAsync.Create<int>();
         var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -374,23 +455,23 @@ public class ParityOperatorTests
         // Emit values 2 and 3 while the action for value 1 is still running - these should be dropped
         // We need a small yield to ensure value 1's handler has started
         await Task.Yield();
-        await subject.OnNextAsync(2, CancellationToken.None);
-        await subject.OnNextAsync(3, CancellationToken.None);
+        await subject.OnNextAsync(DroppedValueA, CancellationToken.None);
+        await subject.OnNextAsync(DroppedValueB, CancellationToken.None);
 
         // Release the gate so value 1 completes
         gate.SetResult();
         await emitTask;
 
         // Emit value 4 after the action finishes - this should go through
-        await subject.OnNextAsync(4, CancellationToken.None);
+        await subject.OnNextAsync(PassthroughValue, CancellationToken.None);
         await subject.OnCompletedAsync(Result.Success);
 
         await completed.Task;
 
         await Assert.That(result).Contains(1);
-        await Assert.That(result).Contains(4);
-        await Assert.That(result).DoesNotContain(2);
-        await Assert.That(result).DoesNotContain(3);
+        await Assert.That(result).Contains(PassthroughValue);
+        await Assert.That(result).DoesNotContain(DroppedValueA);
+        await Assert.That(result).DoesNotContain(DroppedValueB);
     }
 
     /// <summary>
@@ -400,12 +481,14 @@ public class ParityOperatorTests
     [Test]
     public async Task WhenDropIfBusy_WithFastAction_ThenAllValuesPassThrough()
     {
-        var result = await new[] { 1, 2, 3 }
+        const int Second = 2;
+        const int Third = 3;
+        var result = await new[] { 1, Second, Third }
             .ToObservableAsync()
-            .DropIfBusy((_, _) => default)
+            .DropIfBusy(static (_, _) => default)
             .ToListAsync();
 
-        await Assert.That(result).IsEquivalentTo([1, 2, 3]);
+        await Assert.That(result).IsCollectionEqualTo([1, Second, Third]);
     }
 
     /// <summary>
@@ -415,13 +498,14 @@ public class ParityOperatorTests
     [Test]
     public async Task WhenLatestOrDefault_ThenEmitsDefaultFirstAndSuppressesDuplicate()
     {
-        var result = await new[] { 0, 1, 2 }
+        const int Third = 2;
+        var result = await new[] { 0, 1, Third }
             .ToObservableAsync()
             .LatestOrDefault(0)
             .ToListAsync();
 
         // StartWith(0) prepends 0, then DistinctUntilChanged suppresses the duplicate 0 from source
-        await Assert.That(result).IsEquivalentTo([0, 1, 2]);
+        await Assert.That(result).IsCollectionEqualTo([0, 1, Third]);
     }
 
     /// <summary>
@@ -431,12 +515,14 @@ public class ParityOperatorTests
     [Test]
     public async Task WhenLatestOrDefault_WithDifferentFirst_ThenEmitsBoth()
     {
-        var result = await new[] { 5, 6 }
+        const int First = 5;
+        const int Second = 6;
+        var result = await new[] { First, Second }
             .ToObservableAsync()
             .LatestOrDefault(0)
             .ToListAsync();
 
-        await Assert.That(result).IsEquivalentTo([0, 5, 6]);
+        await Assert.That(result).IsCollectionEqualTo([0, First, Second]);
     }
 
     /// <summary>
@@ -444,16 +530,20 @@ public class ParityOperatorTests
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
+    [SuppressMessage(
+        "Usage",
+        "CA1849:Await task instead of getting result",
+        Justification = "Asserting on task results after completion.")]
     public async Task WhenLogErrors_ThenLoggerIsInvokedOnError()
     {
         var logged = new List<Exception>();
-        var source = AsyncTestHelpers.CreateDirectSource<int>();
+        var source = new DirectSource<int>();
 
         var items = new List<int>();
         var completed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
         await using var sub = await source
-            .LogErrors(ex => logged.Add(ex))
+            .LogErrors(logged.Add)
             .SubscribeAsync(
                 (value, _) =>
                 {
@@ -468,15 +558,16 @@ public class ParityOperatorTests
                 },
                 CancellationToken.None);
 
+        const int SecondValue = 2;
         await source.EmitNext(1);
         var testError = new InvalidOperationException("logged error");
         await source.EmitError(testError);
-        await source.EmitNext(2);
+        await source.EmitNext(SecondValue);
         await source.Complete(Result.Success);
 
         await completed.Task;
 
-        await Assert.That(items).IsEquivalentTo([1, 2]);
+        await Assert.That(items).IsCollectionEqualTo([1, SecondValue]);
         await Assert.That(logged).Count().IsEqualTo(1);
         await Assert.That(logged[0].Message).IsEqualTo("logged error");
     }
@@ -488,12 +579,13 @@ public class ParityOperatorTests
     [Test]
     public async Task WhenWaitUntil_ThenEmitsFirstMatchingValue()
     {
-        var result = await new[] { 1, 2, 3, 4, 5 }
+        const int FirstMatch = 4;
+        var result = await Sequence12345
             .ToObservableAsync()
             .WaitUntil(static v => v > 3)
             .ToListAsync();
 
-        await Assert.That(result).IsEquivalentTo([4]);
+        await Assert.That(result).IsCollectionEqualTo([FirstMatch]);
     }
 
     /// <summary>
@@ -520,11 +612,11 @@ public class ParityOperatorTests
     {
         var context = AsyncContext.Default;
 
-        var result = await AsyncObs.Return(42)
+        var result = await AsyncObs.Return(CanonicalAnswer)
             .ObserveOnSafe(context)
             .FirstAsync();
 
-        await Assert.That(result).IsEqualTo(42);
+        await Assert.That(result).IsEqualTo(CanonicalAnswer);
     }
 
     /// <summary>
@@ -549,11 +641,11 @@ public class ParityOperatorTests
     [Test]
     public async Task WhenObserveOnSafeTaskScheduler_WithValue_ThenAppliesObserveOn()
     {
-        var result = await AsyncObs.Return(42)
+        var result = await AsyncObs.Return(CanonicalAnswer)
             .ObserveOnSafe(TaskScheduler.Default)
             .FirstAsync();
 
-        await Assert.That(result).IsEqualTo(42);
+        await Assert.That(result).IsEqualTo(CanonicalAnswer);
     }
 
     /// <summary>
@@ -565,11 +657,11 @@ public class ParityOperatorTests
     {
         var context = AsyncContext.Default;
 
-        var result = await AsyncObs.Return(42)
+        var result = await AsyncObs.Return(CanonicalAnswer)
             .ObserveOnIf(true, context)
             .FirstAsync();
 
-        await Assert.That(result).IsEqualTo(42);
+        await Assert.That(result).IsEqualTo(CanonicalAnswer);
     }
 
     /// <summary>
@@ -581,11 +673,11 @@ public class ParityOperatorTests
     {
         var context = AsyncContext.Default;
 
-        var result = await AsyncObs.Return(42)
+        var result = await AsyncObs.Return(CanonicalAnswer)
             .ObserveOnIf(false, context)
             .FirstAsync();
 
-        await Assert.That(result).IsEqualTo(42);
+        await Assert.That(result).IsEqualTo(CanonicalAnswer);
     }
 
     /// <summary>
@@ -595,11 +687,11 @@ public class ParityOperatorTests
     [Test]
     public async Task WhenObserveOnIfTaskScheduler_WithTrueCondition_ThenAppliesObserveOn()
     {
-        var result = await AsyncObs.Return(42)
+        var result = await AsyncObs.Return(CanonicalAnswer)
             .ObserveOnIf(true, TaskScheduler.Default)
             .FirstAsync();
 
-        await Assert.That(result).IsEqualTo(42);
+        await Assert.That(result).IsEqualTo(CanonicalAnswer);
     }
 
     /// <summary>
@@ -609,11 +701,11 @@ public class ParityOperatorTests
     [Test]
     public async Task WhenObserveOnIfTaskScheduler_WithFalseCondition_ThenReturnsSourceUnchanged()
     {
-        var result = await AsyncObs.Return(42)
+        var result = await AsyncObs.Return(CanonicalAnswer)
             .ObserveOnIf(false, TaskScheduler.Default)
             .FirstAsync();
 
-        await Assert.That(result).IsEqualTo(42);
+        await Assert.That(result).IsEqualTo(CanonicalAnswer);
     }
 
     /// <summary>
@@ -635,6 +727,10 @@ public class ParityOperatorTests
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
+    [SuppressMessage(
+        "Usage",
+        "CA1849:Await task instead of getting result",
+        Justification = "Asserting on task results after completion.")]
     public async Task WhenThrottleDistinct_ThenEmitsDistinctThrottledValues()
     {
         var subject = SubjectAsync.Create<int>();
@@ -650,7 +746,6 @@ public class ParityOperatorTests
                     firstReceived.TrySetResult();
                     return default;
                 },
-                null,
                 null);
 
         // Emit duplicate values quickly - DistinctUntilChanged collapses them
@@ -675,13 +770,19 @@ public class ParityOperatorTests
     [Test]
     public async Task WhenScanWithInitialAsync_ThenSeedIsEmittedFirst()
     {
-        var result = await AsyncObs.Range(1, 3)
+        const int RangeStart = 1;
+        const int RangeCount = 3;
+        const int Seed = 0;
+        const int SumAfterTwo = 3;
+        const int SumAfterThree = 6;
+
+        var result = await AsyncObs.Range(RangeStart, RangeCount)
             .ScanWithInitial(
-                0,
-                static (acc, value, _) => new ValueTask<int>(acc + value))
+                Seed,
+                static (acc, value, _) => new(acc + value))
             .ToListAsync();
 
-        await Assert.That(result).IsEquivalentTo([0, 1, 3, 6]);
+        await Assert.That(result).IsCollectionEqualTo([Seed, 1, SumAfterTwo, SumAfterThree]);
     }
 
     /// <summary>
@@ -689,22 +790,29 @@ public class ParityOperatorTests
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
+    [SuppressMessage(
+        "Usage",
+        "CA1849:Await task instead of getting result",
+        Justification = "Asserting on task results after completion.")]
     public async Task WhenDebounceUntil_WithConditionTrue_ThenEmitsImmediately()
     {
+        const int DebounceSeconds = 10;
+        const int Threshold = 5;
+        const int EmittedValue = 10;
         var subject = SubjectAsync.Create<int>();
 
         var resultTask = subject.Values
-            .DebounceUntil(TimeSpan.FromSeconds(10), static v => v > 5)
+            .DebounceUntil(TimeSpan.FromSeconds(DebounceSeconds), static v => v > Threshold)
             .Take(1)
             .FirstAsync()
             .AsTask();
 
         // Value 10 satisfies condition, should emit immediately (no delay)
-        await subject.OnNextAsync(10, CancellationToken.None);
+        await subject.OnNextAsync(EmittedValue, CancellationToken.None);
 
         var result = await resultTask;
 
-        await Assert.That(result).IsEqualTo(10);
+        await Assert.That(result).IsEqualTo(EmittedValue);
     }
 
     /// <summary>
@@ -712,6 +820,10 @@ public class ParityOperatorTests
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
+    [SuppressMessage(
+        "Usage",
+        "CA1849:Await task instead of getting result",
+        Justification = "Asserting on task results after completion.")]
     public async Task WhenDebounceUntil_WithConditionFalse_ThenDelaysEmission()
     {
         var subject = SubjectAsync.Create<int>();
@@ -725,7 +837,6 @@ public class ParityOperatorTests
                     results.Add(value);
                     return default;
                 },
-                null,
                 null);
 
         // Value 1 does not satisfy condition, should be delayed by 50ms
@@ -749,11 +860,15 @@ public class ParityOperatorTests
     [Test]
     public async Task WhenGetMin_ThenReturnsMinimumLatestValue()
     {
-        var result = await AsyncObs.Return(5)
-            .GetMin(AsyncObs.Return(2), AsyncObs.Return(8))
+        const int FirstValue = 5;
+        const int SmallestValue = 2;
+        const int ThirdValue = 8;
+
+        var result = await AsyncObs.Return(FirstValue)
+            .GetMin(AsyncObs.Return(SmallestValue), AsyncObs.Return(ThirdValue))
             .FirstAsync();
 
-        await Assert.That(result).IsEqualTo(2);
+        await Assert.That(result).IsEqualTo(SmallestValue);
     }
 
     /// <summary>
@@ -763,11 +878,11 @@ public class ParityOperatorTests
     [Test]
     public async Task WhenGetMin_WithSingleSource_ThenReturnsThatValue()
     {
-        var result = await AsyncObs.Return(7)
+        var result = await AsyncObs.Return(SingleSourceValue)
             .GetMin()
             .FirstAsync();
 
-        await Assert.That(result).IsEqualTo(7);
+        await Assert.That(result).IsEqualTo(SingleSourceValue);
     }
 
     /// <summary>
@@ -819,12 +934,15 @@ public class ParityOperatorTests
     [Test]
     public async Task WhenForEach_ThenFlattensEnumerableElements()
     {
-        var result = await new IEnumerable<int>[] { [1, 2], [3, 4] }
+        const int Second = 2;
+        const int Third = 3;
+        const int Fourth = 4;
+        var result = await new IEnumerable<int>[] { [1, Second], [Third, Fourth] }
             .ToObservableAsync()
             .ForEach()
             .ToListAsync();
 
-        await Assert.That(result).IsEquivalentTo([1, 2, 3, 4]);
+        await Assert.That(result).IsCollectionEqualTo([1, Second, Third, Fourth]);
     }
 
     /// <summary>
@@ -834,12 +952,12 @@ public class ParityOperatorTests
     [Test]
     public async Task WhenNot_ThenNegatesBooleanValues()
     {
-        var result = await new[] { true, false, true }
+        var result = await ParityBoolSequenceTft
             .ToObservableAsync()
             .Not()
             .ToListAsync();
 
-        await Assert.That(result).IsEquivalentTo([false, true, false]);
+        await Assert.That(result).IsCollectionEqualTo([false, true, false]);
     }
 
     /// <summary>
@@ -857,7 +975,7 @@ public class ParityOperatorTests
             .ToListAsync();
 
         // SkipWhile skips while null, so once a non-null appears, all subsequent values pass through
-        await Assert.That(result).IsEquivalentTo(["first", null!, "second"]);
+        await Assert.That(result).IsCollectionEqualTo(["first", null!, "second"]);
     }
 
     /// <summary>
@@ -865,14 +983,20 @@ public class ParityOperatorTests
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
+    [SuppressMessage(
+        "Usage",
+        "CA1849:Await task instead of getting result",
+        Justification = "Asserting on task results after completion.")]
     public async Task WhenStartAction_ThenEmitsUnit()
     {
         var executed = false;
 
-        var result = await AsyncObs.Start(() => { executed = true; }).FirstAsync();
+        var result = await AsyncObs.Start(Run).FirstAsync();
 
         await Assert.That(executed).IsTrue();
-        await Assert.That(result).IsEqualTo(Unit.Default);
+        await Assert.That(result.Equals(Unit.Default)).IsTrue();
+
+        void Run() => executed = true;
     }
 
     /// <summary>
@@ -880,14 +1004,20 @@ public class ParityOperatorTests
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
+    [SuppressMessage(
+        "Usage",
+        "CA1849:Await task instead of getting result",
+        Justification = "Asserting on task results after completion.")]
     public async Task WhenStartAction_WithScheduler_ThenExecutesOnScheduler()
     {
         var executed = false;
 
-        var result = await AsyncObs.Start(() => { executed = true; }, TaskScheduler.Default).FirstAsync();
+        var result = await AsyncObs.Start(Run, TaskScheduler.Default).FirstAsync();
 
         await Assert.That(executed).IsTrue();
-        await Assert.That(result).IsEqualTo(Unit.Default);
+        await Assert.That(result.Equals(Unit.Default)).IsTrue();
+
+        void Run() => executed = true;
     }
 
     /// <summary>
@@ -897,9 +1027,9 @@ public class ParityOperatorTests
     [Test]
     public async Task WhenStartFunction_WithScheduler_ThenExecutesOnScheduler()
     {
-        var result = await AsyncObs.Start(() => 99, TaskScheduler.Default).FirstAsync();
+        var result = await AsyncObs.Start(() => FallbackSentinel, TaskScheduler.Default).FirstAsync();
 
-        await Assert.That(result).IsEqualTo(99);
+        await Assert.That(result).IsEqualTo(FallbackSentinel);
     }
 
     /// <summary>
@@ -909,12 +1039,12 @@ public class ParityOperatorTests
     [Test]
     public async Task WhenWhereFalse_ThenFiltersToFalseValues()
     {
-        var result = await new[] { true, false, true, false, false }
+        var result = await ParityBoolSequenceTftff
             .ToObservableAsync()
             .WhereFalse()
             .ToListAsync();
 
-        await Assert.That(result).IsEquivalentTo([false, false, false]);
+        await Assert.That(result).IsCollectionEqualTo([false, false, false]);
     }
 
     /// <summary>
@@ -924,12 +1054,12 @@ public class ParityOperatorTests
     [Test]
     public async Task WhenWhereTrue_ThenFiltersToTrueValues()
     {
-        var result = await new[] { true, false, true, false, true }
+        var result = await ParityBoolSequenceTftft
             .ToObservableAsync()
             .WhereTrue()
             .ToListAsync();
 
-        await Assert.That(result).IsEquivalentTo([true, true, true]);
+        await Assert.That(result).IsCollectionEqualTo([true, true, true]);
     }
 
     /// <summary>
@@ -939,7 +1069,7 @@ public class ParityOperatorTests
     [Test]
     public async Task WhenCombineLatestValuesAreAllFalse_WithNonCollectionEnumerable_ThenMaterializesAndEvaluates()
     {
-        IEnumerable<IObservableAsync<bool>> LazySource()
+        static IEnumerable<IObservableAsync<bool>> LazySource()
         {
             yield return AsyncObs.Return(false);
             yield return AsyncObs.Return(false);
@@ -957,7 +1087,7 @@ public class ParityOperatorTests
     [Test]
     public async Task WhenCombineLatestValuesAreAllTrue_WithNonCollectionEnumerable_ThenMaterializesAndEvaluates()
     {
-        IEnumerable<IObservableAsync<bool>> LazySource()
+        static IEnumerable<IObservableAsync<bool>> LazySource()
         {
             yield return AsyncObs.Return(true);
             yield return AsyncObs.Return(true);
@@ -975,12 +1105,14 @@ public class ParityOperatorTests
     [Test]
     public async Task WhenCatchAndReturn_WithNoError_ThenPassesThroughSourceValues()
     {
-        var result = await new[] { 1, 2, 3 }
+        const int Second = 2;
+        const int Third = 3;
+        var result = await new[] { 1, Second, Third }
             .ToObservableAsync()
-            .CatchAndReturn(99)
+            .CatchAndReturn(FallbackSentinel)
             .ToListAsync();
 
-        await Assert.That(result).IsEquivalentTo([1, 2, 3]);
+        await Assert.That(result).IsCollectionEqualTo([1, Second, Third]);
     }
 
     /// <summary>
@@ -990,12 +1122,14 @@ public class ParityOperatorTests
     [Test]
     public async Task WhenCatchIgnore_WithNoError_ThenPassesThroughSourceValues()
     {
-        var result = await new[] { 1, 2, 3 }
+        const int Second = 2;
+        const int Third = 3;
+        var result = await new[] { 1, Second, Third }
             .ToObservableAsync()
             .CatchIgnore()
             .ToListAsync();
 
-        await Assert.That(result).IsEquivalentTo([1, 2, 3]);
+        await Assert.That(result).IsCollectionEqualTo([1, Second, Third]);
     }
 
     /// <summary>
@@ -1003,10 +1137,15 @@ public class ParityOperatorTests
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
+    [SuppressMessage(
+        "Usage",
+        "CA1849:Await task instead of getting result",
+        Justification = "Asserting on task results after completion.")]
     public async Task WhenDoOnSubscribeAsync_ThenRunsPerSubscription()
     {
+        const int ExpectedSubscriptions = 2;
         var count = 0;
-        var source = AsyncObs.Return(42).DoOnSubscribe(_ =>
+        var source = AsyncObs.Return(CanonicalAnswer).DoOnSubscribe(_ =>
         {
             count++;
             return default;
@@ -1015,7 +1154,7 @@ public class ParityOperatorTests
         await source.WaitCompletionAsync();
         await source.WaitCompletionAsync();
 
-        await Assert.That(count).IsEqualTo(2);
+        await Assert.That(count).IsEqualTo(ExpectedSubscriptions);
     }
 
     /// <summary>
@@ -1025,11 +1164,12 @@ public class ParityOperatorTests
     [Test]
     public async Task WhenGetMax_WithMaxInFirstSource_ThenReturnsCorrectMax()
     {
-        var result = await AsyncObs.Return(10)
+        const int LargestValue = 10;
+        var result = await AsyncObs.Return(LargestValue)
             .GetMax(AsyncObs.Return(1), AsyncObs.Return(5))
             .FirstAsync();
 
-        await Assert.That(result).IsEqualTo(10);
+        await Assert.That(result).IsEqualTo(LargestValue);
     }
 
     /// <summary>
@@ -1052,9 +1192,15 @@ public class ParityOperatorTests
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
+    [SuppressMessage(
+        "Usage",
+        "CA1849:Await task instead of getting result",
+        Justification = "Asserting on task results after completion.")]
     public async Task WhenDropIfBusy_WithConcurrentEmission_ThenDroppedValueIsDiscarded()
     {
-        var source = AsyncTestHelpers.CreateDirectSource<int>();
+        const int DroppedValue = 2;
+        const int PassthroughValue = 3;
+        var source = new DirectSource<int>();
         var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var actionStarted = 0;
         var droppedCount = 0;
@@ -1078,7 +1224,7 @@ public class ParityOperatorTests
                 return default;
             })
             .SubscribeAsync(
-                (value, _) => default,
+                static (_, _) => default,
                 null,
                 _ =>
                 {
@@ -1096,7 +1242,7 @@ public class ParityOperatorTests
             TimeSpan.FromSeconds(5));
 
         // Emit value 2 while value 1 is still processing - it should be dropped.
-        await source.EmitNext(2);
+        await source.EmitNext(DroppedValue);
 
         // The action should have been invoked only once (for value 1).
         droppedCount = 1 - (Volatile.Read(ref actionStarted) - 1);
@@ -1107,13 +1253,13 @@ public class ParityOperatorTests
         await emit1Task;
 
         // Emit value 3 after the action finishes - this should pass through.
-        await source.EmitNext(3);
+        await source.EmitNext(PassthroughValue);
         await source.Complete(Result.Success);
 
         await completed.Task;
 
         await Assert.That(received).Contains(1);
-        await Assert.That(received).Contains(3);
-        await Assert.That(received).DoesNotContain(2);
+        await Assert.That(received).Contains(PassthroughValue);
+        await Assert.That(received).DoesNotContain(DroppedValue);
     }
 }

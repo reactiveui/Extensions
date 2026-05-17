@@ -26,7 +26,8 @@ public abstract class ObservableAsync<T> : IObservableAsync<T>
     /// <param name="cancellationToken">A cancellation token that can be used to cancel the subscription operation.</param>
     /// <returns>A task that represents the asynchronous operation. The result contains an <see cref="IAsyncDisposable"/> that
     /// can be disposed to unsubscribe the observer.</returns>
-    public ValueTask<IAsyncDisposable> SubscribeAsync(IObserverAsync<T> observer, CancellationToken cancellationToken) =>
+    public ValueTask<IAsyncDisposable>
+        SubscribeAsync(IObserverAsync<T> observer, CancellationToken cancellationToken) =>
         SubscribeAsyncCore(observer, cancellationToken);
 
     /// <summary>
@@ -38,5 +39,7 @@ public abstract class ObservableAsync<T> : IObservableAsync<T>
     /// <param name="cancellationToken">A cancellation token that can be used to cancel the subscription operation.</param>
     /// <returns>A task that represents the asynchronous subscription operation. The result contains an object that can be
     /// disposed to unsubscribe the observer.</returns>
-    protected abstract ValueTask<IAsyncDisposable> SubscribeAsyncCore(IObserverAsync<T> observer, CancellationToken cancellationToken);
+    protected abstract ValueTask<IAsyncDisposable> SubscribeAsyncCore(
+        IObserverAsync<T> observer,
+        CancellationToken cancellationToken);
 }

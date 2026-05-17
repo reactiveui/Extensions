@@ -2,6 +2,8 @@
 // ReactiveUI Association Incorporated licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
+using System.Collections.Immutable;
+
 namespace ReactiveUI.Extensions.Async.Subjects;
 
 /// <summary>
@@ -20,12 +22,20 @@ public sealed class SerialStatelessSubjectAsync<T> : BaseStatelessSubjectAsync<T
     /// <param name="value">The value to send to each observer.</param>
     /// <param name="cancellationToken">A cancellation token that can be used to cancel the notification operation.</param>
     /// <returns>A task that represents the asynchronous notification operation.</returns>
-    protected override async ValueTask OnNextAsyncCore(IReadOnlyList<IObserverAsync<T>> observers, T value, CancellationToken cancellationToken)
+    protected override ValueTask OnNextAsyncCore(
+        ImmutableArray<IObserverAsync<T>> observers,
+        T value,
+        CancellationToken cancellationToken)
     {
-        foreach (var observer in observers)
+        // Fast path: a single observer is by far the most common shape — operators that take a
+        // pipeline always present one subscriber. Returning the observer's ValueTask directly
+        // skips the async state-machine box that the loop variant would allocate every emission.
+        if (observers.Length == 1)
         {
-            await observer.OnNextAsync(value, cancellationToken);
+            return observers[0].OnNextAsync(value, cancellationToken);
         }
+
+        return OnNextAsyncCoreMulti(observers, value, cancellationToken);
     }
 
     /// <summary>
@@ -36,11 +46,14 @@ public sealed class SerialStatelessSubjectAsync<T> : BaseStatelessSubjectAsync<T
     /// <param name="error">The exception that caused the error. Cannot be null.</param>
     /// <param name="cancellationToken">A cancellation token that can be used to cancel the asynchronous operation.</param>
     /// <returns>A ValueTask that represents the asynchronous notification operation.</returns>
-    protected override async ValueTask OnErrorResumeAsyncCore(IReadOnlyList<IObserverAsync<T>> observers, Exception error, CancellationToken cancellationToken)
+    protected override async ValueTask OnErrorResumeAsyncCore(
+        ImmutableArray<IObserverAsync<T>> observers,
+        Exception error,
+        CancellationToken cancellationToken)
     {
-        foreach (var observer in observers)
+        for (var i = 0; i < observers.Length; i++)
         {
-            await observer.OnErrorResumeAsync(error, cancellationToken);
+            await observers[i].OnErrorResumeAsync(error, cancellationToken).ConfigureAwait(false);
         }
     }
 
@@ -54,11 +67,27 @@ public sealed class SerialStatelessSubjectAsync<T> : BaseStatelessSubjectAsync<T
     /// <param name="observers">A read-only list of observers to be notified of the operation's completion. Cannot be null.</param>
     /// <param name="result">The result to provide to each observer upon completion.</param>
     /// <returns>A task that represents the asynchronous notification operation.</returns>
-    protected override async ValueTask OnCompletedAsyncCore(IReadOnlyList<IObserverAsync<T>> observers, Result result)
+    protected override async ValueTask OnCompletedAsyncCore(ImmutableArray<IObserverAsync<T>> observers, Result result)
     {
-        foreach (var observer in observers)
+        for (var i = 0; i < observers.Length; i++)
         {
-            await observer.OnCompletedAsync(result);
+            await observers[i].OnCompletedAsync(result).ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>Async fall-back for the multi-observer case; sequentially forwards the value to each subscriber.</summary>
+    /// <param name="observers">The current observer snapshot.</param>
+    /// <param name="value">The value being broadcast.</param>
+    /// <param name="cancellationToken">A cancellation token that can be used to cancel the notification operation.</param>
+    /// <returns>A task that represents the asynchronous notification operation.</returns>
+    private static async ValueTask OnNextAsyncCoreMulti(
+        ImmutableArray<IObserverAsync<T>> observers,
+        T value,
+        CancellationToken cancellationToken)
+    {
+        for (var i = 0; i < observers.Length; i++)
+        {
+            await observers[i].OnNextAsync(value, cancellationToken).ConfigureAwait(false);
         }
     }
 }

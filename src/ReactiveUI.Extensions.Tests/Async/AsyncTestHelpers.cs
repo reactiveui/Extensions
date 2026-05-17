@@ -3,7 +3,6 @@
 // See the LICENSE file in the project root for full license information.
 
 using ReactiveUI.Extensions.Async;
-using ReactiveUI.Extensions.Async.Disposables;
 
 namespace ReactiveUI.Extensions.Tests.Async;
 
@@ -19,15 +18,33 @@ internal static class AsyncTestHelpers
     /// <param name="source">The async observable to collect from.</param>
     /// <param name="cancellationToken">Optional cancellation token.</param>
     /// <returns>A tuple containing the collected items and the completion result.</returns>
+    internal static Task<(List<T> Items, Result? Completion)> CollectAsync<T>(
+        ObservableAsync<T> source,
+        CancellationToken cancellationToken = default) =>
+        CollectAsync(source, TimeProvider.System, cancellationToken);
+
+    /// <summary>
+    /// Collects all items and the completion result from an async observable using the supplied
+    /// <see cref="TimeProvider"/> for the completion-propagation deadline.
+    /// </summary>
+    /// <typeparam name="T">The type of elements in the observable sequence.</typeparam>
+    /// <param name="source">The async observable to collect from.</param>
+    /// <param name="timeProvider">Time provider used to compute the propagation deadline.</param>
+    /// <param name="cancellationToken">Optional cancellation token.</param>
+    /// <returns>A tuple containing the collected items and the completion result.</returns>
     internal static async Task<(List<T> Items, Result? Completion)> CollectAsync<T>(
         ObservableAsync<T> source,
+        TimeProvider timeProvider,
         CancellationToken cancellationToken = default)
     {
+        const int CompletionPollIntervalMs = 10;
+        ArgumentNullException.ThrowIfNull(timeProvider);
+
         var items = new List<T>();
         Result? completion = null;
 
         await using var subscription = await source.SubscribeAsync(
-            (x, ct) =>
+            (x, _) =>
             {
                 items.Add(x);
                 return default;
@@ -41,10 +58,10 @@ internal static class AsyncTestHelpers
             cancellationToken);
 
         // Wait briefly for completion to propagate
-        var deadline = DateTime.UtcNow.AddSeconds(5);
-        while (completion is null && DateTime.UtcNow < deadline)
+        var deadline = timeProvider.GetUtcNow().AddSeconds(5);
+        while (completion is null && timeProvider.GetUtcNow() < deadline)
         {
-            await Task.Delay(10, CancellationToken.None);
+            await Task.Delay(CompletionPollIntervalMs, CancellationToken.None);
         }
 
         return (items, completion);
@@ -59,19 +76,11 @@ internal static class AsyncTestHelpers
     /// <returns>A list of all collected items.</returns>
     internal static async Task<List<T>> ToListWithTimeoutAsync<T>(
         ObservableAsync<T> source,
-        int timeoutMs = 5000)
+        int timeoutMs = 5_000)
     {
         using var cts = new CancellationTokenSource(timeoutMs);
         return await source.ToListAsync(cts.Token);
     }
-
-    /// <summary>
-    /// Creates a <see cref="DirectSource{T}"/> for test scenarios that need to call observer
-    /// methods directly, bypassing subject teardown on disposal.
-    /// </summary>
-    /// <typeparam name="T">The element type.</typeparam>
-    /// <returns>A new <see cref="DirectSource{T}"/> instance.</returns>
-    internal static DirectSource<T> CreateDirectSource<T>() => new();
 
     /// <summary>
     /// Waits until the provided condition is met or the timeout expires.
@@ -80,18 +89,35 @@ internal static class AsyncTestHelpers
     /// <param name="timeout">Maximum time to wait.</param>
     /// <param name="pollInterval">Optional polling interval.</param>
     /// <returns>True if the condition was met before timing out.</returns>
+    internal static Task<bool> WaitForConditionAsync(
+        Func<bool> condition,
+        TimeSpan timeout,
+        TimeSpan? pollInterval = null) =>
+        WaitForConditionAsync(condition, timeout, TimeProvider.System, pollInterval);
+
+    /// <summary>
+    /// Waits until the provided condition is met or the timeout expires, using the supplied
+    /// <see cref="TimeProvider"/> for deadline calculation.
+    /// </summary>
+    /// <param name="condition">Condition to evaluate.</param>
+    /// <param name="timeout">Maximum time to wait.</param>
+    /// <param name="timeProvider">Time provider used to compute the wait deadline.</param>
+    /// <param name="pollInterval">Optional polling interval.</param>
+    /// <returns>True if the condition was met before timing out.</returns>
     internal static async Task<bool> WaitForConditionAsync(
         Func<bool> condition,
         TimeSpan timeout,
+        TimeProvider timeProvider,
         TimeSpan? pollInterval = null)
     {
         ArgumentNullException.ThrowIfNull(condition);
+        ArgumentNullException.ThrowIfNull(timeProvider);
         ArgumentOutOfRangeException.ThrowIfLessThan(timeout, TimeSpan.Zero);
 
         var interval = pollInterval ?? TimeSpan.FromMilliseconds(10);
-        var deadline = DateTime.UtcNow.Add(timeout);
+        var deadline = timeProvider.GetUtcNow().Add(timeout);
 
-        while (DateTime.UtcNow < deadline)
+        while (timeProvider.GetUtcNow() < deadline)
         {
             if (condition())
             {

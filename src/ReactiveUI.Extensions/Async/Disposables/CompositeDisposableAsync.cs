@@ -3,6 +3,7 @@
 // See the LICENSE file in the project root for full license information.
 
 using System.Buffers;
+using ReactiveUI.Extensions.Internal;
 
 namespace ReactiveUI.Extensions.Async.Disposables;
 
@@ -19,6 +20,9 @@ public sealed class CompositeDisposableAsync : IAsyncDisposable
     /// The minimum list capacity before the list is eligible for shrinking on removal.
     /// </summary>
     private const int ShrinkThreshold = 64;
+
+    /// <summary>Divisor used to compute the shrink target capacity (half the current capacity).</summary>
+    private const int ShrinkDivisor = 2;
 
     /// <summary>
     /// The synchronization gate protecting all mutable state in this collection.
@@ -47,7 +51,7 @@ public sealed class CompositeDisposableAsync : IAsyncDisposable
     /// <summary>
     /// Initializes a new instance of the <see cref="CompositeDisposableAsync"/> class.
     /// </summary>
-    public CompositeDisposableAsync() => _list = new();
+    public CompositeDisposableAsync() => _list = [];
 
     /// <summary>
     /// Initializes a new instance of the <see cref="CompositeDisposableAsync"/> class with the specified initial capacity.
@@ -57,7 +61,7 @@ public sealed class CompositeDisposableAsync : IAsyncDisposable
     public CompositeDisposableAsync(int capacity)
     {
 #if NET8_0_OR_GREATER
-        ArgumentOutOfRangeException.ThrowIfLessThan(capacity, 0, nameof(capacity));
+        ArgumentOutOfRangeException.ThrowIfLessThan(capacity, 0);
 #else
         if (capacity < 0)
         {
@@ -65,7 +69,7 @@ public sealed class CompositeDisposableAsync : IAsyncDisposable
         }
 #endif
 
-        _list = new(capacity);
+        _list = new List<IAsyncDisposable?>(capacity);
     }
 
     /// <summary>
@@ -125,7 +129,7 @@ public sealed class CompositeDisposableAsync : IAsyncDisposable
     /// was added; otherwise, it represents the asynchronous disposal of the item.</returns>
     public ValueTask AddAsync(IAsyncDisposable item)
     {
-        ArgumentExceptionHelper.ThrowIfNull(item, nameof(item));
+        ArgumentExceptionHelper.ThrowIfNull(item);
 
         lock (_gate)
         {
@@ -150,7 +154,7 @@ public sealed class CompositeDisposableAsync : IAsyncDisposable
     /// was found and removed; otherwise, <see langword="false"/>.</returns>
     public async ValueTask<bool> Remove(IAsyncDisposable item)
     {
-        ArgumentExceptionHelper.ThrowIfNull(item, nameof(item));
+        ArgumentExceptionHelper.ThrowIfNull(item);
 
         lock (_gate)
         {
@@ -169,9 +173,9 @@ public sealed class CompositeDisposableAsync : IAsyncDisposable
 
             current[index] = null;
 
-            if (current.Capacity > ShrinkThreshold && _count < current.Capacity / 2)
+            if (current.Capacity > ShrinkThreshold && _count < current.Capacity / ShrinkDivisor)
             {
-                var fresh = new List<IAsyncDisposable?>(current.Capacity / 2);
+                var fresh = new List<IAsyncDisposable?>(current.Capacity / ShrinkDivisor);
 
                 foreach (var d in current)
                 {
@@ -187,7 +191,7 @@ public sealed class CompositeDisposableAsync : IAsyncDisposable
             _count--;
         }
 
-        await item.DisposeAsync();
+        await item.DisposeAsync().ConfigureAwait(false);
         return true;
     }
 
@@ -228,13 +232,13 @@ public sealed class CompositeDisposableAsync : IAsyncDisposable
             {
                 if (targetDisposables[i] is { } item)
                 {
-                    await item.DisposeAsync();
+                    await item.DisposeAsync().ConfigureAwait(false);
                 }
             }
         }
         finally
         {
-            ArrayPool<IAsyncDisposable?>.Shared.Return(targetDisposables, clearArray: true);
+            ArrayPool<IAsyncDisposable?>.Shared.Return(targetDisposables, true);
         }
     }
 
@@ -267,7 +271,7 @@ public sealed class CompositeDisposableAsync : IAsyncDisposable
     /// length of the array.</param>
     /// <exception cref="ArgumentOutOfRangeException">Thrown when arrayIndex is less than zero, greater than or equal to the length of array, or when there is not
     /// enough space from arrayIndex to the end of array to accommodate all elements in the collection.</exception>
-    public void CopyTo(IAsyncDisposable[] array, int arrayIndex)
+    public void CopyTo(IAsyncDisposable[]? array, int arrayIndex)
     {
         if (arrayIndex < 0 || arrayIndex >= array?.Length)
         {
@@ -289,10 +293,17 @@ public sealed class CompositeDisposableAsync : IAsyncDisposable
             var i = 0;
             foreach (var item in _list)
             {
-                if (item != null)
+                if (item is null)
                 {
-                    array?[arrayIndex + i++] = item;
+                    continue;
                 }
+
+                if (array is not null)
+                {
+                    array[arrayIndex + i] = item;
+                }
+
+                i++;
             }
         }
     }
@@ -326,7 +337,7 @@ public sealed class CompositeDisposableAsync : IAsyncDisposable
         {
             if (item is not null)
             {
-                await item.DisposeAsync();
+                await item.DisposeAsync().ConfigureAwait(false);
             }
         }
 
@@ -344,7 +355,7 @@ public sealed class CompositeDisposableAsync : IAsyncDisposable
         lock (_gate)
         {
             // make snapshot
-            return EnumerateAndClear(_list.ToArray()).GetEnumerator();
+            return EnumerateAndClear([.. _list]).GetEnumerator();
         }
     }
 

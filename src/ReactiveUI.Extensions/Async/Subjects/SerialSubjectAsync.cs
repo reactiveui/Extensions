@@ -2,6 +2,8 @@
 // ReactiveUI Association Incorporated licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
+using System.Collections.Immutable;
+
 namespace ReactiveUI.Extensions.Async.Subjects;
 
 /// <summary>
@@ -21,13 +23,13 @@ public sealed class SerialSubjectAsync<T> : BaseSubjectAsync<T>
     /// <param name="value">The value to send to each observer.</param>
     /// <param name="cancellationToken">A cancellation token that can be used to cancel the notification operation.</param>
     /// <returns>A task that represents the asynchronous notification operation.</returns>
-    protected override async ValueTask OnNextAsyncCore(IReadOnlyList<IObserverAsync<T>> observers, T value, CancellationToken cancellationToken)
-    {
-        foreach (var obserevr in observers)
-        {
-            await obserevr.OnNextAsync(value, cancellationToken);
-        }
-    }
+    protected override ValueTask OnNextAsyncCore(
+        ImmutableArray<IObserverAsync<T>> observers,
+        T value,
+        CancellationToken cancellationToken) =>
+        observers.Length == 1
+            ? observers[0].OnNextAsync(value, cancellationToken)
+            : OnNextAsyncCoreMulti(observers, value, cancellationToken);
 
     /// <summary>
     /// Notifies each observer in the collection to resume after an error has occurred, using asynchronous operations.
@@ -36,11 +38,14 @@ public sealed class SerialSubjectAsync<T> : BaseSubjectAsync<T>
     /// <param name="error">The exception that caused the error. Cannot be null.</param>
     /// <param name="cancellationToken">A cancellation token that can be used to cancel the asynchronous operation.</param>
     /// <returns>A ValueTask that represents the asynchronous notification operation.</returns>
-    protected override async ValueTask OnErrorResumeAsyncCore(IReadOnlyList<IObserverAsync<T>> observers, Exception error, CancellationToken cancellationToken)
+    protected override async ValueTask OnErrorResumeAsyncCore(
+        ImmutableArray<IObserverAsync<T>> observers,
+        Exception error,
+        CancellationToken cancellationToken)
     {
-        foreach (var obserevr in observers)
+        for (var i = 0; i < observers.Length; i++)
         {
-            await obserevr.OnErrorResumeAsync(error, cancellationToken);
+            await observers[i].OnErrorResumeAsync(error, cancellationToken).ConfigureAwait(false);
         }
     }
 
@@ -50,11 +55,27 @@ public sealed class SerialSubjectAsync<T> : BaseSubjectAsync<T>
     /// <param name="observers">A read-only list of observers to be notified of the completion event. Cannot be null.</param>
     /// <param name="result">The result to provide to each observer upon completion.</param>
     /// <returns>A ValueTask that represents the asynchronous notification operation.</returns>
-    protected override async ValueTask OnCompletedAsyncCore(IReadOnlyList<IObserverAsync<T>> observers, Result result)
+    protected override async ValueTask OnCompletedAsyncCore(ImmutableArray<IObserverAsync<T>> observers, Result result)
     {
-        foreach (var obserevr in observers)
+        for (var i = 0; i < observers.Length; i++)
         {
-            await obserevr.OnCompletedAsync(result);
+            await observers[i].OnCompletedAsync(result).ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>Async fall-back for the multi-observer case; sequentially forwards the value to each subscriber.</summary>
+    /// <param name="observers">The current observer snapshot.</param>
+    /// <param name="value">The value being broadcast.</param>
+    /// <param name="cancellationToken">A cancellation token that can be used to cancel the notification operation.</param>
+    /// <returns>A task that represents the asynchronous notification operation.</returns>
+    private static async ValueTask OnNextAsyncCoreMulti(
+        ImmutableArray<IObserverAsync<T>> observers,
+        T value,
+        CancellationToken cancellationToken)
+    {
+        for (var i = 0; i < observers.Length; i++)
+        {
+            await observers[i].OnNextAsync(value, cancellationToken).ConfigureAwait(false);
         }
     }
 }

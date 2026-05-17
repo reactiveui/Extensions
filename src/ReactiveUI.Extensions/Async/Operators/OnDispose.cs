@@ -2,6 +2,8 @@
 // ReactiveUI Association Incorporated licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
+using ReactiveUI.Extensions.Internal;
+
 namespace ReactiveUI.Extensions.Async;
 
 /// <summary>
@@ -13,36 +15,69 @@ namespace ReactiveUI.Extensions.Async;
 /// scenarios.</remarks>
 public static partial class ObservableAsync
 {
-    extension<T>(IObservableAsync<T> @this)
+    /// <summary>
+    /// Registers a callback to be invoked asynchronously when the observable sequence is disposed.
+    /// </summary>
+    /// <remarks>Use this method to perform custom asynchronous cleanup or resource release logic when
+    /// the observable sequence is disposed. The callback is invoked when the subscription is disposed, either
+    /// explicitly or when the observer completes or errors.</remarks>
+    /// <typeparam name="T">The type of elements in the source sequence.</typeparam>
+    /// <param name="this">The source observable sequence.</param>
+    /// <param name="disposeAction">A function that returns a ValueTask representing the asynchronous operation to execute upon disposal of the
+    /// observable sequence. Cannot be null.</param>
+    /// <returns>An ObservableAsync{T} that invokes the specified asynchronous callback when disposed.</returns>
+    public static IObservableAsync<T> OnDispose<T>(this IObservableAsync<T> @this, Func<ValueTask> disposeAction)
     {
-        /// <summary>
-        /// Registers a callback to be invoked asynchronously when the observable sequence is disposed.
-        /// </summary>
-        /// <remarks>Use this method to perform custom asynchronous cleanup or resource release logic when
-        /// the observable sequence is disposed. The callback is invoked when the subscription is disposed, either
-        /// explicitly or when the observer completes or errors.</remarks>
-        /// <param name="onDispose">A function that returns a ValueTask representing the asynchronous operation to execute upon disposal of the
-        /// observable sequence. Cannot be null.</param>
-        /// <returns>An ObservableAsync{T} that invokes the specified asynchronous callback when disposed.</returns>
-        public IObservableAsync<T> OnDispose(Func<ValueTask> onDispose) => Create<T>((observer, token) =>
-                                                                                   {
-                                                                                       var newObserver = new OnDisposeObserver<T>(observer, onDispose);
-                                                                                       return @this.SubscribeAsync(newObserver, token);
-                                                                                   });
+        ArgumentExceptionHelper.ThrowIfNull(@this);
+        ArgumentExceptionHelper.ThrowIfNull(disposeAction);
 
-        /// <summary>
-        /// Registers an action to be invoked when the observable sequence is disposed.
-        /// </summary>
-        /// <remarks>Use this method to perform cleanup or resource release logic when a subscription to
-        /// the observable is disposed. The specified action is called synchronously during disposal. If multiple
-        /// actions are registered through chained calls, each will be invoked in the order registered.</remarks>
-        /// <param name="onDispose">The action to execute when the subscription is disposed. Cannot be null.</param>
-        /// <returns>An observable sequence that invokes the specified action upon disposal of the subscription.</returns>
-        public IObservableAsync<T> OnDispose(Action onDispose) => Create<T>((observer, token) =>
-                                                                          {
-                                                                              var newObserver = new OnDisposeObserverSync<T>(observer, onDispose);
-                                                                              return @this.SubscribeAsync(newObserver, token);
-                                                                          });
+        return new OnDisposeObservable<T>(@this, disposeAction);
+    }
+
+    /// <summary>
+    /// Registers an action to be invoked when the observable sequence is disposed.
+    /// </summary>
+    /// <remarks>Use this method to perform cleanup or resource release logic when a subscription to
+    /// the observable is disposed. The specified action is called synchronously during disposal. If multiple
+    /// actions are registered through chained calls, each will be invoked in the order registered.</remarks>
+    /// <typeparam name="T">The type of elements in the source sequence.</typeparam>
+    /// <param name="this">The source observable sequence.</param>
+    /// <param name="disposeAction">The action to execute when the subscription is disposed. Cannot be null.</param>
+    /// <returns>An observable sequence that invokes the specified action upon disposal of the subscription.</returns>
+    public static IObservableAsync<T> OnDispose<T>(this IObservableAsync<T> @this, Action disposeAction)
+    {
+        ArgumentExceptionHelper.ThrowIfNull(@this);
+        ArgumentExceptionHelper.ThrowIfNull(disposeAction);
+
+        return new OnDisposeSyncObservable<T>(@this, disposeAction);
+    }
+
+    /// <summary>Wraps a source observable with an async-action <c>OnDispose</c> observer without the prior <c>Create&lt;T&gt;</c> wrapper layer.</summary>
+    /// <typeparam name="T">The element type.</typeparam>
+    /// <param name="source">The upstream observable.</param>
+    /// <param name="disposeAction">The async dispose action.</param>
+    internal sealed class OnDisposeObservable<T>(IObservableAsync<T> source, Func<ValueTask> disposeAction) : ObservableAsync<T>
+    {
+        /// <inheritdoc/>
+        protected override ValueTask<IAsyncDisposable> SubscribeAsyncCore(IObserverAsync<T> observer, CancellationToken cancellationToken)
+        {
+            var sink = new OnDisposeObserver<T>(observer, disposeAction);
+            return source.SubscribeAsync(sink, cancellationToken);
+        }
+    }
+
+    /// <summary>Wraps a source observable with a sync-action <c>OnDispose</c> observer without the prior <c>Create&lt;T&gt;</c> wrapper layer.</summary>
+    /// <typeparam name="T">The element type.</typeparam>
+    /// <param name="source">The upstream observable.</param>
+    /// <param name="disposeAction">The sync dispose action.</param>
+    internal sealed class OnDisposeSyncObservable<T>(IObservableAsync<T> source, Action disposeAction) : ObservableAsync<T>
+    {
+        /// <inheritdoc/>
+        protected override ValueTask<IAsyncDisposable> SubscribeAsyncCore(IObserverAsync<T> observer, CancellationToken cancellationToken)
+        {
+            var sink = new OnDisposeObserverSync<T>(observer, disposeAction);
+            return source.SubscribeAsync(sink, cancellationToken);
+        }
     }
 
     /// <summary>
@@ -72,7 +107,7 @@ public static partial class ObservableAsync
             }
             finally
             {
-                await base.DisposeAsyncCore();
+                await base.DisposeAsyncCore().ConfigureAwait(false);
             }
         }
     }
@@ -100,11 +135,11 @@ public static partial class ObservableAsync
         {
             try
             {
-                await finallyAsync();
+                await finallyAsync().ConfigureAwait(false);
             }
             finally
             {
-                await base.DisposeAsyncCore();
+                await base.DisposeAsyncCore().ConfigureAwait(false);
             }
         }
     }

@@ -12,64 +12,85 @@ namespace ReactiveUI.Extensions.Async;
 /// are not delayed.</remarks>
 public static partial class ObservableAsync
 {
-    extension<T>(IObservableAsync<T> @this)
+    /// <summary>
+    /// Time-shifts the observable sequence by the specified time span. Each element notification
+    /// is delayed by the specified duration.
+    /// </summary>
+    /// <typeparam name="T">The type of elements in the source sequence.</typeparam>
+    /// <param name="this">The source observable sequence.</param>
+    /// <param name="delayInterval">The time span by which to delay each element notification. Must be non-negative.</param>
+    /// <returns>An observable sequence with element notifications time-shifted by the specified duration.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown if <paramref name="delayInterval"/> is negative.</exception>
+    public static IObservableAsync<T> Delay<T>(this IObservableAsync<T> @this, TimeSpan delayInterval)
+        => @this.Delay(delayInterval, (TimeProvider?)null);
+
+    /// <summary>
+    /// Time-shifts the observable sequence by the specified time span. Each element notification
+    /// is delayed by the specified duration.
+    /// </summary>
+    /// <typeparam name="T">The type of elements in the source sequence.</typeparam>
+    /// <param name="this">The source observable sequence.</param>
+    /// <param name="delayInterval">The time span by which to delay each element notification. Must be non-negative.</param>
+    /// <param name="timeProvider">An optional time provider for controlling timing. If null, <see cref="TimeProvider.System"/>
+    /// is used.</param>
+    /// <returns>An observable sequence with element notifications time-shifted by the specified duration.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown if <paramref name="delayInterval"/> is negative.</exception>
+    public static IObservableAsync<T> Delay<T>(this IObservableAsync<T> @this, TimeSpan delayInterval, TimeProvider? timeProvider)
     {
-        /// <summary>
-        /// Time-shifts the observable sequence by the specified time span. Each element notification
-        /// is delayed by the specified duration.
-        /// </summary>
-        /// <param name="delay">The time span by which to delay each element notification. Must be non-negative.</param>
-        /// <param name="timeProvider">An optional time provider for controlling timing. If null, <see cref="TimeProvider.System"/>
-        /// is used.</param>
-        /// <returns>An observable sequence with element notifications time-shifted by the specified duration.</returns>
-        /// <exception cref="ArgumentOutOfRangeException">Thrown if <paramref name="delay"/> is negative.</exception>
-        public IObservableAsync<T> Delay(TimeSpan delay, TimeProvider? timeProvider = null)
-        {
 #if NET8_0_OR_GREATER
-            ArgumentOutOfRangeException.ThrowIfLessThan(delay, TimeSpan.Zero, nameof(delay));
+        ArgumentOutOfRangeException.ThrowIfLessThan(delayInterval, TimeSpan.Zero);
 #else
-            if (delay < TimeSpan.Zero)
-            {
-                throw new ArgumentOutOfRangeException(nameof(delay));
-            }
+        if (delayInterval < TimeSpan.Zero)
+        {
+            throw new ArgumentOutOfRangeException(nameof(delayInterval));
+        }
 #endif
 
-            if (delay == TimeSpan.Zero)
-            {
-                return @this;
-            }
-
-            return new DelayObservable<T>(@this, delay, timeProvider ?? TimeProvider.System);
+        if (delayInterval == TimeSpan.Zero)
+        {
+            return @this;
         }
+
+        return new DelayObservable<T>(@this, delayInterval, timeProvider ?? TimeProvider.System);
     }
 
     /// <summary>
     /// An observable that delays each element notification by a specified duration.
     /// </summary>
     /// <typeparam name="T">The type of elements in the sequence.</typeparam>
-    internal sealed class DelayObservable<T>(IObservableAsync<T> source, TimeSpan delay, TimeProvider timeProvider) : ObservableAsync<T>
+    internal sealed class DelayObservable<T>(IObservableAsync<T> source, TimeSpan delayInterval, TimeProvider timeProvider)
+        : ObservableAsync<T>
     {
         /// <inheritdoc/>
-        protected override async ValueTask<IAsyncDisposable> SubscribeAsyncCore(IObserverAsync<T> observer, CancellationToken cancellationToken)
+        protected override ValueTask<IAsyncDisposable> SubscribeAsyncCore(
+            IObserverAsync<T> observer,
+            CancellationToken cancellationToken)
         {
-            var delayObserver = new DelayObserver(observer, delay, timeProvider);
-            return await source.SubscribeAsync(delayObserver, cancellationToken);
+            var delayObserver = new DelayObserver(observer, delayInterval, timeProvider, cancellationToken);
+            return source.SubscribeAsync(delayObserver, cancellationToken);
         }
 
         /// <summary>
         /// An observer that delays each element by waiting before forwarding to the downstream observer.
         /// </summary>
-        internal sealed class DelayObserver(IObserverAsync<T> observer, TimeSpan delay, TimeProvider timeProvider) : ObserverAsync<T>
+        internal sealed class DelayObserver(
+            IObserverAsync<T> observer,
+            TimeSpan delayInterval,
+            TimeProvider timeProvider,
+            CancellationToken subscribeToken)
+            : ObserverAsync<T>(subscribeToken)
         {
             /// <inheritdoc/>
             protected override async ValueTask OnNextAsyncCore(T value, CancellationToken cancellationToken)
             {
-                await DelayAsync(delay, timeProvider, cancellationToken);
-                await observer.OnNextAsync(value, cancellationToken);
+                await DelayAsync(delayInterval, timeProvider, cancellationToken).ConfigureAwait(false);
+                await observer.OnNextAsync(value, cancellationToken).ConfigureAwait(false);
             }
 
             /// <inheritdoc/>
-            protected override ValueTask OnErrorResumeAsyncCore(Exception error, CancellationToken cancellationToken) =>
+            protected override ValueTask OnErrorResumeAsyncCore(
+                Exception error,
+                CancellationToken cancellationToken) =>
                 observer.OnErrorResumeAsync(error, cancellationToken);
 
             /// <inheritdoc/>

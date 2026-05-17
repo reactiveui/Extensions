@@ -2,6 +2,8 @@
 // ReactiveUI Association Incorporated licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
+using ReactiveUI.Extensions.Internal;
+
 namespace ReactiveUI.Extensions.Async;
 
 /// <summary>
@@ -12,92 +14,129 @@ namespace ReactiveUI.Extensions.Async;
 /// completion.</remarks>
 public static partial class ObservableAsync
 {
-    extension<T>(IObservableAsync<T> @this)
+    /// <summary>
+    /// Applies a dueTime policy to the observable sequence. If the next element is not received within
+    /// the specified time span, the sequence completes with a <see cref="TimeoutException"/>.
+    /// </summary>
+    /// <typeparam name="T">The type of elements in the sequence.</typeparam>
+    /// <param name="this">The source observable sequence.</param>
+    /// <param name="dueTime">The maximum time span allowed between consecutive elements. Must be positive.</param>
+    /// <returns>An observable sequence that mirrors the source but completes with a
+    /// <see cref="TimeoutException"/> if any inter-element interval exceeds the specified dueTime.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown if <paramref name="dueTime"/> is negative or zero.</exception>
+    public static IObservableAsync<T> Timeout<T>(this IObservableAsync<T> @this, TimeSpan dueTime)
+        => @this.Timeout(dueTime, (TimeProvider?)null);
+
+    /// <summary>
+    /// Applies a dueTime policy to the observable sequence. If the next element is not received within
+    /// the specified time span, the sequence completes with a <see cref="TimeoutException"/>.
+    /// </summary>
+    /// <typeparam name="T">The type of elements in the sequence.</typeparam>
+    /// <param name="this">The source observable sequence.</param>
+    /// <param name="dueTime">The maximum time span allowed between consecutive elements. Must be positive.</param>
+    /// <param name="timeProvider">An optional time provider for controlling timing. If null, <see cref="TimeProvider.System"/>
+    /// is used.</param>
+    /// <returns>An observable sequence that mirrors the source but completes with a
+    /// <see cref="TimeoutException"/> if any inter-element interval exceeds the specified dueTime.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown if <paramref name="dueTime"/> is negative or zero.</exception>
+    public static IObservableAsync<T> Timeout<T>(this IObservableAsync<T> @this, TimeSpan dueTime, TimeProvider? timeProvider)
     {
-        /// <summary>
-        /// Applies a timeout policy to the observable sequence. If the next element is not received within
-        /// the specified time span, the sequence completes with a <see cref="TimeoutException"/>.
-        /// </summary>
-        /// <param name="timeout">The maximum time span allowed between consecutive elements. Must be positive.</param>
-        /// <param name="timeProvider">An optional time provider for controlling timing. If null, <see cref="TimeProvider.System"/>
-        /// is used.</param>
-        /// <returns>An observable sequence that mirrors the source but completes with a
-        /// <see cref="TimeoutException"/> if any inter-element interval exceeds the specified timeout.</returns>
-        /// <exception cref="ArgumentOutOfRangeException">Thrown if <paramref name="timeout"/> is negative or zero.</exception>
-        public IObservableAsync<T> Timeout(TimeSpan timeout, TimeProvider? timeProvider = null)
-        {
 #if NET8_0_OR_GREATER
-            ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(timeout, TimeSpan.Zero, nameof(timeout));
+        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(dueTime, TimeSpan.Zero);
 #else
-            if (timeout <= TimeSpan.Zero)
-            {
-                throw new ArgumentOutOfRangeException(nameof(timeout));
-            }
+        if (dueTime <= TimeSpan.Zero)
+        {
+            throw new ArgumentOutOfRangeException(nameof(dueTime));
+        }
 #endif
 
-            return new TimeoutObservable<T>(@this, timeout, timeProvider ?? TimeProvider.System);
-        }
+        return new TimeoutObservable<T>(@this, dueTime, timeProvider ?? TimeProvider.System);
+    }
 
-        /// <summary>
-        /// Applies a timeout policy to the observable sequence. If the next element is not received within
-        /// the specified time span, the sequence switches to the specified fallback observable.
-        /// </summary>
-        /// <param name="timeout">The maximum time span allowed between consecutive elements. Must be positive.</param>
-        /// <param name="fallback">The fallback observable to switch to when a timeout occurs. Cannot be null.</param>
-        /// <param name="timeProvider">An optional time provider for controlling timing. If null, <see cref="TimeProvider.System"/>
-        /// is used.</param>
-        /// <returns>An observable sequence that mirrors the source, switching to the fallback sequence
-        /// if any inter-element interval exceeds the specified timeout.</returns>
-        /// <exception cref="ArgumentOutOfRangeException">Thrown if <paramref name="timeout"/> is negative or zero.</exception>
-        /// <exception cref="ArgumentNullException">Thrown if <paramref name="fallback"/> is null.</exception>
-        public IObservableAsync<T> Timeout(TimeSpan timeout, IObservableAsync<T> fallback, TimeProvider? timeProvider = null)
-        {
-            ArgumentExceptionHelper.ThrowIfNull(fallback, nameof(fallback));
+    /// <summary>
+    /// Applies a dueTime policy to the observable sequence. If the next element is not received within
+    /// the specified time span, the sequence switches to the specified fallback observable.
+    /// </summary>
+    /// <typeparam name="T">The type of elements in the sequence.</typeparam>
+    /// <param name="this">The source observable sequence.</param>
+    /// <param name="dueTime">The maximum time span allowed between consecutive elements. Must be positive.</param>
+    /// <param name="fallback">The fallback observable to switch to when a dueTime occurs. Cannot be null.</param>
+    /// <returns>An observable sequence that mirrors the source, switching to the fallback sequence
+    /// if any inter-element interval exceeds the specified dueTime.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown if <paramref name="dueTime"/> is negative or zero.</exception>
+    /// <exception cref="ArgumentNullException">Thrown if <paramref name="fallback"/> is null.</exception>
+    public static IObservableAsync<T> Timeout<T>(this IObservableAsync<T> @this, TimeSpan dueTime, IObservableAsync<T> fallback)
+        => @this.Timeout(dueTime, fallback, (TimeProvider?)null);
+
+    /// <summary>
+    /// Applies a dueTime policy to the observable sequence. If the next element is not received within
+    /// the specified time span, the sequence switches to the specified fallback observable.
+    /// </summary>
+    /// <typeparam name="T">The type of elements in the sequence.</typeparam>
+    /// <param name="this">The source observable sequence.</param>
+    /// <param name="dueTime">The maximum time span allowed between consecutive elements. Must be positive.</param>
+    /// <param name="fallback">The fallback observable to switch to when a dueTime occurs. Cannot be null.</param>
+    /// <param name="timeProvider">An optional time provider for controlling timing. If null, <see cref="TimeProvider.System"/>
+    /// is used.</param>
+    /// <returns>An observable sequence that mirrors the source, switching to the fallback sequence
+    /// if any inter-element interval exceeds the specified dueTime.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown if <paramref name="dueTime"/> is negative or zero.</exception>
+    /// <exception cref="ArgumentNullException">Thrown if <paramref name="fallback"/> is null.</exception>
+    public static IObservableAsync<T> Timeout<T>(
+        this IObservableAsync<T> @this,
+        TimeSpan dueTime,
+        IObservableAsync<T> fallback,
+        TimeProvider? timeProvider)
+    {
+        ArgumentExceptionHelper.ThrowIfNull(fallback);
 #if NET8_0_OR_GREATER
-            ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(timeout, TimeSpan.Zero, nameof(timeout));
+        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(dueTime, TimeSpan.Zero);
 #else
-            if (timeout <= TimeSpan.Zero)
-            {
-                throw new ArgumentOutOfRangeException(nameof(timeout));
-            }
+        if (dueTime <= TimeSpan.Zero)
+        {
+            throw new ArgumentOutOfRangeException(nameof(dueTime));
+        }
 #endif
 
-            return new TimeoutWithFallbackObservable<T>(@this, timeout, fallback, timeProvider ?? TimeProvider.System);
-        }
+        return new TimeoutWithFallbackObservable<T>(@this, dueTime, fallback, timeProvider ?? TimeProvider.System);
     }
 
     /// <summary>
     /// Async observable that mirrors the source but completes with a <see cref="TimeoutException"/>
-    /// if any inter-element interval exceeds the specified timeout.
+    /// if any inter-element interval exceeds the specified dueTime.
     /// </summary>
     /// <typeparam name="T">The type of elements in the sequence.</typeparam>
     /// <param name="source">The source observable sequence.</param>
-    /// <param name="timeout">The maximum allowed inter-element interval.</param>
-    /// <param name="timeProvider">The time provider used for scheduling the timeout.</param>
-    internal sealed class TimeoutObservable<T>(IObservableAsync<T> source, TimeSpan timeout, TimeProvider timeProvider) : ObservableAsync<T>
+    /// <param name="dueTime">The maximum allowed inter-element interval.</param>
+    /// <param name="timeProvider">The time provider used for scheduling the dueTime.</param>
+    internal sealed class TimeoutObservable<T>(IObservableAsync<T> source, TimeSpan dueTime, TimeProvider timeProvider)
+        : ObservableAsync<T>
     {
         /// <summary>
-        /// Subscribes the specified observer and starts the timeout timer.
+        /// Subscribes the specified observer and starts the dueTime timer.
         /// </summary>
         /// <param name="observer">The observer to receive elements from the source.</param>
         /// <param name="cancellationToken">A token to cancel the subscription.</param>
         /// <returns>An async disposable that tears down the subscription when disposed.</returns>
-        protected override async ValueTask<IAsyncDisposable> SubscribeAsyncCore(IObserverAsync<T> observer, CancellationToken cancellationToken)
+        protected override async ValueTask<IAsyncDisposable> SubscribeAsyncCore(
+            IObserverAsync<T> observer,
+            CancellationToken cancellationToken)
         {
-            var timeoutObserver = new TimeoutObserver(observer, timeout, timeProvider);
-            var subscription = await source.SubscribeAsync(timeoutObserver, cancellationToken);
+            var timeoutObserver = new TimeoutObserver(observer, dueTime, timeProvider);
+            var subscription = await source.SubscribeAsync(timeoutObserver, cancellationToken).ConfigureAwait(false);
             timeoutObserver.StartTimer(cancellationToken);
             return subscription;
         }
 
         /// <summary>
         /// Observer that resets a timer on each received element and signals a <see cref="TimeoutException"/>
-        /// if no element arrives within the configured timeout.
+        /// if no element arrives within the configured dueTime.
         /// </summary>
         /// <param name="observer">The downstream observer to forward elements to.</param>
-        /// <param name="timeout">The maximum allowed inter-element interval.</param>
-        /// <param name="timeProvider">The time provider used for scheduling the timeout.</param>
-        internal sealed class TimeoutObserver(IObserverAsync<T> observer, TimeSpan timeout, TimeProvider timeProvider) : ObserverAsync<T>
+        /// <param name="dueTime">The maximum allowed inter-element interval.</param>
+        /// <param name="timeProvider">The time provider used for scheduling the dueTime.</param>
+        internal sealed class TimeoutObserver(IObserverAsync<T> observer, TimeSpan dueTime, TimeProvider timeProvider)
+            : ObserverAsync<T>
         {
             /// <summary>
             /// Synchronization gate protecting timer state.
@@ -109,119 +148,76 @@ public static partial class ObservableAsync
 #endif
 
             /// <summary>
-            /// Cancellation token source for the current timeout timer, or <see langword="null"/> if no timer is active.
+            /// Single pre-allocated timer rearmed via <see cref="ITimer.Change(TimeSpan, TimeSpan)"/>
+            /// on every emission. Replaces the previous per-emission fire-and-forget
+            /// <c>OnTimeoutAsync</c> task; the per-emission allocations (linked CTS, async state
+            /// machine box for OnTimeoutAsync, Task.Delay's TimerQueueTimer) collapse to a single
+            /// <c>Change</c> call which is highly optimised in the BCL.
             /// </summary>
-            private CancellationTokenSource? _timerCts;
+            private ITimer? _timer;
 
             /// <summary>
-            /// Monotonically increasing identifier used to correlate timer callbacks with the most recent reset.
-            /// </summary>
-            private long _id;
-
-            /// <summary>
-            /// Indicates whether the observer has already received a completion signal.
+            /// Indicates whether the observer has already received a completion signal; ignored
+            /// timeouts once true.
             /// </summary>
             private bool _completed;
 
             /// <summary>
-            /// Starts the initial timeout timer.
+            /// Allocates the timer and schedules the first dueTime tick.
             /// </summary>
-            /// <param name="cancellationToken">A token that cancels the timer when the subscription is disposed.</param>
-            internal void StartTimer(CancellationToken cancellationToken) => ResetTimer(cancellationToken);
-
-            /// <summary>
-            /// Cancels the current timer and starts a new one with an incremented identifier.
-            /// </summary>
-            /// <param name="cancellationToken">A token linked to the new timer for external cancellation.</param>
-            internal void ResetTimer(CancellationToken cancellationToken)
+            /// <param name="cancellationToken">Cancellation token; unused after the redesign but kept for API compatibility.</param>
+            internal void StartTimer(CancellationToken cancellationToken)
             {
-                long currentId;
-                CancellationTokenSource cts;
-                lock (_gate)
-                {
-                    _timerCts?.Cancel();
-                    _timerCts?.Dispose();
-                    _timerCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-                    cts = _timerCts;
-                    currentId = ++_id;
-                }
-
-                _ = OnTimeoutAsync(currentId, cts.Token);
-            }
-
-            /// <summary>
-            /// Cancels and disposes the current timeout timer, if one is active.
-            /// </summary>
-            internal void CancelTimer()
-            {
-                lock (_gate)
-                {
-                    _timerCts?.Cancel();
-                    _timerCts?.Dispose();
-                    _timerCts = null;
-                }
-            }
-
-            /// <summary>
-            /// Waits for the timeout duration and signals a <see cref="TimeoutException"/> completion if the timer
-            /// has not been reset or cancelled.
-            /// </summary>
-            /// <param name="id">The timer identifier at the time this timeout was scheduled.</param>
-            /// <param name="cancellationToken">A token that cancels the delay when the timer is reset or disposed.</param>
-            /// <returns>A task representing the asynchronous timeout operation.</returns>
-            internal async Task OnTimeoutAsync(long id, CancellationToken cancellationToken)
-            {
+                _ = cancellationToken;
                 try
                 {
-                    await DelayAsync(timeout, timeProvider, cancellationToken);
-
-                    bool shouldFire;
-                    lock (_gate)
-                    {
-                        shouldFire = _id == id && !_completed;
-                    }
-
-                    if (shouldFire)
-                    {
-                        await observer.OnCompletedAsync(Result.Failure(new TimeoutException()));
-                    }
-                }
-                catch (OperationCanceledException)
-                {
-                    // Timer was cancelled; element received in time
+                    _timer = timeProvider.CreateTimer(
+                        static state => ((TimeoutObserver)state!).OnTimerFired(),
+                        this,
+                        dueTime,
+                        System.Threading.Timeout.InfiniteTimeSpan);
                 }
                 catch (Exception e)
                 {
+                    // Preserve the legacy contract: CreateTimer failures route to the unhandled
+                    // exception handler rather than tearing down the subscription. Without a timer
+                    // the operator degrades to a pass-through; downstream callers continue to
+                    // receive emissions without a timeout signal.
                     UnhandledExceptionHandler.OnUnhandledException(e);
                 }
             }
 
             /// <summary>
-            /// Resets the timeout timer and forwards the element to the downstream observer.
+            /// Rearms the dueTime timer and forwards the element to the downstream observer.
             /// </summary>
             /// <param name="value">The element to forward.</param>
             /// <param name="cancellationToken">A token to cancel the operation.</param>
             /// <returns>A task representing the asynchronous operation.</returns>
             protected override ValueTask OnNextAsyncCore(T value, CancellationToken cancellationToken)
             {
-                ResetTimer(cancellationToken);
+                _timer?.Change(dueTime, System.Threading.Timeout.InfiniteTimeSpan);
                 return observer.OnNextAsync(value, cancellationToken);
             }
 
             /// <summary>
-            /// Cancels the timeout timer and forwards the error to the downstream observer.
+            /// Stops the dueTime timer and forwards the error to the downstream observer.
             /// </summary>
             /// <param name="error">The error to forward.</param>
             /// <param name="cancellationToken">A token to cancel the operation.</param>
             /// <returns>A task representing the asynchronous operation.</returns>
             protected override ValueTask OnErrorResumeAsyncCore(Exception error, CancellationToken cancellationToken)
             {
-                CancelTimer();
+                lock (_gate)
+                {
+                    _completed = true;
+                }
+
+                _timer?.Change(System.Threading.Timeout.InfiniteTimeSpan, System.Threading.Timeout.InfiniteTimeSpan);
                 return observer.OnErrorResumeAsync(error, cancellationToken);
             }
 
             /// <summary>
-            /// Cancels the timeout timer and forwards completion to the downstream observer.
+            /// Stops the dueTime timer and forwards completion to the downstream observer.
             /// </summary>
             /// <param name="result">The completion result.</param>
             /// <returns>A task representing the asynchronous operation.</returns>
@@ -232,45 +228,96 @@ public static partial class ObservableAsync
                     _completed = true;
                 }
 
-                CancelTimer();
+                _timer?.Change(System.Threading.Timeout.InfiniteTimeSpan, System.Threading.Timeout.InfiniteTimeSpan);
                 return observer.OnCompletedAsync(result);
             }
 
             /// <summary>
-            /// Cancels the timeout timer during disposal.
+            /// Disposes the dueTime timer during teardown.
             /// </summary>
             /// <returns>A completed task.</returns>
-            protected override ValueTask DisposeAsyncCore()
+            protected override async ValueTask DisposeAsyncCore()
             {
-                CancelTimer();
-                return default;
+                lock (_gate)
+                {
+                    _completed = true;
+                }
+
+                if (_timer is not null)
+                {
+                    await _timer.DisposeAsync().ConfigureAwait(false);
+                    _timer = null;
+                }
+
+                await base.DisposeAsyncCore().ConfigureAwait(false);
+            }
+
+            /// <summary>
+            /// Timer callback: signals the downstream observer with a <see cref="TimeoutException"/>
+            /// completion unless the observer has already terminated.
+            /// </summary>
+            private void OnTimerFired()
+            {
+                lock (_gate)
+                {
+                    if (_completed)
+                    {
+                        return;
+                    }
+
+                    _completed = true;
+                }
+
+                _ = FireTimeoutAsync();
+            }
+
+            /// <summary>
+            /// Awaits the downstream <c>OnCompletedAsync</c> hand-off from the timer-pool callback.
+            /// </summary>
+            /// <returns>A task representing the asynchronous notification.</returns>
+            private async Task FireTimeoutAsync()
+            {
+                try
+                {
+                    await observer.OnCompletedAsync(Result.Failure(new TimeoutException())).ConfigureAwait(false);
+                }
+                catch (Exception e)
+                {
+                    UnhandledExceptionHandler.OnUnhandledException(e);
+                }
             }
         }
     }
 
     /// <summary>
     /// Async observable that mirrors the source but switches to a fallback observable
-    /// if any inter-element interval exceeds the specified timeout.
+    /// if any inter-element interval exceeds the specified dueTime.
     /// </summary>
     /// <typeparam name="T">The type of elements in the sequence.</typeparam>
     /// <param name="source">The source observable sequence.</param>
-    /// <param name="timeout">The maximum allowed inter-element interval.</param>
-    /// <param name="fallback">The fallback observable to switch to on timeout.</param>
-    /// <param name="timeProvider">The time provider used for scheduling the timeout.</param>
-    internal sealed class TimeoutWithFallbackObservable<T>(IObservableAsync<T> source, TimeSpan timeout, IObservableAsync<T> fallback, TimeProvider timeProvider) : ObservableAsync<T>
+    /// <param name="dueTime">The maximum allowed inter-element interval.</param>
+    /// <param name="fallback">The fallback observable to switch to on dueTime.</param>
+    /// <param name="timeProvider">The time provider used for scheduling the dueTime.</param>
+    internal sealed class TimeoutWithFallbackObservable<T>(
+        IObservableAsync<T> source,
+        TimeSpan dueTime,
+        IObservableAsync<T> fallback,
+        TimeProvider timeProvider) : ObservableAsync<T>
     {
         /// <summary>
-        /// Subscribes the specified observer by wrapping the source with a timeout and a catch-to-fallback.
+        /// Subscribes the specified observer by wrapping the source with a dueTime and a catch-to-fallback.
         /// </summary>
         /// <param name="observer">The observer to receive elements.</param>
         /// <param name="cancellationToken">A token to cancel the subscription.</param>
         /// <returns>An async disposable that tears down the subscription when disposed.</returns>
-        protected override async ValueTask<IAsyncDisposable> SubscribeAsyncCore(IObserverAsync<T> observer, CancellationToken cancellationToken)
+        protected override ValueTask<IAsyncDisposable> SubscribeAsyncCore(
+            IObserverAsync<T> observer,
+            CancellationToken cancellationToken)
         {
             // Wrap with Catch to switch to fallback on TimeoutException
-            var withTimeout = new TimeoutObservable<T>(source, timeout, timeProvider);
+            var withTimeout = new TimeoutObservable<T>(source, dueTime, timeProvider);
             var withFallback = withTimeout.Catch(ex => ex is TimeoutException ? fallback : Throw<T>(ex));
-            return await withFallback.SubscribeAsync(observer.Wrap(), cancellationToken);
+            return withFallback.SubscribeAsync(observer.Wrap(), cancellationToken);
         }
     }
 }

@@ -3,6 +3,8 @@
 // See the LICENSE file in the project root for full license information.
 
 using ReactiveUI.Extensions.Async.Disposables;
+using ReactiveUI.Extensions.Async.Internals;
+using ReactiveUI.Extensions.Internal;
 
 namespace ReactiveUI.Extensions.Async;
 
@@ -30,9 +32,9 @@ public static partial class ObservableAsync
         IObservableAsync<T2> second,
         Func<T1, T2, TResult> resultSelector)
     {
-        ArgumentExceptionHelper.ThrowIfNull(first, nameof(first));
-        ArgumentExceptionHelper.ThrowIfNull(second, nameof(second));
-        ArgumentExceptionHelper.ThrowIfNull(resultSelector, nameof(resultSelector));
+        ArgumentExceptionHelper.ThrowIfNull(first);
+        ArgumentExceptionHelper.ThrowIfNull(second);
+        ArgumentExceptionHelper.ThrowIfNull(resultSelector);
 
         return new ZipObservable<T1, T2, TResult>(first, second, resultSelector);
     }
@@ -48,7 +50,8 @@ public static partial class ObservableAsync
     /// <exception cref="ArgumentNullException">Thrown if any argument is null.</exception>
     public static IObservableAsync<(T1 First, T2 Second)> Zip<T1, T2>(
         this IObservableAsync<T1> first,
-        IObservableAsync<T2> second) => Zip(first, second, static (a, b) => (a, b));
+        IObservableAsync<T2> second) =>
+        first.Zip(second, static (a, b) => (a, b));
 
     /// <summary>
     /// Represents an observable sequence that combines the latest values from two asynchronous observable sequences
@@ -75,19 +78,22 @@ public static partial class ObservableAsync
         /// <param name="observer">The observer to receive zipped result elements.</param>
         /// <param name="cancellationToken">A token to cancel the subscription.</param>
         /// <returns>An async disposable that tears down both subscriptions when disposed.</returns>
-        protected override async ValueTask<IAsyncDisposable> SubscribeAsyncCore(IObserverAsync<TResult> observer, CancellationToken cancellationToken)
+        protected override async ValueTask<IAsyncDisposable> SubscribeAsyncCore(
+            IObserverAsync<TResult> observer,
+            CancellationToken cancellationToken)
         {
             var state = new ZipState(observer, resultSelector);
+            state.LinkExternalCancellation(cancellationToken);
 
             var sub1 = await first.SubscribeAsync(
                 new FirstObserver(state),
-                cancellationToken);
+                cancellationToken).ConfigureAwait(false);
 
             var sub2 = await second.SubscribeAsync(
                 new SecondObserver(state),
-                cancellationToken);
+                cancellationToken).ConfigureAwait(false);
 
-            return new CompositeDisposableAsync(sub1, sub2);
+            return new CompositeDisposableAsync(sub1, sub2, state);
         }
 
         /// <summary>
@@ -95,8 +101,13 @@ public static partial class ObservableAsync
         /// </summary>
         /// <param name="observer">The downstream observer to forward combined results to.</param>
         /// <param name="resultSelector">The function used to combine paired elements.</param>
-        internal sealed class ZipState(IObserverAsync<TResult> observer, Func<T1, T2, TResult> resultSelector)
+        internal sealed class ZipState(
+            IObserverAsync<TResult> observer,
+            Func<T1, T2, TResult> resultSelector) : IAsyncDisposable
         {
+            /// <summary>Cancellation source for disposal.</summary>
+            private readonly CancellationTokenSource _disposeCts = new();
+
             /// <summary>
             /// The synchronization gate protecting shared state access.
             /// </summary>
@@ -116,6 +127,12 @@ public static partial class ObservableAsync
             /// </summary>
             private readonly Queue<T2> _queue2 = new();
 
+            /// <summary>Registration that propagates the original subscribe-token cancellation into <see cref="_disposeCts"/>.</summary>
+            private CancellationTokenRegistration _externalLinkRegistration;
+
+            /// <summary>Whether this state has been disposed.</summary>
+            private int _disposed;
+
             /// <summary>
             /// Indicates whether the first source has completed.
             /// </summary>
@@ -131,14 +148,32 @@ public static partial class ObservableAsync
             /// </summary>
             private bool _done;
 
+            /// <inheritdoc/>
+            public async ValueTask DisposeAsync()
+            {
+                if (DisposalHelper.TrySetDisposed(ref _disposed))
+                {
+                    return;
+                }
+
+                await _disposeCts.CancelAsync().ConfigureAwait(false);
+#if NETCOREAPP3_0_OR_GREATER || NETSTANDARD2_1_OR_GREATER
+                await _externalLinkRegistration.DisposeAsync().ConfigureAwait(false);
+#else
+                _externalLinkRegistration.Dispose();
+#endif
+                _disposeCts.Dispose();
+            }
+
             /// <summary>
             /// Handles a new element from the first source, pairing it with a buffered element from the second source if available.
             /// </summary>
             /// <param name="value">The element from the first source.</param>
-            /// <param name="cancellationToken">A token to cancel the operation.</param>
+            /// <param name="token">A token to cancel the operation.</param>
             /// <returns>A task representing the asynchronous operation.</returns>
-            public async ValueTask OnNext1Async(T1 value, CancellationToken cancellationToken)
+            public async ValueTask OnNext1Async(T1 value, CancellationToken token)
             {
+                _ = token;
                 T2 second;
                 lock (_gate)
                 {
@@ -159,17 +194,18 @@ public static partial class ObservableAsync
                 }
 
                 var result = resultSelector(value, second);
-                await observer.OnNextAsync(result, cancellationToken);
+                await observer.OnNextAsync(result, _disposeCts.Token).ConfigureAwait(false);
             }
 
             /// <summary>
             /// Handles a new element from the second source, pairing it with a buffered element from the first source if available.
             /// </summary>
             /// <param name="value">The element from the second source.</param>
-            /// <param name="cancellationToken">A token to cancel the operation.</param>
+            /// <param name="token">A token to cancel the operation.</param>
             /// <returns>A task representing the asynchronous operation.</returns>
-            public async ValueTask OnNext2Async(T2 value, CancellationToken cancellationToken)
+            public async ValueTask OnNext2Async(T2 value, CancellationToken token)
             {
+                _ = token;
                 T1 firstVal;
                 lock (_gate)
                 {
@@ -190,7 +226,7 @@ public static partial class ObservableAsync
                 }
 
                 var result = resultSelector(firstVal, value);
-                await observer.OnNextAsync(result, cancellationToken);
+                await observer.OnNextAsync(result, _disposeCts.Token).ConfigureAwait(false);
             }
 
             /// <summary>
@@ -218,7 +254,7 @@ public static partial class ObservableAsync
 
                 if (shouldComplete)
                 {
-                    await observer.OnCompletedAsync(result);
+                    await observer.OnCompletedAsync(result).ConfigureAwait(false);
                 }
             }
 
@@ -247,7 +283,7 @@ public static partial class ObservableAsync
 
                 if (shouldComplete)
                 {
-                    await observer.OnCompletedAsync(result);
+                    await observer.OnCompletedAsync(result).ConfigureAwait(false);
                 }
             }
 
@@ -259,6 +295,30 @@ public static partial class ObservableAsync
             /// <returns>A task representing the asynchronous operation.</returns>
             public ValueTask OnErrorResumeAsync(Exception error, CancellationToken cancellationToken) =>
                 observer.OnErrorResumeAsync(error, cancellationToken);
+
+            /// <summary>
+            /// Links the original subscribe-time cancellation token into this state's dispose chain so
+            /// later per-emission methods can rely on <see cref="_disposeCts"/> instead of allocating
+            /// a per-emission linked CTS.
+            /// </summary>
+            /// <param name="external">The subscribe-time token.</param>
+            internal void LinkExternalCancellation(CancellationToken external)
+            {
+                if (!external.CanBeCanceled)
+                {
+                    return;
+                }
+
+                if (external.IsCancellationRequested)
+                {
+                    _disposeCts.Cancel();
+                    return;
+                }
+
+                _externalLinkRegistration = external.UnsafeRegister(
+                    static state => ((CancellationTokenSource)state!).Cancel(),
+                    _disposeCts);
+            }
         }
 
         /// <summary>
