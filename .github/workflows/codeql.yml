@@ -19,7 +19,7 @@ jobs:
     uses: reactiveui/actions-common/.github/workflows/workflow-common-codeql.yml@main
     with:
       srcFolder: src
-      solutionFile: reactiveui.slnx
+      solutionFile: ReactiveUI.Extensions.slnx
       installWorkloads: true
       analyzeCSharp: true
       analyzeActions: true
