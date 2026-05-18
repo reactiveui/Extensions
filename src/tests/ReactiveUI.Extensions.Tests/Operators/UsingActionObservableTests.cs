@@ -7,7 +7,7 @@ namespace ReactiveUI.Extensions.Tests.Operators;
 /// <summary>Edge-case coverage for the action-form <c>Using</c> operator backed by
 /// <c>UsingActionObservable&lt;T&gt;</c> — happy path, null action, scheduler dispatch,
 /// and action-throws-then-disposes paths.</summary>
-public class UsingActionObservableTests
+public partial class UsingActionObservableTests
 {
     /// <summary>Synthetic error message attached to action failures.</summary>
     private const string ActionFailedMessage = "action failed";

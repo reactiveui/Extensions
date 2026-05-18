@@ -7,7 +7,7 @@ namespace ReactiveUI.Extensions.Tests.Operators;
 /// <summary>Edge-case coverage for <c>Partition</c> backed by
 /// <c>PartitionObservable&lt;T&gt;</c> — both-sides routing, single-side disposal,
 /// error broadcast, completion broadcast, and re-subscription after both sides drop.</summary>
-public class PartitionObservableTests
+public partial class PartitionObservableTests
 {
     /// <summary>Synthetic error message attached to source errors.</summary>
     private const string SourceErrorMessage = "source error";
