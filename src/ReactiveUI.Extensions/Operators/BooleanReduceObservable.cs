@@ -8,11 +8,14 @@ using ReactiveUI.Extensions.Internal.Disposables;
 namespace ReactiveUI.Extensions.Operators;
 
 /// <summary>
-/// Optimized operator that combines latest booleans and emits true only when all are false.
-/// Replaces .CombineLatest(xs => xs.All(x => !x)) to avoid array allocations on every emission.
+/// Combines the latest boolean values from multiple sources and emits <c>true</c> iff every latest
+/// value equals <paramref name="target"/>. Backs both <c>AllTrue</c> (target=true) and <c>AllFalse</c>
+/// (target=false) without the array allocations a generic <c>CombineLatest(...).Select(xs =&gt; xs.All(...))</c>
+/// pipeline would incur.
 /// </summary>
 /// <param name="sources">The source observables.</param>
-internal sealed class AllFalseObservable(IEnumerable<IObservable<bool>> sources) : IObservable<bool>
+/// <param name="target">The value every source must hold for the operator to emit <c>true</c>.</param>
+internal sealed class BooleanReduceObservable(IEnumerable<IObservable<bool>> sources, bool target) : IObservable<bool>
 {
     /// <summary>The source list.</summary>
     private readonly IReadOnlyList<IObservable<bool>> _sourceList =
@@ -30,7 +33,7 @@ internal sealed class AllFalseObservable(IEnumerable<IObservable<bool>> sources)
             return EmptyDisposable.Instance;
         }
 
-        var sink = new AllFalseSink(observer, _sourceList.Count);
+        var sink = new Sink(observer, _sourceList.Count, target);
         var composite = new DisposableBag();
         for (var i = 0; i < _sourceList.Count; i++)
         {
@@ -45,11 +48,12 @@ internal sealed class AllFalseObservable(IEnumerable<IObservable<bool>> sources)
     }
 
     /// <summary>
-    /// Sink that manages the combined state for <see cref="AllFalseObservable"/>.
+    /// Sink that holds the latest value per source and reduces them against <paramref name="target"/>.
     /// </summary>
     /// <param name="downstream">The downstream observer.</param>
     /// <param name="count">The number of sources.</param>
-    private sealed class AllFalseSink(IObserver<bool> downstream, int count)
+    /// <param name="target">The value every source must hold for emit to be <c>true</c>.</param>
+    private sealed class Sink(IObserver<bool> downstream, int count, bool target)
     {
         /// <summary>The synchronization gate.</summary>
 #if NET9_0_OR_GREATER
@@ -97,17 +101,17 @@ internal sealed class AllFalseObservable(IEnumerable<IObservable<bool>> sources)
                     return;
                 }
 
-                var allFalse = true;
+                var matches = true;
                 for (var i = 0; i < _values.Length; i++)
                 {
-                    if (_values[i] == true)
+                    if (_values[i] != target)
                     {
-                        allFalse = false;
+                        matches = false;
                         break;
                     }
                 }
 
-                downstream.OnNext(allFalse);
+                downstream.OnNext(matches);
             }
         }
 
@@ -141,7 +145,6 @@ internal sealed class AllFalseObservable(IEnumerable<IObservable<bool>> sources)
                 _completed[index] = true;
                 _completedCount++;
 
-                // Complete if all sources completed OR if a source completed without ever emitting a value
                 if (_completedCount == _values.Length || !_values[index].HasValue)
                 {
                     _isDone = true;

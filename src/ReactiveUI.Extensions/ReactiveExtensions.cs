@@ -126,7 +126,7 @@ public static class ReactiveExtensions
     /// <param name="sources">The sources.</param>
     /// <returns>A sequence that emits true when all latest booleans are false.</returns>
     public static IObservable<bool> CombineLatestValuesAreAllFalse(this IEnumerable<IObservable<bool>> sources) =>
-        new AllFalseObservable(sources);
+        new BooleanReduceObservable(sources, target: false);
 
     /// <summary>
     /// Latest values of each sequence are all true.
@@ -134,7 +134,7 @@ public static class ReactiveExtensions
     /// <param name="sources">The sources.</param>
     /// <returns>A sequence that emits true when all latest booleans are true.</returns>
     public static IObservable<bool> CombineLatestValuesAreAllTrue(this IEnumerable<IObservable<bool>> sources) =>
-        new AllTrueObservable(sources);
+        new BooleanReduceObservable(sources, target: true);
 
     /// <summary>
     /// Gets the maximum from all sources.
@@ -147,7 +147,7 @@ public static class ReactiveExtensions
         where T : struct, IComparable<T>
     {
         List<IObservable<T>> source = [@this, .. sources];
-        return new MaxObservable<T>(source);
+        return new MinMaxObservable<T>(source, emitMaximum: true);
     }
 
     /// <summary>
@@ -161,7 +161,7 @@ public static class ReactiveExtensions
         where T : struct, IComparable<T>
     {
         List<IObservable<T>> source = [@this, .. sources];
-        return new MinObservable<T>(source);
+        return new MinMaxObservable<T>(source, emitMaximum: false);
     }
 
     /// <summary>
@@ -1465,7 +1465,7 @@ public static class ReactiveExtensions
         this IObservable<T> source,
         TimeSpan inactivityPeriod,
         IScheduler? scheduler) =>
-        new BufferUntilInactiveObservable<T>(source, inactivityPeriod, scheduler ?? Scheduler.Default);
+        new BufferUntilIdleObservable<T>(source, inactivityPeriod, scheduler ?? Scheduler.Default);
 
     /// <summary>
     /// Emits the first element matching predicate then completes.

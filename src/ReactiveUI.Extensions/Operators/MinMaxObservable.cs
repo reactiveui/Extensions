@@ -8,17 +8,20 @@ using ReactiveUI.Extensions.Internal.Disposables;
 namespace ReactiveUI.Extensions.Operators;
 
 /// <summary>
-/// Optimized operator that combines the latest values from multiple sources and emits the minimum.
-/// Replaces .CombineLatest().Select(x => x.Min()) to avoid array allocations on every emission.
+/// Combines the latest values from multiple sources and emits either the maximum or minimum on each
+/// tick. Backs both the <c>Max</c> (<paramref name="emitMaximum"/>=true) and <c>Min</c>
+/// (<paramref name="emitMaximum"/>=false) operators without the array allocations a generic
+/// <c>CombineLatest(...).Select(xs =&gt; xs.Max())</c> pipeline would incur.
 /// </summary>
 /// <typeparam name="T">The value type.</typeparam>
 /// <param name="sources">The source observables.</param>
-internal sealed class MinObservable<T>(IEnumerable<IObservable<T>> sources) : IObservable<T>
+/// <param name="emitMaximum"><c>true</c> to emit the maximum; <c>false</c> to emit the minimum.</param>
+internal sealed class MinMaxObservable<T>(IEnumerable<IObservable<T>> sources, bool emitMaximum) : IObservable<T>
     where T : struct, IComparable<T>
 {
     /// <summary>The source list.</summary>
     private readonly IReadOnlyList<IObservable<T>> _sourceList =
-        InvalidOperationExceptionHelper.Check(sources as IReadOnlyList<IObservable<T>> ?? []);
+        InvalidOperationExceptionHelper.Check(sources as IReadOnlyList<IObservable<T>> ?? sources?.ToList());
 
     /// <inheritdoc/>
     public IDisposable Subscribe(IObserver<T> observer)
@@ -31,7 +34,7 @@ internal sealed class MinObservable<T>(IEnumerable<IObservable<T>> sources) : IO
             return EmptyDisposable.Instance;
         }
 
-        var sink = new MinSink(observer, _sourceList.Count);
+        var sink = new Sink(observer, _sourceList.Count, emitMaximum);
         var composite = new DisposableBag();
         for (var i = 0; i < _sourceList.Count; i++)
         {
@@ -46,11 +49,12 @@ internal sealed class MinObservable<T>(IEnumerable<IObservable<T>> sources) : IO
     }
 
     /// <summary>
-    /// Sink that manages the combined state for <see cref="MinObservable{T}"/>.
+    /// Sink that holds the latest value per source and emits either the max or the min.
     /// </summary>
     /// <param name="downstream">The downstream observer.</param>
     /// <param name="count">The number of sources.</param>
-    private sealed class MinSink(IObserver<T> downstream, int count)
+    /// <param name="emitMaximum"><c>true</c> for max; <c>false</c> for min.</param>
+    private sealed class Sink(IObserver<T> downstream, int count, bool emitMaximum)
     {
         /// <summary>The synchronization gate.</summary>
 #if NET9_0_OR_GREATER
@@ -98,17 +102,18 @@ internal sealed class MinObservable<T>(IEnumerable<IObservable<T>> sources) : IO
                     return;
                 }
 
-                var min = _values[0]!.Value;
+                var result = _values[0]!.Value;
                 for (var i = 1; i < _values.Length; i++)
                 {
                     var current = _values[i]!.Value;
-                    if (current.CompareTo(min) < 0)
+                    var cmp = current.CompareTo(result);
+                    if (emitMaximum ? cmp > 0 : cmp < 0)
                     {
-                        min = current;
+                        result = current;
                     }
                 }
 
-                downstream.OnNext(min);
+                downstream.OnNext(result);
             }
         }
 
