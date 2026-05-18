@@ -360,26 +360,16 @@ public static partial class ObservableAsync
 
         /// <summary>
         /// Manages the subscription lifetime and completes when the cancellation token is canceled.
+        /// Composes <see cref="TakeUntilLifecycle{T}"/> for the shared gate / dispose-CTS / external-
+        /// link / gated-forwarding plumbing so this class only carries the operator-specific state.
         /// </summary>
         internal sealed class Subscription : IAsyncDisposable
         {
-            /// <summary>Cancellation source for disposal.</summary>
-            private readonly CancellationTokenSource _cts = new();
-
             /// <summary>The parent observable that owns this subscription.</summary>
             private readonly TakeUntilCancellationToken<T> _parent;
 
-            /// <summary>The downstream observer.</summary>
-            private readonly IObserverAsync<T> _observer;
-
-            /// <summary>Serializes observer notifications.</summary>
-            private readonly AsyncGate _gate = new();
-
-            /// <summary>A cached token from <see cref="_cts"/> used to link with per-emission tokens.</summary>
-            private readonly CancellationToken _disposeCancellationToken;
-
-            /// <summary>Registration that propagates the original subscribe-token cancellation into <see cref="_cts"/>.</summary>
-            private CancellationTokenRegistration _externalLinkRegistration;
+            /// <summary>Shared subscription lifecycle (gate / dispose CTS / external link / forwarders).</summary>
+            private readonly TakeUntilLifecycle<T> _lifecycle;
 
             /// <summary>The inner subscription handle.</summary>
             private IAsyncDisposable? _subscription;
@@ -395,8 +385,7 @@ public static partial class ObservableAsync
             public Subscription(TakeUntilCancellationToken<T> parent, IObserverAsync<T> observer)
             {
                 _parent = parent;
-                _observer = observer;
-                _disposeCancellationToken = _cts.Token;
+                _lifecycle = new TakeUntilLifecycle<T>(observer);
             }
 
             /// <summary>
@@ -416,13 +405,6 @@ public static partial class ObservableAsync
             /// <returns>A task representing the asynchronous dispose operation.</returns>
             public async ValueTask DisposeAsync()
             {
-                await _cts.CancelAsync().ConfigureAwait(false);
-#if NETCOREAPP3_0_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-                await _externalLinkRegistration.DisposeAsync().ConfigureAwait(false);
-#else
-                _externalLinkRegistration.Dispose();
-#endif
-                _cts.Dispose();
                 if (_tokenRegistration is { } reg)
                 {
 #if NET8_0_OR_GREATER
@@ -437,32 +419,13 @@ public static partial class ObservableAsync
                     await _subscription.DisposeAsync().ConfigureAwait(false);
                 }
 
-                _gate.Dispose();
+                await _lifecycle.DisposeAsync().ConfigureAwait(false);
             }
 
-            /// <summary>
-            /// Links the original subscribe-time cancellation token into this subscription's dispose chain so
-            /// later per-emission methods can rely on <see cref="_disposeCancellationToken"/> instead of
-            /// allocating a per-emission linked CTS.
-            /// </summary>
+            /// <summary>Forwards the original subscribe-time token into the shared lifecycle's dispose chain.</summary>
             /// <param name="external">The subscribe-time token.</param>
-            internal void LinkExternalCancellation(CancellationToken external)
-            {
-                if (!external.CanBeCanceled || external == _disposeCancellationToken)
-                {
-                    return;
-                }
-
-                if (external.IsCancellationRequested)
-                {
-                    _cts.Cancel();
-                    return;
-                }
-
-                _externalLinkRegistration = external.UnsafeRegister(
-                    static state => ((CancellationTokenSource)state!).Cancel(),
-                    _cts);
-            }
+            internal void LinkExternalCancellation(CancellationToken external) =>
+                _lifecycle.LinkExternalCancellation(external);
 
             /// <summary>
             /// Callback invoked when the external cancellation token is canceled; forwards completion to the observer.
@@ -470,69 +433,31 @@ public static partial class ObservableAsync
             internal void OnTokenCanceled() => FireAndForgetHelper.Run(async () =>
             {
                 await Task.Yield();
-                await ForwardOnCompletedAsync(Result.Success).ConfigureAwait(false);
+                await _lifecycle.ForwardOnCompletedAsync(Result.Success).ConfigureAwait(false);
             });
 
             /// <summary>
-            /// Forwards a value to the downstream observer under the serialization gate.
-            /// </summary>
-            /// <param name="value">The value to forward.</param>
-            /// <param name="cancellationToken">A token to cancel the operation.</param>
-            /// <returns>A task representing the asynchronous forward operation.</returns>
-            internal async ValueTask ForwardOnNextAsync(T value, CancellationToken cancellationToken)
-            {
-                _ = cancellationToken;
-                using (await _gate.LockAsync(_disposeCancellationToken).ConfigureAwait(false))
-                {
-                    await _observer.OnNextAsync(value, _disposeCancellationToken).ConfigureAwait(false);
-                }
-            }
-
-            /// <summary>
-            /// Forwards a non-terminal error to the downstream observer under the serialization gate.
-            /// </summary>
-            /// <param name="error">The error to forward.</param>
-            /// <param name="cancellationToken">A token to cancel the operation.</param>
-            /// <returns>A task representing the asynchronous forward operation.</returns>
-            internal async ValueTask ForwardOnErrorResumeAsync(Exception error, CancellationToken cancellationToken)
-            {
-                _ = cancellationToken;
-                using (await _gate.LockAsync(_disposeCancellationToken).ConfigureAwait(false))
-                {
-                    await _observer.OnErrorResumeAsync(error, _disposeCancellationToken).ConfigureAwait(false);
-                }
-            }
-
-            /// <summary>
-            /// Forwards the completion signal to the downstream observer under the serialization gate.
-            /// </summary>
-            /// <param name="result">The completion result.</param>
-            /// <returns>A task representing the asynchronous forward operation.</returns>
-            internal async ValueTask ForwardOnCompletedAsync(Result result)
-            {
-                using (await _gate.LockAsync().ConfigureAwait(false))
-                {
-                    await _observer.OnCompletedAsync(result).ConfigureAwait(false);
-                }
-            }
-
-            /// <summary>
-            /// Observer that forwards source items to the parent subscription.
+            /// Observer that forwards source items to the parent subscription's shared lifecycle.
             /// </summary>
             internal sealed class SourceObserver(Subscription parent) : ObserverAsync<T>
             {
                 /// <inheritdoc/>
-                protected override ValueTask OnNextAsyncCore(T value, CancellationToken cancellationToken) =>
-                    parent.ForwardOnNextAsync(value, cancellationToken);
+                protected override ValueTask OnNextAsyncCore(T value, CancellationToken cancellationToken)
+                {
+                    _ = cancellationToken;
+                    return parent._lifecycle.ForwardOnNextAsync(value);
+                }
 
                 /// <inheritdoc/>
-                protected override ValueTask OnErrorResumeAsyncCore(
-                    Exception error,
-                    CancellationToken cancellationToken) => parent.ForwardOnErrorResumeAsync(error, cancellationToken);
+                protected override ValueTask OnErrorResumeAsyncCore(Exception error, CancellationToken cancellationToken)
+                {
+                    _ = cancellationToken;
+                    return parent._lifecycle.ForwardOnErrorResumeAsync(error);
+                }
 
                 /// <inheritdoc/>
                 protected override ValueTask OnCompletedAsyncCore(Result result) =>
-                    parent.ForwardOnCompletedAsync(result);
+                    parent._lifecycle.ForwardOnCompletedAsync(result);
             }
         }
     }
@@ -572,23 +497,11 @@ public static partial class ObservableAsync
         /// </summary>
         internal sealed class Subscription : IAsyncDisposable
         {
-            /// <summary>Cancellation source for disposal.</summary>
-            private readonly CancellationTokenSource _cts = new();
-
             /// <summary>The parent observable that owns this subscription.</summary>
             private readonly TakeUntilFromRawSignal<T> _parent;
 
-            /// <summary>The downstream observer.</summary>
-            private readonly IObserverAsync<T> _observer;
-
-            /// <summary>Serializes observer notifications.</summary>
-            private readonly AsyncGate _gate = new();
-
-            /// <summary>A cached token from <see cref="_cts"/> used to link with per-emission tokens.</summary>
-            private readonly CancellationToken _disposeCancellationToken;
-
-            /// <summary>Registration that propagates the original subscribe-token cancellation into <see cref="_cts"/>.</summary>
-            private CancellationTokenRegistration _externalLinkRegistration;
+            /// <summary>Shared subscription lifecycle (gate / dispose CTS / external link / forwarders).</summary>
+            private readonly TakeUntilLifecycle<T> _lifecycle;
 
             /// <summary>The inner subscription handle.</summary>
             private IAsyncDisposable? _subscription;
@@ -601,8 +514,7 @@ public static partial class ObservableAsync
             public Subscription(TakeUntilFromRawSignal<T> parent, IObserverAsync<T> observer)
             {
                 _parent = parent;
-                _observer = observer;
-                _disposeCancellationToken = _cts.Token;
+                _lifecycle = new TakeUntilLifecycle<T>(observer);
             }
 
             /// <summary>
@@ -622,44 +534,18 @@ public static partial class ObservableAsync
             /// <returns>A task representing the asynchronous dispose operation.</returns>
             public async ValueTask DisposeAsync()
             {
-                await _cts.CancelAsync().ConfigureAwait(false);
-#if NETCOREAPP3_0_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-                await _externalLinkRegistration.DisposeAsync().ConfigureAwait(false);
-#else
-                _externalLinkRegistration.Dispose();
-#endif
-                _cts.Dispose();
                 if (_subscription is not null)
                 {
                     await _subscription.DisposeAsync().ConfigureAwait(false);
                 }
 
-                _gate.Dispose();
+                await _lifecycle.DisposeAsync().ConfigureAwait(false);
             }
 
-            /// <summary>
-            /// Links the original subscribe-time cancellation token into this subscription's dispose chain so
-            /// later per-emission methods can rely on <see cref="_disposeCancellationToken"/> instead of
-            /// allocating a per-emission linked CTS.
-            /// </summary>
+            /// <summary>Forwards the original subscribe-time token into the shared lifecycle's dispose chain.</summary>
             /// <param name="external">The subscribe-time token.</param>
-            internal void LinkExternalCancellation(CancellationToken external)
-            {
-                if (!external.CanBeCanceled || external == _disposeCancellationToken)
-                {
-                    return;
-                }
-
-                if (external.IsCancellationRequested)
-                {
-                    _cts.Cancel();
-                    return;
-                }
-
-                _externalLinkRegistration = external.UnsafeRegister(
-                    static state => ((CancellationTokenSource)state!).Cancel(),
-                    _cts);
-            }
+            internal void LinkExternalCancellation(CancellationToken external) =>
+                _lifecycle.LinkExternalCancellation(external);
 
             /// <summary>
             /// Waits for the stop signal to fire, then forwards completion or error to the downstream observer.
@@ -684,7 +570,7 @@ public static partial class ObservableAsync
 
                 try
                 {
-                    await tcs.Task.WaitAsync(System.Threading.Timeout.InfiniteTimeSpan, _disposeCancellationToken).ConfigureAwait(false);
+                    await tcs.Task.WaitAsync(System.Threading.Timeout.InfiniteTimeSpan, _lifecycle.DisposeToken).ConfigureAwait(false);
                     try
                     {
                         await disposable.DisposeAsync().ConfigureAwait(false);
@@ -694,7 +580,7 @@ public static partial class ObservableAsync
                         // Ignored
                     }
 
-                    await ForwardOnCompletedAsync(Result.Success).ConfigureAwait(false);
+                    await _lifecycle.ForwardOnCompletedAsync(Result.Success).ConfigureAwait(false);
                 }
                 catch (Exception e)
                 {
@@ -709,76 +595,37 @@ public static partial class ObservableAsync
 
                     if (_parent._options.SourceFailsWhenOtherFails)
                     {
-                        await ForwardOnCompletedAsync(Result.Failure(e)).ConfigureAwait(false);
+                        await _lifecycle.ForwardOnCompletedAsync(Result.Failure(e)).ConfigureAwait(false);
                     }
                     else
                     {
-                        await ForwardOnErrorResumeAsync(e, CancellationToken.None).ConfigureAwait(false);
+                        await _lifecycle.ForwardOnErrorResumeAsync(e).ConfigureAwait(false);
                     }
                 }
             });
 
             /// <summary>
-            /// Forwards a value to the downstream observer under the serialization gate.
-            /// </summary>
-            /// <param name="value">The value to forward.</param>
-            /// <param name="cancellationToken">A token to cancel the operation.</param>
-            /// <returns>A task representing the asynchronous forward operation.</returns>
-            internal async ValueTask ForwardOnNextAsync(T value, CancellationToken cancellationToken)
-            {
-                _ = cancellationToken;
-                using (await _gate.LockAsync(_disposeCancellationToken).ConfigureAwait(false))
-                {
-                    await _observer.OnNextAsync(value, _disposeCancellationToken).ConfigureAwait(false);
-                }
-            }
-
-            /// <summary>
-            /// Forwards a non-terminal error to the downstream observer under the serialization gate.
-            /// </summary>
-            /// <param name="error">The error to forward.</param>
-            /// <param name="cancellationToken">A token to cancel the operation.</param>
-            /// <returns>A task representing the asynchronous forward operation.</returns>
-            internal async ValueTask ForwardOnErrorResumeAsync(Exception error, CancellationToken cancellationToken)
-            {
-                _ = cancellationToken;
-                using (await _gate.LockAsync(_disposeCancellationToken).ConfigureAwait(false))
-                {
-                    await _observer.OnErrorResumeAsync(error, _disposeCancellationToken).ConfigureAwait(false);
-                }
-            }
-
-            /// <summary>
-            /// Forwards the completion signal to the downstream observer under the serialization gate.
-            /// </summary>
-            /// <param name="result">The completion result.</param>
-            /// <returns>A task representing the asynchronous forward operation.</returns>
-            internal async ValueTask ForwardOnCompletedAsync(Result result)
-            {
-                using (await _gate.LockAsync().ConfigureAwait(false))
-                {
-                    await _observer.OnCompletedAsync(result).ConfigureAwait(false);
-                }
-            }
-
-            /// <summary>
-            /// Observer that forwards source items to the parent subscription.
+            /// Observer that forwards source items to the parent subscription's shared lifecycle.
             /// </summary>
             internal sealed class SourceObserver(Subscription parent) : ObserverAsync<T>
             {
                 /// <inheritdoc/>
-                protected override ValueTask OnNextAsyncCore(T value, CancellationToken cancellationToken) =>
-                    parent.ForwardOnNextAsync(value, cancellationToken);
+                protected override ValueTask OnNextAsyncCore(T value, CancellationToken cancellationToken)
+                {
+                    _ = cancellationToken;
+                    return parent._lifecycle.ForwardOnNextAsync(value);
+                }
 
                 /// <inheritdoc/>
-                protected override ValueTask OnErrorResumeAsyncCore(
-                    Exception error,
-                    CancellationToken cancellationToken) =>
-                    parent.ForwardOnErrorResumeAsync(error, cancellationToken);
+                protected override ValueTask OnErrorResumeAsyncCore(Exception error, CancellationToken cancellationToken)
+                {
+                    _ = cancellationToken;
+                    return parent._lifecycle.ForwardOnErrorResumeAsync(error);
+                }
 
                 /// <inheritdoc/>
                 protected override ValueTask OnCompletedAsyncCore(Result result) =>
-                    parent.ForwardOnCompletedAsync(result);
+                    parent._lifecycle.ForwardOnCompletedAsync(result);
             }
         }
     }
@@ -812,27 +659,16 @@ public static partial class ObservableAsync
         }
 
         /// <summary>
-        /// Manages the subscription lifetime and completes when the task finishes.
+        /// Manages the subscription lifetime and completes when the task finishes. Composes
+        /// <see cref="TakeUntilLifecycle{T}"/> for the shared plumbing.
         /// </summary>
         internal sealed class Subscription : IAsyncDisposable
         {
-            /// <summary>Cancellation source for disposal.</summary>
-            private readonly CancellationTokenSource _cts = new();
-
             /// <summary>The parent observable that owns this subscription.</summary>
             private readonly TakeUntilTask<T> _parent;
 
-            /// <summary>The downstream observer.</summary>
-            private readonly IObserverAsync<T> _observer;
-
-            /// <summary>Serializes observer notifications.</summary>
-            private readonly AsyncGate _gate = new();
-
-            /// <summary>A cached token from <see cref="_cts"/> used to link with per-emission tokens.</summary>
-            private readonly CancellationToken _disposeCancellationToken;
-
-            /// <summary>Registration that propagates the original subscribe-token cancellation into <see cref="_cts"/>.</summary>
-            private CancellationTokenRegistration _externalLinkRegistration;
+            /// <summary>Shared subscription lifecycle (gate / dispose CTS / external link / forwarders).</summary>
+            private readonly TakeUntilLifecycle<T> _lifecycle;
 
             /// <summary>The inner subscription handle.</summary>
             private IAsyncDisposable? _subscription;
@@ -845,8 +681,7 @@ public static partial class ObservableAsync
             public Subscription(TakeUntilTask<T> parent, IObserverAsync<T> observer)
             {
                 _parent = parent;
-                _observer = observer;
-                _disposeCancellationToken = _cts.Token;
+                _lifecycle = new TakeUntilLifecycle<T>(observer);
             }
 
             /// <summary>
@@ -867,44 +702,18 @@ public static partial class ObservableAsync
             /// <returns>A task representing the asynchronous dispose operation.</returns>
             public async ValueTask DisposeAsync()
             {
-                await _cts.CancelAsync().ConfigureAwait(false);
-#if NETCOREAPP3_0_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-                await _externalLinkRegistration.DisposeAsync().ConfigureAwait(false);
-#else
-                _externalLinkRegistration.Dispose();
-#endif
-                _cts.Dispose();
                 if (_subscription is not null)
                 {
                     await _subscription.DisposeAsync().ConfigureAwait(false);
                 }
 
-                _gate.Dispose();
+                await _lifecycle.DisposeAsync().ConfigureAwait(false);
             }
 
-            /// <summary>
-            /// Links the original subscribe-time cancellation token into this subscription's dispose chain so
-            /// later per-emission methods can rely on <see cref="_disposeCancellationToken"/> instead of
-            /// allocating a per-emission linked CTS.
-            /// </summary>
+            /// <summary>Forwards the original subscribe-time token into the shared lifecycle's dispose chain.</summary>
             /// <param name="external">The subscribe-time token.</param>
-            internal void LinkExternalCancellation(CancellationToken external)
-            {
-                if (!external.CanBeCanceled || external == _disposeCancellationToken)
-                {
-                    return;
-                }
-
-                if (external.IsCancellationRequested)
-                {
-                    _cts.Cancel();
-                    return;
-                }
-
-                _externalLinkRegistration = external.UnsafeRegister(
-                    static state => ((CancellationTokenSource)state!).Cancel(),
-                    _cts);
-            }
+            internal void LinkExternalCancellation(CancellationToken external) =>
+                _lifecycle.LinkExternalCancellation(external);
 
             /// <summary>
             /// Waits for the task to complete, then forwards completion or error to the downstream observer.
@@ -914,83 +723,44 @@ public static partial class ObservableAsync
             {
                 try
                 {
-                    await task.WaitAsync(System.Threading.Timeout.InfiniteTimeSpan, _disposeCancellationToken).ConfigureAwait(false);
-                    await ForwardOnCompletedAsync(Result.Success).ConfigureAwait(false);
+                    await task.WaitAsync(System.Threading.Timeout.InfiniteTimeSpan, _lifecycle.DisposeToken).ConfigureAwait(false);
+                    await _lifecycle.ForwardOnCompletedAsync(Result.Success).ConfigureAwait(false);
                 }
                 catch (Exception e)
                 {
                     if (_parent._options.SourceFailsWhenOtherFails)
                     {
-                        await ForwardOnCompletedAsync(Result.Failure(e)).ConfigureAwait(false);
+                        await _lifecycle.ForwardOnCompletedAsync(Result.Failure(e)).ConfigureAwait(false);
                     }
                     else
                     {
-                        await ForwardOnErrorResumeAsync(e, CancellationToken.None).ConfigureAwait(false);
+                        await _lifecycle.ForwardOnErrorResumeAsync(e).ConfigureAwait(false);
                     }
                 }
             });
 
             /// <summary>
-            /// Forwards a value to the downstream observer under the serialization gate.
-            /// </summary>
-            /// <param name="value">The value to forward.</param>
-            /// <param name="cancellationToken">A token to cancel the operation.</param>
-            /// <returns>A task representing the asynchronous forward operation.</returns>
-            internal async ValueTask ForwardOnNextAsync(T value, CancellationToken cancellationToken)
-            {
-                _ = cancellationToken;
-                using (await _gate.LockAsync(_disposeCancellationToken).ConfigureAwait(false))
-                {
-                    await _observer.OnNextAsync(value, _disposeCancellationToken).ConfigureAwait(false);
-                }
-            }
-
-            /// <summary>
-            /// Forwards a non-terminal error to the downstream observer under the serialization gate.
-            /// </summary>
-            /// <param name="error">The error to forward.</param>
-            /// <param name="cancellationToken">A token to cancel the operation.</param>
-            /// <returns>A task representing the asynchronous forward operation.</returns>
-            internal async ValueTask ForwardOnErrorResumeAsync(Exception error, CancellationToken cancellationToken)
-            {
-                _ = cancellationToken;
-                using (await _gate.LockAsync(_disposeCancellationToken).ConfigureAwait(false))
-                {
-                    await _observer.OnErrorResumeAsync(error, _disposeCancellationToken).ConfigureAwait(false);
-                }
-            }
-
-            /// <summary>
-            /// Forwards the completion signal to the downstream observer under the serialization gate.
-            /// </summary>
-            /// <param name="result">The completion result.</param>
-            /// <returns>A task representing the asynchronous forward operation.</returns>
-            internal async ValueTask ForwardOnCompletedAsync(Result result)
-            {
-                using (await _gate.LockAsync().ConfigureAwait(false))
-                {
-                    await _observer.OnCompletedAsync(result).ConfigureAwait(false);
-                }
-            }
-
-            /// <summary>
-            /// Observer that forwards source items to the parent subscription.
+            /// Observer that forwards source items to the parent subscription's shared lifecycle.
             /// </summary>
             internal sealed class SourceObserver(Subscription parent) : ObserverAsync<T>
             {
                 /// <inheritdoc/>
-                protected override ValueTask OnNextAsyncCore(T value, CancellationToken cancellationToken) =>
-                    parent.ForwardOnNextAsync(value, cancellationToken);
+                protected override ValueTask OnNextAsyncCore(T value, CancellationToken cancellationToken)
+                {
+                    _ = cancellationToken;
+                    return parent._lifecycle.ForwardOnNextAsync(value);
+                }
 
                 /// <inheritdoc/>
-                protected override ValueTask OnErrorResumeAsyncCore(
-                    Exception error,
-                    CancellationToken cancellationToken) =>
-                    parent.ForwardOnErrorResumeAsync(error, cancellationToken);
+                protected override ValueTask OnErrorResumeAsyncCore(Exception error, CancellationToken cancellationToken)
+                {
+                    _ = cancellationToken;
+                    return parent._lifecycle.ForwardOnErrorResumeAsync(error);
+                }
 
                 /// <inheritdoc/>
                 protected override ValueTask OnCompletedAsyncCore(Result result) =>
-                    parent.ForwardOnCompletedAsync(result);
+                    parent._lifecycle.ForwardOnCompletedAsync(result);
             }
         }
     }
@@ -1027,33 +797,22 @@ public static partial class ObservableAsync
         }
 
         /// <summary>
-        /// Manages subscriptions to both the source and signal observables, completing when the signal fires.
+        /// Manages subscriptions to both the source and signal observables, completing when the signal
+        /// fires. Composes <see cref="TakeUntilLifecycle{T}"/> for the shared plumbing.
         /// </summary>
         internal sealed class Subscription : IAsyncDisposable
         {
             /// <summary>The parent observable that owns this subscription.</summary>
             private readonly TakeUntilAsyncObservable<T, TOther> _parent;
 
-            /// <summary>The downstream observer.</summary>
-            private readonly IObserverAsync<T> _observer;
-
-            /// <summary>Serializes observer notifications.</summary>
-            private readonly AsyncGate _gate = new();
+            /// <summary>Shared subscription lifecycle (gate / dispose CTS / external link / forwarders).</summary>
+            private readonly TakeUntilLifecycle<T> _lifecycle;
 
             /// <summary>Holds the source subscription so it can be disposed on teardown.</summary>
             private readonly SingleAssignmentDisposableAsync _disposable = new();
 
             /// <summary>Holds the signal subscription so it can be disposed on teardown.</summary>
             private readonly SingleAssignmentDisposableAsync _otherDisposable = new();
-
-            /// <summary>Cancellation source for disposal.</summary>
-            private readonly CancellationTokenSource _cts = new();
-
-            /// <summary>A cached token from <see cref="_cts"/> used to link with per-emission tokens.</summary>
-            private readonly CancellationToken _disposeCancellationToken;
-
-            /// <summary>Registration that propagates the original subscribe-token cancellation into <see cref="_cts"/>.</summary>
-            private CancellationTokenRegistration _externalLinkRegistration;
 
             /// <summary>
             /// Initializes a new instance of the <see cref="Subscription"/> class.
@@ -1063,8 +822,7 @@ public static partial class ObservableAsync
             public Subscription(TakeUntilAsyncObservable<T, TOther> parent, IObserverAsync<T> observer)
             {
                 _parent = parent;
-                _observer = observer;
-                _disposeCancellationToken = _cts.Token;
+                _lifecycle = new TakeUntilLifecycle<T>(observer);
             }
 
             /// <summary>
@@ -1090,102 +848,38 @@ public static partial class ObservableAsync
             /// <returns>A task representing the asynchronous dispose operation.</returns>
             public async ValueTask DisposeAsync()
             {
-                await _cts.CancelAsync().ConfigureAwait(false);
                 await _otherDisposable.DisposeAsync().ConfigureAwait(false);
                 await _disposable.DisposeAsync().ConfigureAwait(false);
-#if NETCOREAPP3_0_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-                await _externalLinkRegistration.DisposeAsync().ConfigureAwait(false);
-#else
-                _externalLinkRegistration.Dispose();
-#endif
-                _cts.Dispose();
-                _gate.Dispose();
+                await _lifecycle.DisposeAsync().ConfigureAwait(false);
             }
 
-            /// <summary>
-            /// Links the original subscribe-time cancellation token into this subscription's dispose chain so
-            /// later per-emission methods can rely on <see cref="_disposeCancellationToken"/> instead of
-            /// allocating a per-emission linked CTS.
-            /// </summary>
+            /// <summary>Forwards the original subscribe-time token into the shared lifecycle's dispose chain.</summary>
             /// <param name="external">The subscribe-time token.</param>
-            internal void LinkExternalCancellation(CancellationToken external)
-            {
-                if (!external.CanBeCanceled || external == _disposeCancellationToken)
-                {
-                    return;
-                }
-
-                if (external.IsCancellationRequested)
-                {
-                    _cts.Cancel();
-                    return;
-                }
-
-                _externalLinkRegistration = external.UnsafeRegister(
-                    static state => ((CancellationTokenSource)state!).Cancel(),
-                    _cts);
-            }
+            internal void LinkExternalCancellation(CancellationToken external) =>
+                _lifecycle.LinkExternalCancellation(external);
 
             /// <summary>
-            /// Forwards a value to the downstream observer under the serialization gate.
-            /// </summary>
-            /// <param name="value">The value to forward.</param>
-            /// <param name="cancellationToken">A token to cancel the operation.</param>
-            /// <returns>A task representing the asynchronous forward operation.</returns>
-            internal async ValueTask ForwardOnNextAsync(T value, CancellationToken cancellationToken)
-            {
-                _ = cancellationToken;
-                using (await _gate.LockAsync(_disposeCancellationToken).ConfigureAwait(false))
-                {
-                    await _observer.OnNextAsync(value, _disposeCancellationToken).ConfigureAwait(false);
-                }
-            }
-
-            /// <summary>
-            /// Forwards a non-terminal error to the downstream observer under the serialization gate.
-            /// </summary>
-            /// <param name="error">The error to forward.</param>
-            /// <param name="cancellationToken">A token to cancel the operation.</param>
-            /// <returns>A task representing the asynchronous forward operation.</returns>
-            internal async ValueTask ForwardOnErrorResumeAsync(Exception error, CancellationToken cancellationToken)
-            {
-                _ = cancellationToken;
-                using (await _gate.LockAsync(_disposeCancellationToken).ConfigureAwait(false))
-                {
-                    await _observer.OnErrorResumeAsync(error, _disposeCancellationToken).ConfigureAwait(false);
-                }
-            }
-
-            /// <summary>
-            /// Forwards the completion signal to the downstream observer under the serialization gate.
-            /// </summary>
-            /// <param name="result">The completion result.</param>
-            /// <returns>A task representing the asynchronous forward operation.</returns>
-            internal async ValueTask ForwardOnCompletedAsync(Result result)
-            {
-                using (await _gate.LockAsync().ConfigureAwait(false))
-                {
-                    await _observer.OnCompletedAsync(result).ConfigureAwait(false);
-                }
-            }
-
-            /// <summary>
-            /// Observer that forwards source items to the parent subscription.
+            /// Observer that forwards source items to the parent subscription's shared lifecycle.
             /// </summary>
             internal sealed class FirstSubscription(Subscription parent) : ObserverAsync<T>
             {
                 /// <inheritdoc/>
-                protected override ValueTask OnNextAsyncCore(T value, CancellationToken cancellationToken) =>
-                    parent.ForwardOnNextAsync(value, cancellationToken);
+                protected override ValueTask OnNextAsyncCore(T value, CancellationToken cancellationToken)
+                {
+                    _ = cancellationToken;
+                    return parent._lifecycle.ForwardOnNextAsync(value);
+                }
 
                 /// <inheritdoc/>
-                protected override ValueTask OnErrorResumeAsyncCore(
-                    Exception error,
-                    CancellationToken cancellationToken) => parent.ForwardOnErrorResumeAsync(error, cancellationToken);
+                protected override ValueTask OnErrorResumeAsyncCore(Exception error, CancellationToken cancellationToken)
+                {
+                    _ = cancellationToken;
+                    return parent._lifecycle.ForwardOnErrorResumeAsync(error);
+                }
 
                 /// <inheritdoc/>
                 protected override ValueTask OnCompletedAsyncCore(Result result) =>
-                    parent.ForwardOnCompletedAsync(result);
+                    parent._lifecycle.ForwardOnCompletedAsync(result);
             }
 
             /// <summary>
@@ -1196,15 +890,18 @@ public static partial class ObservableAsync
                 /// <inheritdoc/>
                 protected override async ValueTask OnNextAsyncCore(TOther value, CancellationToken cancellationToken)
                 {
-                    await parent.ForwardOnCompletedAsync(Result.Success).ConfigureAwait(false);
+                    _ = value;
+                    _ = cancellationToken;
+                    await parent._lifecycle.ForwardOnCompletedAsync(Result.Success).ConfigureAwait(false);
                     await DisposeAsync().ConfigureAwait(false);
                 }
 
                 /// <inheritdoc/>
-                protected override ValueTask OnErrorResumeAsyncCore(
-                    Exception error,
-                    CancellationToken cancellationToken) =>
-                    parent.ForwardOnErrorResumeAsync(error, cancellationToken);
+                protected override ValueTask OnErrorResumeAsyncCore(Exception error, CancellationToken cancellationToken)
+                {
+                    _ = cancellationToken;
+                    return parent._lifecycle.ForwardOnErrorResumeAsync(error);
+                }
 
                 /// <inheritdoc/>
                 protected override ValueTask OnCompletedAsyncCore(Result result)
@@ -1216,10 +913,10 @@ public static partial class ObservableAsync
 
                     if (parent._parent._options.SourceFailsWhenOtherFails)
                     {
-                        return parent.ForwardOnCompletedAsync(result);
+                        return parent._lifecycle.ForwardOnCompletedAsync(result);
                     }
 
-                    return parent.ForwardOnCompletedAsync(Result.Success);
+                    return parent._lifecycle.ForwardOnCompletedAsync(Result.Success);
                 }
             }
         }
