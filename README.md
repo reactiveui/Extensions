@@ -1,12 +1,21 @@
-<a href="https://www.nuget.org/packages/splat">
-        <img src="https://img.shields.io/nuget/dt/reactiveui.extensions.svg">
-</a>
-<a href="https://reactiveui.net/slack">
-        <img src="https://img.shields.io/badge/chat-slack-blue.svg">
-</a>
-
 [![Build](https://github.com/reactiveui/Extensions/actions/workflows/ci-build.yml/badge.svg)](https://github.com/reactiveui/Extensions/actions/workflows/ci-build.yml)
 [![codecov](https://codecov.io/gh/reactiveui/Extensions/graph/badge.svg?token=7u1lNF5imh)](https://codecov.io/gh/reactiveui/Extensions)
+[![Coverage](https://sonarcloud.io/api/project_badges/measure?project=reactiveui_Extensions&metric=coverage)](https://sonarcloud.io/summary/new_code?id=reactiveui_Extensions)
+[![Reliability Rating](https://sonarcloud.io/api/project_badges/measure?project=reactiveui_Extensions&metric=reliability_rating)](https://sonarcloud.io/summary/new_code?id=reactiveui_Extensions)
+[![Duplicated Lines (%)](https://sonarcloud.io/api/project_badges/measure?project=reactiveui_Extensions&metric=duplicated_lines_density)](https://sonarcloud.io/summary/new_code?id=reactiveui_Extensions)
+[![Vulnerabilities](https://sonarcloud.io/api/project_badges/measure?project=reactiveui_Extensions&metric=vulnerabilities)](https://sonarcloud.io/summary/new_code?id=reactiveui_Extensions)
+[![Security Rating](https://sonarcloud.io/api/project_badges/measure?project=reactiveui_Extensions&metric=security_rating)](https://sonarcloud.io/summary/new_code?id=reactiveui_Extensions)
+[![NuGet](https://img.shields.io/nuget/v/ReactiveUI.Extensions.svg?logo=nuget&label=ReactiveUI.Extensions)](https://www.nuget.org/packages/ReactiveUI.Extensions/)
+[![Downloads](https://img.shields.io/nuget/dt/ReactiveUI.Extensions.svg?logo=nuget&label=downloads)](https://www.nuget.org/packages/ReactiveUI.Extensions/)
+[![GitHub stars](https://img.shields.io/github/stars/reactiveui/Extensions?style=social)](https://github.com/reactiveui/Extensions/stargazers)
+[![Slack](https://img.shields.io/badge/chat-slack-blue.svg)](https://reactiveui.net/slack)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
+<br>
+<a href="https://github.com/reactiveui/Extensions">
+  <img width="160" height="160" src="https://raw.githubusercontent.com/reactiveui/Extensions/main/images/logo.png" alt="ReactiveUI.Extensions">
+</a>
+<br>
 
 # ReactiveUI.Extensions
 
@@ -37,6 +46,7 @@ Supported Target Frameworks: `.NET 4.6.2`, `.NET 4.7.2`, `.NET 4.8.1`, `.NET 8`,
     - [Async / Task Integration](#async--task-integration)
     - [Backpressure / Conflation](#backpressure--conflation)
     - [Selective & Conditional Emission](#selective--conditional-emission)
+    - [Fused Selectors & Candidate Walking](#fused-selectors--candidate-walking)
     - [Buffering & Transformation](#buffering--transformation)
     - [Subscription / Side Effects](#subscription--side-effects)
     - [Utility & Miscellaneous](#utility--miscellaneous)
@@ -123,6 +133,8 @@ Some overloads omitted for brevity.
 | Async / Task             | `SelectAsyncSequential`, `SelectLatestAsync`, `SelectAsyncConcurrent`, `SubscribeAsync` (overloads), `SynchronizeSynchronous`, `SynchronizeAsync`, `SubscribeSynchronous` (overloads), `ToHotTask` |
 | Backpressure             | `Conflate`                                                                                                                                                                                         |
 | Filtering / Conditional  | `Filter` (Regex), `TakeUntil` (predicate), `WaitUntil`, `SampleLatest`, `SwitchIfEmpty`, `DropIfBusy`                                                                                              |
+| Fused Selectors          | `WhereSelect`, `SelectConstant`, `TrySelect`, `SelectManyThen`                                                                                                                                     |
+| Candidate Walking        | `FirstMatchFromCandidates`, `RunAll`                                                                                                                                                               |
 | Buffering                | `BufferUntil`, `BufferUntilInactive`, `BufferUntilIdle`, `Pairwise`, `ScanWithInitial`                                                                                                             |
 | Transformation & Utility | `Shuffle`, `ForEach`, `FromArray`, `Using`, `While`, `Start`, `OnNext` (params helper), `DoOnSubscribe`, `DoOnDispose`, `ToReadOnlyBehavior`, `ToPropertyObservable`                               |
 
@@ -277,6 +289,53 @@ var result = empty.SwitchIfEmpty(fallback); // emits 42
 // DropIfBusy: drop values if the previous async operation is still running
 var inputs = Observable.Range(1, 5);
 var processed = inputs.DropIfBusy(async x => { await Task.Delay(200); Console.WriteLine(x); });
+```
+
+### Fused Selectors & Candidate Walking
+
+Hand-fused operators that collapse common `Where`/`Select`/`SelectMany` chains
+into a single subscription, and small candidate-walking helpers that replace
+ad-hoc `Concat`/`FirstAsync` patterns.
+
+```csharp
+// WhereSelect: fuses Where + Select into one observer (no intermediate wrapper)
+var numbers = Observable.Range(1, 10);
+var evensTimesTen = numbers.WhereSelect(
+    static x => x % 2 == 0,
+    static x => x * 10); // 20, 40, 60, 80, 100
+
+// SelectConstant: replace each value with a fixed constant
+var pings = Observable.Interval(TimeSpan.FromSeconds(1))
+                      .SelectConstant("tick");
+
+// TrySelect: project to a nullable value and drop nulls in a single pass
+var parsed = new[] { "1", "x", "3" }.ToObservable()
+    .TrySelect(static s => int.TryParse(s, out var n) ? (int?)n : null); // 1, 3
+
+// SelectManyThen: project, then project again, emitting only the inner-inner value
+var chained = Observable.Return(1).SelectManyThen(
+    static x => Observable.Return(x * 10),
+    static mid => Observable.Return(mid + 1)); // 11
+
+// RunAll: subscribe to a list of one-shot Unit observables in order and emit one
+// terminal Unit when every source has completed.
+IReadOnlyList<IObservable<Unit>> jobs =
+[
+    Observable.Return(Unit.Default),
+    Observable.Return(Unit.Default),
+];
+jobs.RunAll().Subscribe(_ => Console.WriteLine("All done."));
+
+// FirstMatchFromCandidates: walk a candidate key list, project each into a one-shot
+// observable, transform the raw value, and emit the first transformed value that
+// satisfies the predicate. Failures from individual projections are swallowed and
+// the next candidate is tried; emits the fallback when nothing matches.
+string[] keys = ["dev", "stage", "prod"];
+var firstReachable = keys.FirstMatchFromCandidates(
+    project:   key => PingHostAsync(key).ToObservable(),
+    transform: static raw => raw.Trim(),
+    predicate: static name => name.Length > 0,
+    fallback:  "(none)");
 ```
 
 ### Buffering & Transformation
@@ -1153,6 +1212,15 @@ Issues / PRs welcome. Please keep additions dependency–free and focused on bro
 - Removed DisposeWith extension use System.Reactive.Disposables.Fluent from System.Reactive.
 - Added fully async-native observable framework (`IObservableAsync<T>`, `IObserverAsync<T>`) with 60+ operators,
   subjects, bridge extensions, and async disposables.
+- Added fused selector operators (`WhereSelect`, `SelectConstant`, `TrySelect`, `SelectManyThen`) that collapse common
+  `Where`/`Select`/`SelectMany` chains into a single subscription with no intermediate observer wrappers.
+- Added candidate-walking helpers (`FirstMatchFromCandidates`, `RunAll`) for ordered one-shot pipelines.
+- Added arity-specific async `CombineLatest` overloads (2 through 16 sources) plus an `IEnumerable<IObservableAsync<T>>`
+  overload, eliminating per-emission boxing on multi-source combinations.
+- Replaced ad-hoc disposable plumbing with focused internal holders (`SwapDisposable`, `MutableDisposable`,
+  `OnceDisposable`, `DisposableBag`) — fewer allocations and simpler lifetimes.
+- Tightened SonarCloud + Codecov integration (per-arity duplication exclusions, coverage exclusions for tests, tools,
+  and benchmarks) so the metrics reflect production code only.
 
 ---
 Happy reactive coding!
