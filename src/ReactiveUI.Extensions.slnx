@@ -23,6 +23,6 @@
     </Folder>
     <Project Path="ReactiveUI.Extensions/ReactiveUI.Extensions.csproj" />
     <Folder Name="/tests/">
-        <Project Path="ReactiveUI.Extensions.Tests/ReactiveUI.Extensions.Tests.csproj" />
+        <Project Path="tests/ReactiveUI.Extensions.Tests/ReactiveUI.Extensions.Tests.csproj" />
     </Folder>
 </Solution>

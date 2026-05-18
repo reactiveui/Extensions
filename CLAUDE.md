@@ -58,13 +58,13 @@ The working folder must be `./src` folder.
 dotnet test --solution ReactiveUI.Extensions.slnx -c Release
 
 # Run all tests in a specific project
-dotnet test --project ReactiveUI.Extensions.Tests/ReactiveUI.Extensions.Tests.csproj -c Release
+dotnet test --project tests/ReactiveUI.Extensions.Tests/ReactiveUI.Extensions.Tests.csproj -c Release
 
 # Run a single test method using treenode-filter
-dotnet test --project ReactiveUI.Extensions.Tests/ReactiveUI.Extensions.Tests.csproj -- --treenode-filter "/*/*/*/MyTestMethod"
+dotnet test --project tests/ReactiveUI.Extensions.Tests/ReactiveUI.Extensions.Tests.csproj -- --treenode-filter "/*/*/*/MyTestMethod"
 
 # Run all tests in a specific class
-dotnet test --project ReactiveUI.Extensions.Tests/ReactiveUI.Extensions.Tests.csproj -- --treenode-filter "/*/*/ParityOperatorTests/*"
+dotnet test --project tests/ReactiveUI.Extensions.Tests/ReactiveUI.Extensions.Tests.csproj -- --treenode-filter "/*/*/ParityOperatorTests/*"
 
 # Run tests with code coverage
 dotnet test --solution ReactiveUI.Extensions.slnx -- --coverage --coverage-output-format cobertura
@@ -98,7 +98,7 @@ dotnet test --solution ReactiveUI.Extensions.slnx -c Release -- --coverage --cov
 
 # Generate HTML report using ReportGenerator (install if needed: dotnet tool install -g dotnet-reportgenerator-globaltool)
 reportgenerator \
-  -reports:"ReactiveUI.Extensions.Tests/**/TestResults/**/*.cobertura.xml" \
+  -reports:"tests/ReactiveUI.Extensions.Tests/**/TestResults/**/*.cobertura.xml" \
   -targetdir:/tmp/code_coverage \
   -reporttypes:"Html;TextSummary"
 
@@ -144,13 +144,14 @@ src/
 │   │   └── Internals/                        # AsyncGate, Result, Optional<T>, etc.
 │   └── Internal/                             # Internal helpers (ArgumentExceptionHelper, Heartbeat, etc.)
 │
-└── ReactiveUI.Extensions.Tests/              # Unit tests (net8.0;net9.0;net10.0)
-    ├── Async/                                # Async operator tests
-    │   ├── ParityOperatorTests.cs
-    │   ├── ParityAndInfrastructureCoverageTests.cs
-    │   ├── CombineLatestOperatorTests.cs
-    │   └── ...
-    └── ReactiveExtensionsTests.cs            # Sync operator tests
+└── tests/
+    └── ReactiveUI.Extensions.Tests/          # Unit tests (net8.0;net9.0;net10.0)
+        ├── Async/                            # Async operator tests
+        │   ├── ParityOperatorTests.cs
+        │   ├── ParityAndInfrastructureCoverageTests.cs
+        │   ├── CombineLatestOperatorTests.cs
+        │   └── ...
+        └── ReactiveExtensionsTests.cs        # Sync operator tests
 ```
 
 ### Target Frameworks
@@ -203,7 +204,7 @@ style rules; when the two could disagree, **the perf rule wins inside
 
 These rules apply to **production code** (everything under
 `src/ReactiveUI.Extensions/`). Test projects
-(`src/ReactiveUI.Extensions.Tests/`) are exempt from the allocation-
+(`src/tests/ReactiveUI.Extensions.Tests/`) are exempt from the allocation-
 discipline rules — `foreach`, LINQ, and capacity-less `List<T>` are fine
 in tests where readability beats micro-optimization. The pattern-
 matching, switch-expression, and list-pattern rules still apply to tests

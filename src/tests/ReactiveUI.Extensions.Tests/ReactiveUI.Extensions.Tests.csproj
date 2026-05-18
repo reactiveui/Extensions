@@ -9,7 +9,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\ReactiveUI.Extensions\ReactiveUI.Extensions.csproj"/>
+    <ProjectReference Include="..\..\ReactiveUI.Extensions\ReactiveUI.Extensions.csproj"/>
   </ItemGroup>
   <!-- Global usings -->
   <ItemGroup>
