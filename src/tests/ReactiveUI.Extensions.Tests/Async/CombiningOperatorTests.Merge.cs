@@ -576,6 +576,11 @@ public partial class CombiningOperatorTests
     }
 
     /// <summary>Tests Merge with max concurrency and error propagation.</summary>
+    /// <remarks>Background jobs run with <c>startSynchronously: true</c> so the test does
+    /// not depend on free thread-pool threads — under heavy cross-assembly parallel test runs
+    /// the default <c>Task.Yield()</c> path used to starve and the test hit the 60s timeout.
+    /// The concurrency-limit contract being asserted (four sources flow through a Merge(2)
+    /// gate and all emit) is preserved.</remarks>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
     public async Task WhenMergeConcurrencyWithSlowSource_ThenLimitsAndCompletes()
@@ -586,7 +591,8 @@ public partial class CombiningOperatorTests
                 {
                     await obs.OnNextAsync(i, ct);
                     await obs.OnCompletedAsync(Result.Success);
-                }));
+                },
+                startSynchronously: true));
 
         var result = await source.Merge(2).ToListAsync();
 

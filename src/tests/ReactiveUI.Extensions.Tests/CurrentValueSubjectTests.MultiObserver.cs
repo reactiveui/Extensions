@@ -1,0 +1,188 @@
+// Copyright (c) 2019-2026 ReactiveUI Association Incorporated. All rights reserved.
+// ReactiveUI Association Incorporated licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for full license information.
+
+using ReactiveUI.Extensions.Internal;
+
+namespace ReactiveUI.Extensions.Tests;
+
+/// <summary>Multi-observer and post-terminal coverage for <see cref="CurrentValueSubject{T}"/>
+/// — copy-on-write growth, mid-array unsubscribe, collapse back to single-observer, late
+/// subscribers after error or completion, and dispose with active observers.</summary>
+public partial class CurrentValueSubjectTests
+{
+    /// <summary>Initial value for multi-observer tests.</summary>
+    private const int MultiInitialValue = 1;
+
+    /// <summary>Verifies that three concurrent observers all receive the latest value.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenThreeObserversAndOnNext_ThenAllReceiveValue()
+    {
+        const int Update = 2;
+        using var subject = new CurrentValueSubject<int>(MultiInitialValue);
+        var a = new List<int>();
+        var b = new List<int>();
+        var c = new List<int>();
+
+        using var subA = subject.Subscribe(a.Add);
+        using var subB = subject.Subscribe(b.Add);
+        using var subC = subject.Subscribe(c.Add);
+
+        subject.OnNext(Update);
+
+        await Assert.That(a).IsCollectionEqualTo([MultiInitialValue, Update]);
+        await Assert.That(b).IsCollectionEqualTo([MultiInitialValue, Update]);
+        await Assert.That(c).IsCollectionEqualTo([MultiInitialValue, Update]);
+    }
+
+    /// <summary>Verifies that disposing the middle observer of a 3-observer subject does not
+    /// affect the other observers' delivery.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenMiddleObserverDisposed_ThenOthersStillReceive()
+    {
+        const int Update = 2;
+        using var subject = new CurrentValueSubject<int>(MultiInitialValue);
+        var a = new List<int>();
+        var b = new List<int>();
+        var c = new List<int>();
+
+        using var subA = subject.Subscribe(a.Add);
+        var subB = subject.Subscribe(b.Add);
+        using var subC = subject.Subscribe(c.Add);
+
+        subB.Dispose();
+        subject.OnNext(Update);
+
+        await Assert.That(a).IsCollectionEqualTo([MultiInitialValue, Update]);
+        await Assert.That(b).IsCollectionEqualTo([MultiInitialValue]);
+        await Assert.That(c).IsCollectionEqualTo([MultiInitialValue, Update]);
+    }
+
+    /// <summary>Verifies that going from two observers back to one collapses to the
+    /// single-observer fast path while still broadcasting correctly.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenSecondObserverDisposedFromPair_ThenSingleObserverStillReceives()
+    {
+        const int Update = 2;
+        using var subject = new CurrentValueSubject<int>(MultiInitialValue);
+        var a = new List<int>();
+        var b = new List<int>();
+
+        using var subA = subject.Subscribe(a.Add);
+        var subB = subject.Subscribe(b.Add);
+        subB.Dispose();
+
+        subject.OnNext(Update);
+
+        await Assert.That(a).IsCollectionEqualTo([MultiInitialValue, Update]);
+        await Assert.That(b).IsCollectionEqualTo([MultiInitialValue]);
+    }
+
+    /// <summary>Verifies that disposing the first observer of a 3-observer subject works
+    /// (collapse exercises the index==0 branch of the shrink path).</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenFirstObserverDisposed_ThenOthersStillReceive()
+    {
+        const int Update = 2;
+        using var subject = new CurrentValueSubject<int>(MultiInitialValue);
+        var a = new List<int>();
+        var b = new List<int>();
+        var c = new List<int>();
+
+        var subA = subject.Subscribe(a.Add);
+        using var subB = subject.Subscribe(b.Add);
+        using var subC = subject.Subscribe(c.Add);
+
+        subA.Dispose();
+        subject.OnNext(Update);
+
+        await Assert.That(a).IsCollectionEqualTo([MultiInitialValue]);
+        await Assert.That(b).IsCollectionEqualTo([MultiInitialValue, Update]);
+        await Assert.That(c).IsCollectionEqualTo([MultiInitialValue, Update]);
+    }
+
+    /// <summary>Verifies that disposing the last observer of a 3-observer subject works
+    /// (collapse exercises the tail-only branch of the shrink path).</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenLastObserverDisposed_ThenOthersStillReceive()
+    {
+        const int Update = 2;
+        using var subject = new CurrentValueSubject<int>(MultiInitialValue);
+        var a = new List<int>();
+        var b = new List<int>();
+        var c = new List<int>();
+
+        using var subA = subject.Subscribe(a.Add);
+        using var subB = subject.Subscribe(b.Add);
+        var subC = subject.Subscribe(c.Add);
+
+        subC.Dispose();
+        subject.OnNext(Update);
+
+        await Assert.That(a).IsCollectionEqualTo([MultiInitialValue, Update]);
+        await Assert.That(b).IsCollectionEqualTo([MultiInitialValue, Update]);
+        await Assert.That(c).IsCollectionEqualTo([MultiInitialValue]);
+    }
+
+    /// <summary>Verifies that subscribing after the subject has errored immediately delivers the error.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenSubscribeAfterError_ThenErrorDeliveredImmediately()
+    {
+        using var subject = new CurrentValueSubject<int>(MultiInitialValue);
+        var expected = new InvalidOperationException("late-error");
+        subject.OnError(expected);
+
+        Exception? caught = null;
+        using var sub = subject.Subscribe(static _ => { }, ex => caught = ex);
+
+        await Assert.That(caught).IsSameReferenceAs(expected);
+    }
+
+    /// <summary>Verifies that subscribing after the subject has completed delivers the cached
+    /// value and an immediate completion.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenSubscribeAfterCompleted_ThenReplayThenCompletes()
+    {
+        using var subject = new CurrentValueSubject<int>(MultiInitialValue);
+        subject.OnCompleted();
+
+        var values = new List<int>();
+        var completed = false;
+        using var sub = subject.Subscribe(values.Add, () => completed = true);
+
+        await Assert.That(values).IsCollectionEqualTo([MultiInitialValue]);
+        await Assert.That(completed).IsTrue();
+    }
+
+    /// <summary>Verifies that <c>OnError</c> broadcasts to multiple observers and is idempotent.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenMultipleObserversAndOnError_ThenAllReceiveError()
+    {
+        using var subject = new CurrentValueSubject<int>(MultiInitialValue);
+        Exception? errA = null;
+        Exception? errB = null;
+        Exception? errC = null;
+        var expected = new InvalidOperationException("multi-error");
+
+        using var subA = subject.Subscribe(static _ => { }, ex => errA = ex);
+        using var subB = subject.Subscribe(static _ => { }, ex => errB = ex);
+        using var subC = subject.Subscribe(static _ => { }, ex => errC = ex);
+
+        subject.OnError(expected);
+
+        // Second OnError is a no-op.
+        subject.OnError(new InvalidOperationException("ignored"));
+
+        await Assert.That(errA).IsSameReferenceAs(expected);
+        await Assert.That(errB).IsSameReferenceAs(expected);
+        await Assert.That(errC).IsSameReferenceAs(expected);
+    }
+}

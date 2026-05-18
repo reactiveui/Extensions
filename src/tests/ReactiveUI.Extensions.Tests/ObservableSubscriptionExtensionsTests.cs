@@ -5,7 +5,7 @@
 namespace ReactiveUI.Extensions.Tests;
 
 /// <summary>Tests for the blocking subscribe helpers on <see cref="ObservableSubscriptionExtensions"/>.</summary>
-public class ObservableSubscriptionExtensionsTests
+public partial class ObservableSubscriptionExtensionsTests
 {
     /// <summary>Sentinel value emitted by single-value tests.</summary>
     private const int SentinelValue = 7;
