@@ -69,7 +69,7 @@ public static partial class ObservableAsync
             CancellationToken cancellationToken)
         {
             var subscription = new CombineLatestSubscription(observer, sources, selector);
-            subscription.LinkExternalCancellation(cancellationToken);
+            subscription.Lifecycle.LinkExternalCancellation(cancellationToken);
             return SubscriptionHelper.SubscribeAndDisposeOnFailureAsync(
                 subscription,
                 () => subscription.SubscribeSourcesAsync(cancellationToken));
@@ -80,35 +80,18 @@ public static partial class ObservableAsync
         /// </summary>
         internal sealed class CombineLatestSubscription : IAsyncDisposable
         {
-            /// <summary>Bit owned by source 1 inside <see cref="_doneFlags"/>.</summary>
+            /// <summary>Bit owned by source 1 inside the lifecycle's completion bitmask.</summary>
             private const int Source1Bit = 1 << 0;
 
-            /// <summary>Bit owned by source 2 inside <see cref="_doneFlags"/>.</summary>
+            /// <summary>Bit owned by source 2 inside the lifecycle's completion bitmask.</summary>
             private const int Source2Bit = 1 << 1;
 
-            /// <summary>Bitmask value with every source-completion bit set; the sequence completes when
-            /// <see cref="_doneFlags"/> equals this value.</summary>
-            private const int AllDoneMask = Source1Bit
-                | Source2Bit;
-
-            /// <summary>Serializes downstream notifications.</summary>
-            private readonly AsyncGate _gate = new();
-
-            /// <summary>Cancellation source for disposal.</summary>
-            private readonly CancellationTokenSource _disposeCts = new();
-
-            /// <summary>Cached token from <see cref="_disposeCts"/>.</summary>
-            private readonly CancellationToken _disposeCancellationToken;
-
-            /// <summary>Lock protecting the latest-values cache and completion bitmask.</summary>
+            /// <summary>Lock protecting the latest-values cache.</summary>
 #if NET9_0_OR_GREATER
-            private readonly Lock _stateLock = new();
+            private readonly Lock _valuesLock = new();
 #else
-            private readonly object _stateLock = new();
+            private readonly object _valuesLock = new();
 #endif
-
-            /// <summary>The downstream observer.</summary>
-            private readonly IObserverAsync<TResult> _observer;
 
             /// <summary>Bundled source observables.</summary>
             private readonly Sources _sources;
@@ -116,24 +99,11 @@ public static partial class ObservableAsync
             /// <summary>The result selector function.</summary>
             private readonly Func<T1, T2, TResult> _selector;
 
-            /// <summary>Subscription disposables, indexed 0..N-1 by source position.</summary>
-            private readonly IAsyncDisposable?[] _subscriptions = new IAsyncDisposable?[2];
-
             /// <summary>Latest value from source 1.</summary>
             private Optional<T1> _val1 = Optional<T1>.Empty;
 
             /// <summary>Latest value from source 2.</summary>
             private Optional<T2> _val2 = Optional<T2>.Empty;
-
-            /// <summary>Bitmask of completed sources. Bit <c>SourceNBit</c> is set when source <c>N</c>
-            /// completes. Equal to <see cref="AllDoneMask"/> when every source is done.</summary>
-            private int _doneFlags;
-
-            /// <summary>Whether this subscription has been disposed.</summary>
-            private int _disposed;
-
-            /// <summary>Registration that propagates the original subscribe-token cancellation into <see cref="_disposeCts"/>.</summary>
-            private CancellationTokenRegistration _externalLinkRegistration;
 
             /// <summary>Latest-value snapshot taken when every source has produced at least one value.</summary>
             /// <param name="V1">Latest value from source 1.</param>
@@ -153,11 +123,13 @@ public static partial class ObservableAsync
                 Sources sources,
                 Func<T1, T2, TResult> selector)
             {
-                _observer = observer;
                 _sources = sources;
                 _selector = selector;
-                _disposeCancellationToken = _disposeCts.Token;
+                Lifecycle = new CombineLatestLifecycle<TResult>(observer, sourceCount: 2);
             }
+
+            /// <summary>Gets the shared subscription lifecycle (state + lifecycle methods).</summary>
+            internal CombineLatestLifecycle<TResult> Lifecycle { get; }
 
             /// <summary>
             /// Subscribes to every source observable. Renamed from the obvious <c>SubscribeAsync</c>
@@ -167,38 +139,15 @@ public static partial class ObservableAsync
             /// <returns>A task representing the asynchronous subscribe operation.</returns>
             public async ValueTask SubscribeSourcesAsync(CancellationToken cancellationToken)
             {
-                for (var i = 0; i < _subscriptions.Length; i++)
+                var subs = Lifecycle.Subscriptions;
+                for (var i = 0; i < subs.Length; i++)
                 {
-                    _subscriptions[i] = await SubscribeAtAsync(i, cancellationToken).ConfigureAwait(false);
+                    subs[i] = await SubscribeAtAsync(i, cancellationToken).ConfigureAwait(false);
                 }
             }
 
             /// <inheritdoc/>
-            public ValueTask DisposeAsync() => CompleteAsync(null);
-
-            /// <summary>
-            /// Links the original subscribe-time cancellation token into this subscription's dispose chain so
-            /// per-emission methods can use <see cref="_disposeCancellationToken"/> directly instead of
-            /// allocating a per-emission linked CTS.
-            /// </summary>
-            /// <param name="external">The subscribe-time token.</param>
-            internal void LinkExternalCancellation(CancellationToken external)
-            {
-                if (!external.CanBeCanceled || external == _disposeCancellationToken)
-                {
-                    return;
-                }
-
-                if (external.IsCancellationRequested)
-                {
-                    _disposeCts.Cancel();
-                    return;
-                }
-
-                _externalLinkRegistration = external.UnsafeRegister(
-                    static state => ((CancellationTokenSource)state!).Cancel(),
-                    _disposeCts);
-            }
+            public ValueTask DisposeAsync() => Lifecycle.DisposeAsync();
 
             /// <summary>Handles a new value from source 1.</summary>
             /// <param name="value">The value emitted by source 1.</param>
@@ -206,18 +155,19 @@ public static partial class ObservableAsync
             /// <returns>A ValueTask representing the asynchronous handler.</returns>
             internal async ValueTask OnNext1(T1 value, CancellationToken cancellationToken)
             {
-                lock (_stateLock)
+                _ = cancellationToken;
+                lock (_valuesLock)
                 {
                     _val1 = new(value);
                 }
 
-                await EmitLatestAsync(cancellationToken).ConfigureAwait(false);
+                await EmitLatestAsync().ConfigureAwait(false);
             }
 
             /// <summary>Handles completion of source 1.</summary>
             /// <param name="result">The completion result.</param>
             /// <returns>A ValueTask representing the asynchronous handler.</returns>
-            internal ValueTask OnCompleted1(Result result) => OnSourceCompleted(result, Source1Bit);
+            internal ValueTask OnCompleted1(Result result) => Lifecycle.OnSourceCompletedAsync(result, Source1Bit);
 
             /// <summary>Handles a new value from source 2.</summary>
             /// <param name="value">The value emitted by source 2.</param>
@@ -225,74 +175,31 @@ public static partial class ObservableAsync
             /// <returns>A ValueTask representing the asynchronous handler.</returns>
             internal async ValueTask OnNext2(T2 value, CancellationToken cancellationToken)
             {
-                lock (_stateLock)
+                _ = cancellationToken;
+                lock (_valuesLock)
                 {
                     _val2 = new(value);
                 }
 
-                await EmitLatestAsync(cancellationToken).ConfigureAwait(false);
+                await EmitLatestAsync().ConfigureAwait(false);
             }
 
             /// <summary>Handles completion of source 2.</summary>
             /// <param name="result">The completion result.</param>
             /// <returns>A ValueTask representing the asynchronous handler.</returns>
-            internal ValueTask OnCompleted2(Result result) => OnSourceCompleted(result, Source2Bit);
+            internal ValueTask OnCompleted2(Result result) => Lifecycle.OnSourceCompletedAsync(result, Source2Bit);
 
             /// <summary>
-            /// Forwards an upstream error to the downstream observer under the gate.
+            /// Forwards an upstream error to the downstream observer; thin shim with the
+            /// <c>(error, ct)</c> signature that <see cref="IObservableAsync{T}.SubscribeAsync"/> expects.
             /// </summary>
             /// <param name="error">The error to forward.</param>
-            /// <param name="cancellationToken">The cancellation token.</param>
+            /// <param name="cancellationToken">Ignored — the lifecycle uses its own dispose token.</param>
             /// <returns>A ValueTask representing the asynchronous forward.</returns>
-            internal async ValueTask OnErrorResume(Exception error, CancellationToken cancellationToken)
+            internal ValueTask OnErrorResume(Exception error, CancellationToken cancellationToken)
             {
                 _ = cancellationToken;
-                using (await _gate.LockAsync(_disposeCancellationToken).ConfigureAwait(false))
-                {
-                    if (DisposalHelper.IsDisposed(_disposed))
-                    {
-                        return;
-                    }
-
-                    await _observer.OnErrorResumeAsync(error, _disposeCancellationToken).ConfigureAwait(false);
-                }
-            }
-
-            /// <summary>
-            /// Completes the combined sequence and disposes every source subscription.
-            /// </summary>
-            /// <param name="result">The completion result, or null when disposing without signaling.</param>
-            /// <returns>A ValueTask representing the asynchronous teardown.</returns>
-            internal async ValueTask CompleteAsync(Result? result)
-            {
-                if (DisposalHelper.TrySetDisposed(ref _disposed))
-                {
-                    return;
-                }
-
-                await _disposeCts.CancelAsync().ConfigureAwait(false);
-
-                for (var i = 0; i < _subscriptions.Length; i++)
-                {
-                    var d = _subscriptions[i];
-                    if (d is not null)
-                    {
-                        await d.DisposeAsync().ConfigureAwait(false);
-                    }
-                }
-
-                if (result is not null)
-                {
-                    await _observer.OnCompletedAsync(result.Value).ConfigureAwait(false);
-                }
-
-#if NETCOREAPP3_0_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-                await _externalLinkRegistration.DisposeAsync().ConfigureAwait(false);
-#else
-                _externalLinkRegistration.Dispose();
-#endif
-                _disposeCts.Dispose();
-                _gate.Dispose();
+                return Lifecycle.OnErrorResumeAsync(error);
             }
 
             /// <summary>
@@ -319,30 +226,6 @@ public static partial class ObservableAsync
                 };
 
             /// <summary>
-            /// Shared completion handler. Each per-source <c>OnCompletedN</c> forwards here with its
-            /// own bitmask bit; the combined sequence completes once every bit is set.
-            /// </summary>
-            /// <param name="result">The completion result from the upstream source.</param>
-            /// <param name="doneBit">The bitmask bit owned by the completing source.</param>
-            /// <returns>A ValueTask representing the asynchronous handler.</returns>
-            private ValueTask OnSourceCompleted(Result result, int doneBit)
-            {
-                if (result.IsFailure)
-                {
-                    return CompleteAsync(result);
-                }
-
-                int updated;
-                lock (_stateLock)
-                {
-                    _doneFlags |= doneBit;
-                    updated = _doneFlags;
-                }
-
-                return updated == AllDoneMask ? _observer.OnCompletedAsync(result) : default;
-            }
-
-            /// <summary>
             /// Reads every source's latest value into a single snapshot. Returns <see langword="false"/>
             /// (with <paramref name="values"/> set to <see langword="default"/>) until every source has
             /// produced at least one value.
@@ -366,30 +249,12 @@ public static partial class ObservableAsync
                 return false;
             }
 
-            /// <summary>
-            /// Applies the selector to the current value snapshot and forwards the result to the
-            /// downstream observer under the gate, respecting disposal.
-            /// </summary>
-            /// <param name="cancellationToken">The cancellation token.</param>
+            /// <summary>Reads the latest snapshot and forwards it through the selector to the lifecycle.</summary>
             /// <returns>A ValueTask representing the asynchronous emit.</returns>
-            private async ValueTask EmitLatestAsync(CancellationToken cancellationToken)
-            {
-                _ = cancellationToken;
-                if (!TryReadValues(out var values))
-                {
-                    return;
-                }
-
-                using (await _gate.LockAsync(_disposeCancellationToken).ConfigureAwait(false))
-                {
-                    if (DisposalHelper.IsDisposed(_disposed))
-                    {
-                        return;
-                    }
-
-                    await _observer.OnNextAsync(_selector(values.V1, values.V2), _disposeCancellationToken).ConfigureAwait(false);
-                }
-            }
+            private ValueTask EmitLatestAsync() =>
+                TryReadValues(out var values)
+                    ? Lifecycle.EmitDownstreamAsync(_selector(values.V1, values.V2))
+                    : default;
         }
     }
 }
