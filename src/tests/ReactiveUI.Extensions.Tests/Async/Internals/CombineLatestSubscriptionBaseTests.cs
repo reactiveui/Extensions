@@ -118,6 +118,9 @@ public class CombineLatestSubscriptionBaseTests
         }
 
         /// <inheritdoc/>
+        internal override ValueTask EmitLatestAsync() => default;
+
+        /// <inheritdoc/>
         protected override ValueTask<IAsyncDisposable> SubscribeAtAsync(int index, CancellationToken cancellationToken)
         {
             _ = cancellationToken;

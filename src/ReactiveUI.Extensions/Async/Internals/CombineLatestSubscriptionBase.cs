@@ -27,11 +27,13 @@ internal abstract class CombineLatestSubscriptionBase<TResult> : IAsyncDisposabl
     /// <summary>Gets the shared subscription lifecycle (gate / dispose CTS / external link / forwarders).</summary>
     internal CombineLatestLifecycle<TResult> Lifecycle { get; }
 
-    /// <summary>Gets the lock protecting per-arity latest-values caches.</summary>
+    /// <summary>Gets the lock protecting per-arity latest-values caches. Internal so the shared
+    /// <see cref="CombineLatestIndexedObserver{TSource, TResult}"/> can lock on it without deriving
+    /// from this base.</summary>
 #if NET9_0_OR_GREATER
-    protected Lock ValuesLock { get; } = new();
+    internal Lock ValuesLock { get; } = new();
 #else
-    protected object ValuesLock { get; } = new();
+    internal object ValuesLock { get; } = new();
 #endif
 
     /// <summary>
@@ -65,6 +67,15 @@ internal abstract class CombineLatestSubscriptionBase<TResult> : IAsyncDisposabl
         _ = cancellationToken;
         return Lifecycle.OnErrorResumeAsync(error);
     }
+
+    /// <summary>
+    /// Reads the per-arity Optional slots, projects them through the selector when every source
+    /// has produced a value, and forwards the result downstream via the lifecycle. Invoked by
+    /// <see cref="CombineLatestIndexedObserver{TSource, TResult}"/> after a per-source OnNext has
+    /// landed under <see cref="ValuesLock"/>.
+    /// </summary>
+    /// <returns>A ValueTask representing the asynchronous emit.</returns>
+    internal abstract ValueTask EmitLatestAsync();
 
     /// <summary>
     /// Subscribes to a single source by 0-based index. Implemented per-arity by the derived

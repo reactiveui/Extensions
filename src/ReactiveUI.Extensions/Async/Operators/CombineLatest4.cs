@@ -88,10 +88,11 @@ public static partial class ObservableAsync
         }
 
         /// <summary>
-        /// Per-arity subscription holding the typed Optional slots, the OnNextN / OnCompletedN
-        /// handlers, the SubscribeAtAsync switch, and the selector invocation. Shared scaffolding
+        /// Per-arity subscription holding the typed Optional slots, the pre-built indexed
+        /// observers, the SubscribeAtAsync switch, and the selector invocation. Shared scaffolding
         /// (gate, lifecycle, ValuesLock, OnErrorResume, SubscribeSourcesAsync, DisposeAsync) lives
-        /// in <see cref="CombineLatestSubscriptionBase{TResult}"/>.
+        /// in <see cref="CombineLatestSubscriptionBase{TResult}"/>; the per-source OnNext / OnError /
+        /// OnCompleted forwarding lives in <see cref="CombineLatestIndexedObserver{TSource, TResult}"/>.
         /// </summary>
         internal sealed class CombineLatestSubscription : CombineLatestSubscriptionBase<TResult>
         {
@@ -112,6 +113,18 @@ public static partial class ObservableAsync
 
             /// <summary>The result selector function.</summary>
             private readonly Func<T1, T2, T3, T4, TResult> _selector;
+
+            /// <summary>Indexed observer for source 1.</summary>
+            private readonly CombineLatestIndexedObserver<T1, TResult> _obs1;
+
+            /// <summary>Indexed observer for source 2.</summary>
+            private readonly CombineLatestIndexedObserver<T2, TResult> _obs2;
+
+            /// <summary>Indexed observer for source 3.</summary>
+            private readonly CombineLatestIndexedObserver<T3, TResult> _obs3;
+
+            /// <summary>Indexed observer for source 4.</summary>
+            private readonly CombineLatestIndexedObserver<T4, TResult> _obs4;
 
             /// <summary>Latest value from source 1.</summary>
             private Optional<T1> _val1 = Optional<T1>.Empty;
@@ -150,87 +163,17 @@ public static partial class ObservableAsync
             {
                 _sources = sources;
                 _selector = selector;
+                _obs1 = new CombineLatestIndexedObserver<T1, TResult>(this, Source1Bit, v => _val1 = new(v));
+                _obs2 = new CombineLatestIndexedObserver<T2, TResult>(this, Source2Bit, v => _val2 = new(v));
+                _obs3 = new CombineLatestIndexedObserver<T3, TResult>(this, Source3Bit, v => _val3 = new(v));
+                _obs4 = new CombineLatestIndexedObserver<T4, TResult>(this, Source4Bit, v => _val4 = new(v));
             }
 
-            /// <summary>Handles a new value from source 1.</summary>
-            /// <param name="value">The value emitted by source 1.</param>
-            /// <param name="cancellationToken">The cancellation token.</param>
-            /// <returns>A ValueTask representing the asynchronous handler.</returns>
-            internal async ValueTask OnNext1(T1 value, CancellationToken cancellationToken)
-            {
-                _ = cancellationToken;
-                lock (ValuesLock)
-                {
-                    _val1 = new(value);
-                }
-
-                await EmitLatestAsync().ConfigureAwait(false);
-            }
-
-            /// <summary>Handles completion of source 1.</summary>
-            /// <param name="result">The completion result.</param>
-            /// <returns>A ValueTask representing the asynchronous handler.</returns>
-            internal ValueTask OnCompleted1(Result result) => Lifecycle.OnSourceCompletedAsync(result, Source1Bit);
-
-            /// <summary>Handles a new value from source 2.</summary>
-            /// <param name="value">The value emitted by source 2.</param>
-            /// <param name="cancellationToken">The cancellation token.</param>
-            /// <returns>A ValueTask representing the asynchronous handler.</returns>
-            internal async ValueTask OnNext2(T2 value, CancellationToken cancellationToken)
-            {
-                _ = cancellationToken;
-                lock (ValuesLock)
-                {
-                    _val2 = new(value);
-                }
-
-                await EmitLatestAsync().ConfigureAwait(false);
-            }
-
-            /// <summary>Handles completion of source 2.</summary>
-            /// <param name="result">The completion result.</param>
-            /// <returns>A ValueTask representing the asynchronous handler.</returns>
-            internal ValueTask OnCompleted2(Result result) => Lifecycle.OnSourceCompletedAsync(result, Source2Bit);
-
-            /// <summary>Handles a new value from source 3.</summary>
-            /// <param name="value">The value emitted by source 3.</param>
-            /// <param name="cancellationToken">The cancellation token.</param>
-            /// <returns>A ValueTask representing the asynchronous handler.</returns>
-            internal async ValueTask OnNext3(T3 value, CancellationToken cancellationToken)
-            {
-                _ = cancellationToken;
-                lock (ValuesLock)
-                {
-                    _val3 = new(value);
-                }
-
-                await EmitLatestAsync().ConfigureAwait(false);
-            }
-
-            /// <summary>Handles completion of source 3.</summary>
-            /// <param name="result">The completion result.</param>
-            /// <returns>A ValueTask representing the asynchronous handler.</returns>
-            internal ValueTask OnCompleted3(Result result) => Lifecycle.OnSourceCompletedAsync(result, Source3Bit);
-
-            /// <summary>Handles a new value from source 4.</summary>
-            /// <param name="value">The value emitted by source 4.</param>
-            /// <param name="cancellationToken">The cancellation token.</param>
-            /// <returns>A ValueTask representing the asynchronous handler.</returns>
-            internal async ValueTask OnNext4(T4 value, CancellationToken cancellationToken)
-            {
-                _ = cancellationToken;
-                lock (ValuesLock)
-                {
-                    _val4 = new(value);
-                }
-
-                await EmitLatestAsync().ConfigureAwait(false);
-            }
-
-            /// <summary>Handles completion of source 4.</summary>
-            /// <param name="result">The completion result.</param>
-            /// <returns>A ValueTask representing the asynchronous handler.</returns>
-            internal ValueTask OnCompleted4(Result result) => Lifecycle.OnSourceCompletedAsync(result, Source4Bit);
+            /// <inheritdoc/>
+            internal override ValueTask EmitLatestAsync() =>
+                TryReadValues(out var values)
+                    ? Lifecycle.EmitDownstreamAsync(_selector(values.V1, values.V2, values.V3, values.V4))
+                    : default;
 
             /// <inheritdoc/>
             [SuppressMessage(
@@ -244,10 +187,10 @@ public static partial class ObservableAsync
             protected override ValueTask<IAsyncDisposable> SubscribeAtAsync(int index, CancellationToken cancellationToken) =>
                 index switch
                 {
-                    0 => _sources.Src1.SubscribeAsync(OnNext1, OnErrorResume, OnCompleted1, cancellationToken),
-                    1 => _sources.Src2.SubscribeAsync(OnNext2, OnErrorResume, OnCompleted2, cancellationToken),
-                    2 => _sources.Src3.SubscribeAsync(OnNext3, OnErrorResume, OnCompleted3, cancellationToken),
-                    3 => _sources.Src4.SubscribeAsync(OnNext4, OnErrorResume, OnCompleted4, cancellationToken),
+                    0 => _sources.Src1.SubscribeAsync(_obs1, cancellationToken),
+                    1 => _sources.Src2.SubscribeAsync(_obs2, cancellationToken),
+                    2 => _sources.Src3.SubscribeAsync(_obs3, cancellationToken),
+                    3 => _sources.Src4.SubscribeAsync(_obs4, cancellationToken),
                     _ => throw new ArgumentOutOfRangeException(nameof(index)),
                 };
 
@@ -276,13 +219,6 @@ public static partial class ObservableAsync
                 values = default;
                 return false;
             }
-
-            /// <summary>Reads the latest snapshot and forwards it through the selector to the lifecycle.</summary>
-            /// <returns>A ValueTask representing the asynchronous emit.</returns>
-            private ValueTask EmitLatestAsync() =>
-                TryReadValues(out var values)
-                    ? Lifecycle.EmitDownstreamAsync(_selector(values.V1, values.V2, values.V3, values.V4))
-                    : default;
         }
     }
 }
