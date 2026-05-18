@@ -22,5 +22,6 @@ jobs:
             installWorkloads: true
             versioningTool: minver
             minverMinimumMajorMinor: '2.3'
+            testTimeout: '8m'
         secrets:
             CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}

@@ -23,5 +23,6 @@ jobs:
             sonarCoverageExclusions: '**/tests/**,**/tools/**,**/benchmarks/**,**/*Tests/**,**/*Tests.cs,**/Generated/**'
             sonarCpdExclusions: '**/tests/**,**/tools/**,**/benchmarks/**'
             sonarTestExclusions: '**/tests/**,**/tools/**,**/benchmarks/**'
+            testTimeout: '8m'
         secrets:
             SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
