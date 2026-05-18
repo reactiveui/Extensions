@@ -65,6 +65,54 @@ public class TakeUntilSourceObserverTests
         await lifecycle.DisposeAsync();
     }
 
+    /// <summary>Verifies that <c>LinkExternalCancellation</c> short-circuits for a non-cancellable token.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenLinkExternalCancellationNonCancellable_ThenNoOp()
+    {
+        var captured = new CaptureObserverAsync<int>();
+        var lifecycle = new TakeUntilLifecycle<int>(captured);
+
+        lifecycle.LinkExternalCancellation(CancellationToken.None);
+
+        await Assert.That(lifecycle.DisposeToken.IsCancellationRequested).IsFalse();
+        await lifecycle.DisposeAsync();
+    }
+
+    /// <summary>Verifies that an already-cancelled external token immediately fires the dispose CTS.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenLinkExternalCancellationAlreadyCancelled_ThenDisposeTokenFires()
+    {
+        var captured = new CaptureObserverAsync<int>();
+        var lifecycle = new TakeUntilLifecycle<int>(captured);
+        using var cts = new CancellationTokenSource();
+        await cts.CancelAsync();
+
+        lifecycle.LinkExternalCancellation(cts.Token);
+
+        await Assert.That(lifecycle.DisposeToken.IsCancellationRequested).IsTrue();
+        await lifecycle.DisposeAsync();
+    }
+
+    /// <summary>Verifies that a later cancellation on the linked external token propagates to the dispose CTS.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenLinkExternalCancellationCancellable_ThenLaterCancelPropagates()
+    {
+        var captured = new CaptureObserverAsync<int>();
+        var lifecycle = new TakeUntilLifecycle<int>(captured);
+        using var cts = new CancellationTokenSource();
+
+        lifecycle.LinkExternalCancellation(cts.Token);
+        await Assert.That(lifecycle.DisposeToken.IsCancellationRequested).IsFalse();
+
+        await cts.CancelAsync();
+        await Assert.That(lifecycle.DisposeToken.IsCancellationRequested).IsTrue();
+
+        await lifecycle.DisposeAsync();
+    }
+
     /// <summary>Capture observer used by the helper tests.</summary>
     /// <typeparam name="T">Element type captured.</typeparam>
     private sealed class CaptureObserverAsync<T> : IObserverAsync<T>

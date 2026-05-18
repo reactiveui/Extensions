@@ -81,6 +81,58 @@ public class CombineLatestSubscriptionBaseTests
         await Assert.That(subscription.Lifecycle.IsDisposed).IsTrue();
     }
 
+    /// <summary>Verifies that <c>Lifecycle.LinkExternalCancellation</c> short-circuits when the
+    /// supplied token cannot be cancelled or already equals the dispose token.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenLinkExternalCancellationNonCancellable_ThenNoOp()
+    {
+        var captured = new CaptureObserverAsync<int>();
+        var subscription = new TestSubscription(captured, sourceCount: 1);
+
+        // CancellationToken.None — can't be cancelled, helper should bail out early.
+        subscription.Lifecycle.LinkExternalCancellation(CancellationToken.None);
+
+        await Assert.That(subscription.Lifecycle.IsDisposed).IsFalse();
+        await subscription.DisposeAsync();
+    }
+
+    /// <summary>Verifies that <c>Lifecycle.LinkExternalCancellation</c> cancels the dispose CTS
+    /// immediately when the supplied token is already cancelled.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenLinkExternalCancellationAlreadyCancelled_ThenDisposeTokenFires()
+    {
+        var captured = new CaptureObserverAsync<int>();
+        var subscription = new TestSubscription(captured, sourceCount: 1);
+        using var cts = new CancellationTokenSource();
+        await cts.CancelAsync();
+
+        subscription.Lifecycle.LinkExternalCancellation(cts.Token);
+
+        await Assert.That(subscription.Lifecycle.DisposeToken.IsCancellationRequested).IsTrue();
+        await subscription.DisposeAsync();
+    }
+
+    /// <summary>Verifies that <c>Lifecycle.LinkExternalCancellation</c> registers a callback so a
+    /// later cancellation on the external token cancels the dispose CTS.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenLinkExternalCancellationCancellable_ThenLaterCancelPropagates()
+    {
+        var captured = new CaptureObserverAsync<int>();
+        var subscription = new TestSubscription(captured, sourceCount: 1);
+        using var cts = new CancellationTokenSource();
+
+        subscription.Lifecycle.LinkExternalCancellation(cts.Token);
+        await Assert.That(subscription.Lifecycle.DisposeToken.IsCancellationRequested).IsFalse();
+
+        await cts.CancelAsync();
+        await Assert.That(subscription.Lifecycle.DisposeToken.IsCancellationRequested).IsTrue();
+
+        await subscription.DisposeAsync();
+    }
+
     /// <summary>Verifies that <see cref="CombineLatestSubscriptionBase{TResult}.ValuesLock"/> is
     /// usable as a <c>lock</c> target — both the NET9 <c>Lock</c> and legacy <c>object</c> paths
     /// accept the C# 13 <c>lock</c> statement.</summary>
