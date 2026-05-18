@@ -124,9 +124,12 @@ public static partial class ObservableAsync
         }
 
         /// <summary>
-        /// Manages subscriptions to all source sequences and emits combined values via the selector.
+        /// Per-arity subscription holding the typed Optional slots, the OnNextN / OnCompletedN
+        /// handlers, the SubscribeAtAsync switch, and the selector invocation. Shared scaffolding
+        /// (gate, lifecycle, ValuesLock, OnErrorResume, SubscribeSourcesAsync, DisposeAsync) lives
+        /// in <see cref="CombineLatestSubscriptionBase{TResult}"/>.
         /// </summary>
-        internal sealed class CombineLatestSubscription : IAsyncDisposable
+        internal sealed class CombineLatestSubscription : CombineLatestSubscriptionBase<TResult>
         {
             /// <summary>Bit owned by source 1 inside the lifecycle's completion bitmask.</summary>
             private const int Source1Bit = 1 << 0;
@@ -157,13 +160,6 @@ public static partial class ObservableAsync
 
             /// <summary>Bit owned by source 10 inside the lifecycle's completion bitmask.</summary>
             private const int Source10Bit = 1 << 9;
-
-            /// <summary>Lock protecting the latest-values cache.</summary>
-#if NET9_0_OR_GREATER
-            private readonly Lock _valuesLock = new();
-#else
-            private readonly object _valuesLock = new();
-#endif
 
             /// <summary>Bundled source observables.</summary>
             private readonly Sources _sources;
@@ -234,32 +230,11 @@ public static partial class ObservableAsync
                 IObserverAsync<TResult> observer,
                 Sources sources,
                 Func<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, TResult> selector)
+                : base(observer, sourceCount: 10)
             {
                 _sources = sources;
                 _selector = selector;
-                Lifecycle = new CombineLatestLifecycle<TResult>(observer, sourceCount: 10);
             }
-
-            /// <summary>Gets the shared subscription lifecycle (state + lifecycle methods).</summary>
-            internal CombineLatestLifecycle<TResult> Lifecycle { get; }
-
-            /// <summary>
-            /// Subscribes to every source observable. Renamed from the obvious <c>SubscribeAsync</c>
-            /// to avoid Sonar S3218 shadowing of <see cref="ObservableAsync{TResult}.SubscribeAsync"/>.
-            /// </summary>
-            /// <param name="cancellationToken">A token to cancel the subscription.</param>
-            /// <returns>A task representing the asynchronous subscribe operation.</returns>
-            public async ValueTask SubscribeSourcesAsync(CancellationToken cancellationToken)
-            {
-                var subs = Lifecycle.Subscriptions;
-                for (var i = 0; i < subs.Length; i++)
-                {
-                    subs[i] = await SubscribeAtAsync(i, cancellationToken).ConfigureAwait(false);
-                }
-            }
-
-            /// <inheritdoc/>
-            public ValueTask DisposeAsync() => Lifecycle.DisposeAsync();
 
             /// <summary>Handles a new value from source 1.</summary>
             /// <param name="value">The value emitted by source 1.</param>
@@ -268,7 +243,7 @@ public static partial class ObservableAsync
             internal async ValueTask OnNext1(T1 value, CancellationToken cancellationToken)
             {
                 _ = cancellationToken;
-                lock (_valuesLock)
+                lock (ValuesLock)
                 {
                     _val1 = new(value);
                 }
@@ -288,7 +263,7 @@ public static partial class ObservableAsync
             internal async ValueTask OnNext2(T2 value, CancellationToken cancellationToken)
             {
                 _ = cancellationToken;
-                lock (_valuesLock)
+                lock (ValuesLock)
                 {
                     _val2 = new(value);
                 }
@@ -308,7 +283,7 @@ public static partial class ObservableAsync
             internal async ValueTask OnNext3(T3 value, CancellationToken cancellationToken)
             {
                 _ = cancellationToken;
-                lock (_valuesLock)
+                lock (ValuesLock)
                 {
                     _val3 = new(value);
                 }
@@ -328,7 +303,7 @@ public static partial class ObservableAsync
             internal async ValueTask OnNext4(T4 value, CancellationToken cancellationToken)
             {
                 _ = cancellationToken;
-                lock (_valuesLock)
+                lock (ValuesLock)
                 {
                     _val4 = new(value);
                 }
@@ -348,7 +323,7 @@ public static partial class ObservableAsync
             internal async ValueTask OnNext5(T5 value, CancellationToken cancellationToken)
             {
                 _ = cancellationToken;
-                lock (_valuesLock)
+                lock (ValuesLock)
                 {
                     _val5 = new(value);
                 }
@@ -368,7 +343,7 @@ public static partial class ObservableAsync
             internal async ValueTask OnNext6(T6 value, CancellationToken cancellationToken)
             {
                 _ = cancellationToken;
-                lock (_valuesLock)
+                lock (ValuesLock)
                 {
                     _val6 = new(value);
                 }
@@ -388,7 +363,7 @@ public static partial class ObservableAsync
             internal async ValueTask OnNext7(T7 value, CancellationToken cancellationToken)
             {
                 _ = cancellationToken;
-                lock (_valuesLock)
+                lock (ValuesLock)
                 {
                     _val7 = new(value);
                 }
@@ -408,7 +383,7 @@ public static partial class ObservableAsync
             internal async ValueTask OnNext8(T8 value, CancellationToken cancellationToken)
             {
                 _ = cancellationToken;
-                lock (_valuesLock)
+                lock (ValuesLock)
                 {
                     _val8 = new(value);
                 }
@@ -428,7 +403,7 @@ public static partial class ObservableAsync
             internal async ValueTask OnNext9(T9 value, CancellationToken cancellationToken)
             {
                 _ = cancellationToken;
-                lock (_valuesLock)
+                lock (ValuesLock)
                 {
                     _val9 = new(value);
                 }
@@ -448,7 +423,7 @@ public static partial class ObservableAsync
             internal async ValueTask OnNext10(T10 value, CancellationToken cancellationToken)
             {
                 _ = cancellationToken;
-                lock (_valuesLock)
+                lock (ValuesLock)
                 {
                     _val10 = new(value);
                 }
@@ -461,26 +436,7 @@ public static partial class ObservableAsync
             /// <returns>A ValueTask representing the asynchronous handler.</returns>
             internal ValueTask OnCompleted10(Result result) => Lifecycle.OnSourceCompletedAsync(result, Source10Bit);
 
-            /// <summary>
-            /// Forwards an upstream error to the downstream observer; thin shim with the
-            /// <c>(error, ct)</c> signature that <see cref="IObservableAsync{T}.SubscribeAsync"/> expects.
-            /// </summary>
-            /// <param name="error">The error to forward.</param>
-            /// <param name="cancellationToken">Ignored — the lifecycle uses its own dispose token.</param>
-            /// <returns>A ValueTask representing the asynchronous forward.</returns>
-            internal ValueTask OnErrorResume(Exception error, CancellationToken cancellationToken)
-            {
-                _ = cancellationToken;
-                return Lifecycle.OnErrorResumeAsync(error);
-            }
-
-            /// <summary>
-            /// Subscribes to a single source by 0-based index. Drives the
-            /// <see cref="SubscribeSourcesAsync"/> loop without unrolled per-source code.
-            /// </summary>
-            /// <param name="index">0-based source index.</param>
-            /// <param name="cancellationToken">A token to cancel the subscription.</param>
-            /// <returns>The subscription disposable for source <paramref name="index"/>.</returns>
+            /// <inheritdoc/>
             [SuppressMessage(
                 "Minor Code Smell",
                 "S109:Magic numbers should not be used",
@@ -489,7 +445,7 @@ public static partial class ObservableAsync
                 "Major Code Smell",
                 "S1541:Methods and properties should not be too complex",
                 Justification = "Switch arm per source — the high arms-count IS the dispatch surface; splitting hurts readability more than it helps.")]
-            private ValueTask<IAsyncDisposable> SubscribeAtAsync(int index, CancellationToken cancellationToken) =>
+            protected override ValueTask<IAsyncDisposable> SubscribeAtAsync(int index, CancellationToken cancellationToken) =>
                 index switch
                 {
                     0 => _sources.Src1.SubscribeAsync(OnNext1, OnErrorResume, OnCompleted1, cancellationToken),
