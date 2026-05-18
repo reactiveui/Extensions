@@ -34,7 +34,10 @@ public static partial class ObservableAsync
     {
         ArgumentExceptionHelper.ThrowIfNull(sources);
 
-        return new CombineLatestEnumerableObservable<T>(sources);
+        // Delegate to the projecting variant with an identity selector so a single subscription
+        // implementation backs both shapes. The static lambda avoids capturing and matches the
+        // perf-critical zero-alloc rule for selectors that don't reference enclosing state.
+        return new CombineLatestEnumerableObservable<T, IReadOnlyList<T>>(sources, static s => s);
     }
 
     /// <summary>
@@ -60,267 +63,9 @@ public static partial class ObservableAsync
     }
 
     /// <summary>
-    /// Async observable that combines the latest values from source sequences.
-    /// </summary>
-    /// <typeparam name="T">The element type.</typeparam>
-    /// <param name="sources">The source sequences to combine.</param>
-    internal sealed class CombineLatestEnumerableObservable<T>(IEnumerable<IObservableAsync<T>> sources)
-        : ObservableAsync<IReadOnlyList<T>>
-    {
-        /// <summary>The source sequences.</summary>
-        private readonly IObservableAsync<T>[] _sources =
-            sources as IObservableAsync<T>[] ?? [.. ArgumentExceptionHelper.Check(sources)];
-
-        /// <inheritdoc/>
-        protected override async ValueTask<IAsyncDisposable> SubscribeAsyncCore(
-            IObserverAsync<IReadOnlyList<T>> observer,
-            CancellationToken cancellationToken)
-        {
-            if (_sources.Length == 0)
-            {
-                await observer.OnCompletedAsync(Result.Success).ConfigureAwait(false);
-                return DisposableAsync.Empty;
-            }
-
-            var subscription = new Subscription(_sources, observer);
-            return await SubscriptionHelper.SubscribeAndDisposeOnFailureAsync(
-                subscription,
-                () => subscription.SubscribeSourcesAsync(cancellationToken)).ConfigureAwait(false);
-        }
-
-        /// <summary>
-        /// Per-source observer that forwards to the parent subscription with its own index. Replaces the three
-        /// captured-index lambdas the previous shape allocated per source.
-        /// </summary>
-        /// <param name="parent">The parent subscription.</param>
-        /// <param name="index">The source index.</param>
-        private sealed class IndexedObserver(Subscription parent, int index) : IObserverAsync<T>
-        {
-            /// <inheritdoc/>
-            public ValueTask OnNextAsync(T value, CancellationToken cancellationToken) =>
-                parent.OnNextAsync(index, value, cancellationToken);
-
-            /// <inheritdoc/>
-            public ValueTask OnErrorResumeAsync(Exception error, CancellationToken cancellationToken) =>
-                parent.OnErrorResumeAsync(error, cancellationToken);
-
-            /// <inheritdoc/>
-            public ValueTask OnCompletedAsync(Result result) =>
-                parent.OnCompletedAsync(index, result);
-
-            /// <inheritdoc/>
-            public ValueTask DisposeAsync() => default;
-        }
-
-        /// <summary>
-        /// Manages subscriptions to all source sequences and coordinates emission of combined value snapshots.
-        /// </summary>
-        /// <param name="sources">The source sequences.</param>
-        /// <param name="observer">The observer.</param>
-        private sealed class Subscription(
-            IObservableAsync<T>[] sources,
-            IObserverAsync<IReadOnlyList<T>> observer) : IAsyncDisposable
-        {
-            /// <summary>Synchronization gate.</summary>
-            private readonly AsyncGate _gate = new();
-
-            /// <summary>Cancellation source for disposal.</summary>
-            private readonly CancellationTokenSource _disposeCts = new();
-
-#if NET9_0_OR_GREATER
-            /// <summary>The completion lock.</summary>
-            private readonly Lock _completionLock = new();
-#else
-            /// <summary>The completion lock.</summary>
-            private readonly object _completionLock = new();
-#endif
-
-            /// <summary>Downstream observer.</summary>
-            [SuppressMessage(
-                "Usage",
-                "CA2213:Disposable fields should be disposed",
-                Justification = "The observer is disposed by the caller or downstream.")]
-            private readonly IObserverAsync<IReadOnlyList<T>> _observer = ArgumentExceptionHelper.Check(observer);
-
-            /// <summary>Source list.</summary>
-            private readonly IObservableAsync<T>[] _sources = ArgumentExceptionHelper.Check(sources);
-
-            /// <summary>Latest values from each source.</summary>
-            private readonly Optional<T>[] _values = new Optional<T>[sources.Length];
-
-            /// <summary>Completion status of each source.</summary>
-            private readonly bool[] _completed = new bool[sources.Length];
-
-            /// <summary>Active subscriptions.</summary>
-            private readonly IAsyncDisposable?[] _subscriptions = new IAsyncDisposable?[sources.Length];
-
-            /// <summary>
-            /// Reusable buffer passed downstream as the emitted <see cref="IReadOnlyList{T}"/> snapshot. The
-            /// AsyncGate serializes <see cref="OnNextAsync"/> calls, so writing the values then handing the
-            /// buffer to the downstream observer (which is expected to consume it synchronously inside its
-            /// handler) is safe.
-            /// </summary>
-            private readonly T[] _snapshotBuffer = new T[sources.Length];
-
-            /// <summary>Number of completed sources.</summary>
-            private int _completedCount;
-
-            /// <summary>Disposed flag.</summary>
-            private int _disposed;
-
-            /// <summary>Number of sources that have produced a value.</summary>
-            private int _hasValueCount;
-
-            /// <summary>
-            /// Subscribes to all source sequences.
-            /// </summary>
-            /// <param name="cancellationToken">The cancellation token.</param>
-            /// <returns>A <see cref="ValueTask"/> representing the asynchronous operation.</returns>
-            public async ValueTask SubscribeSourcesAsync(CancellationToken cancellationToken)
-            {
-                for (var index = 0; index < _sources.Length; index++)
-                {
-                    if (_disposeCts.IsCancellationRequested)
-                    {
-                        return;
-                    }
-
-                    _subscriptions[index] = await _sources[index]
-                        .SubscribeAsync(new IndexedObserver(this, index), cancellationToken)
-                        .ConfigureAwait(false);
-                }
-            }
-
-            /// <inheritdoc/>
-            public ValueTask DisposeAsync() => CompleteAsync(null);
-
-            /// <summary>
-            /// Handles OnNext from a source.
-            /// </summary>
-            /// <param name="index">The source index.</param>
-            /// <param name="indexValue">The value.</param>
-            /// <param name="cancellationToken">The cancellation token.</param>
-            /// <returns>A value task representing the operation.</returns>
-            internal async ValueTask OnNextAsync(int index, T indexValue, CancellationToken cancellationToken)
-            {
-                using (await _gate.LockAsync(cancellationToken).ConfigureAwait(false))
-                {
-                    if (DisposalHelper.IsDisposed(_disposed))
-                    {
-                        return;
-                    }
-
-                    if (!_values[index].HasValue)
-                    {
-                        _hasValueCount++;
-                    }
-
-                    _values[index] = new(indexValue);
-
-                    if (_hasValueCount < _values.Length)
-                    {
-                        return;
-                    }
-
-                    for (var i = 0; i < _values.Length; i++)
-                    {
-                        var optional = _values[i];
-                        if (!optional.HasValue)
-                        {
-                            return;
-                        }
-
-                        _snapshotBuffer[i] = optional.Value!;
-                    }
-
-                    await _observer.OnNextAsync(_snapshotBuffer, cancellationToken).ConfigureAwait(false);
-                }
-            }
-
-            /// <summary>
-            /// Handles OnErrorResume from a source.
-            /// </summary>
-            /// <param name="error">The error.</param>
-            /// <param name="cancellationToken">The cancellation token.</param>
-            /// <returns>A value task representing the operation.</returns>
-            internal async ValueTask OnErrorResumeAsync(Exception error, CancellationToken cancellationToken)
-            {
-                using (await _gate.LockAsync(cancellationToken).ConfigureAwait(false))
-                {
-                    if (DisposalHelper.IsDisposed(_disposed))
-                    {
-                        return;
-                    }
-
-                    await _observer.OnErrorResumeAsync(error, cancellationToken).ConfigureAwait(false);
-                }
-            }
-
-            /// <summary>
-            /// Handles OnCompleted from a source.
-            /// </summary>
-            /// <param name="index">The source index.</param>
-            /// <param name="result">The result.</param>
-            /// <returns>A value task representing the operation.</returns>
-            internal ValueTask OnCompletedAsync(int index, Result result)
-            {
-                if (result.IsFailure)
-                {
-                    return CompleteAsync(result);
-                }
-
-                bool shouldComplete;
-                lock (_completionLock)
-                {
-                    if (_disposed == 1 || _completed[index])
-                    {
-                        return default;
-                    }
-
-                    _completed[index] = true;
-                    _completedCount++;
-                    shouldComplete = !_values[index].HasValue || _completedCount == _sources.Length;
-                }
-
-                return shouldComplete ? CompleteAsync(Result.Success) : default;
-            }
-
-            /// <summary>
-            /// Completes the subscription.
-            /// </summary>
-            /// <param name="result">The result.</param>
-            /// <returns>A value task representing the operation.</returns>
-            internal async ValueTask CompleteAsync(Result? result)
-            {
-                if (DisposalHelper.TrySetDisposed(ref _disposed))
-                {
-                    return;
-                }
-
-                await _disposeCts.CancelAsync().ConfigureAwait(false);
-
-                for (var i = 0; i < _subscriptions.Length; i++)
-                {
-                    var subscription = _subscriptions[i];
-                    if (subscription is not null)
-                    {
-                        await subscription.DisposeAsync().ConfigureAwait(false);
-                    }
-                }
-
-                if (result is not null)
-                {
-                    await _observer.OnCompletedAsync(result.Value).ConfigureAwait(false);
-                }
-
-                _disposeCts.Dispose();
-                _gate.Dispose();
-            }
-        }
-    }
-
-    /// <summary>
-    /// Async observable that combines latest and selects in a single pass.
+    /// Async observable that combines latest values from an enumerable of sources and projects through a selector.
+    /// The no-selector public overload delegates here with an identity selector so a single subscription
+    /// implementation backs both shapes.
     /// </summary>
     /// <typeparam name="TSource">The element type.</typeparam>
     /// <typeparam name="TResult">The projected result type.</typeparam>
@@ -377,7 +122,7 @@ public static partial class ObservableAsync
         }
 
         /// <summary>
-        /// Manages subscriptions to all source sequences and coordinates emission of combined value snapshots.
+        /// Manages subscriptions to all source sequences and coordinates emission of projected snapshots.
         /// </summary>
         /// <param name="sources">The source sequences.</param>
         /// <param name="observer">The observer.</param>
@@ -498,10 +243,10 @@ public static partial class ObservableAsync
                         _snapshotBuffer[i] = optional.Value!;
                     }
 
-                    TResult result;
+                    TResult projected;
                     try
                     {
-                        result = resultSelector(_snapshotBuffer);
+                        projected = resultSelector(_snapshotBuffer);
                     }
                     catch (Exception ex)
                     {
@@ -509,7 +254,7 @@ public static partial class ObservableAsync
                         return;
                     }
 
-                    await _observer.OnNextAsync(result, cancellationToken).ConfigureAwait(false);
+                    await _observer.OnNextAsync(projected, cancellationToken).ConfigureAwait(false);
                 }
             }
 
@@ -562,7 +307,9 @@ public static partial class ObservableAsync
             }
 
             /// <summary>
-            /// Completes the subscription.
+            /// Completes the subscription. The gate / dispose CTS are always released in the finally
+            /// block so a misbehaving downstream's OnCompletedAsync can't leak the SemaphoreSlim inside
+            /// AsyncGate or the dispose CTS's wait handles.
             /// </summary>
             /// <param name="result">The result.</param>
             /// <returns>A value task representing the operation.</returns>
@@ -573,24 +320,29 @@ public static partial class ObservableAsync
                     return;
                 }
 
-                await _disposeCts.CancelAsync().ConfigureAwait(false);
-
-                for (var i = 0; i < _subscriptions.Length; i++)
+                try
                 {
-                    var subscription = _subscriptions[i];
-                    if (subscription is not null)
+                    await _disposeCts.CancelAsync().ConfigureAwait(false);
+
+                    for (var i = 0; i < _subscriptions.Length; i++)
                     {
-                        await subscription.DisposeAsync().ConfigureAwait(false);
+                        var subscription = _subscriptions[i];
+                        if (subscription is not null)
+                        {
+                            await subscription.DisposeAsync().ConfigureAwait(false);
+                        }
+                    }
+
+                    if (result is not null)
+                    {
+                        await _observer.OnCompletedAsync(result.Value).ConfigureAwait(false);
                     }
                 }
-
-                if (result is not null)
+                finally
                 {
-                    await _observer.OnCompletedAsync(result.Value).ConfigureAwait(false);
+                    _disposeCts.Dispose();
+                    _gate.Dispose();
                 }
-
-                _disposeCts.Dispose();
-                _gate.Dispose();
             }
         }
     }

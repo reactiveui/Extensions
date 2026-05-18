@@ -53,17 +53,12 @@ public static partial class ObservableAsync
     /// <returns>A value task that represents the asynchronous operation. The result contains the single element that matches
     /// the predicate, the specified default value if no such element is found, or throws an exception if more than
     /// one matching element exists.</returns>
-    public static async ValueTask<T?> SingleOrDefaultAsync<T>(
+    public static ValueTask<T?> SingleOrDefaultAsync<T>(
         this IObservableAsync<T> @this,
         Func<T, bool> predicate,
         T? defaultValue,
-        CancellationToken cancellationToken)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        var observer = new SingleOrDefaultObserver<T>(predicate, defaultValue, cancellationToken);
-        await using var subscription = await @this.SubscribeAsync(observer, cancellationToken).ConfigureAwait(false);
-        return await observer.WaitValueAsync().ConfigureAwait(false);
-    }
+        CancellationToken cancellationToken) =>
+        SingleOrDefaultCoreAsync(@this, predicate, defaultValue, cancellationToken);
 
     /// <summary>
     /// Asynchronously returns the only element of a sequence, or a default value if the sequence is empty; this
@@ -118,69 +113,25 @@ public static partial class ObservableAsync
     /// <returns>A task that represents the asynchronous operation. The task result contains the single element of the
     /// sequence, the specified default value if the sequence is empty, or throws if more than one element is
     /// present.</returns>
-    public static async ValueTask<T?> SingleOrDefaultAsync<T>(this IObservableAsync<T> @this, T? defaultValue, CancellationToken cancellationToken)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        var observer = new SingleOrDefaultObserver<T>(null, defaultValue, cancellationToken);
-        await using var subscription = await @this.SubscribeAsync(observer, cancellationToken).ConfigureAwait(false);
-        return await observer.WaitValueAsync().ConfigureAwait(false);
-    }
+    public static ValueTask<T?> SingleOrDefaultAsync<T>(this IObservableAsync<T> @this, T? defaultValue, CancellationToken cancellationToken) =>
+        SingleOrDefaultCoreAsync(@this, predicate: null, defaultValue, cancellationToken);
 
-    /// <summary>
-    /// Observer that captures the single element matching an optional predicate, or returns a default value.
-    /// </summary>
+    /// <summary>Shared body for the <c>SingleOrDefaultAsync</c> overloads; subscribes the shared observer.</summary>
     /// <typeparam name="T">The type of elements in the source sequence.</typeparam>
+    /// <param name="source">The source observable sequence.</param>
     /// <param name="predicate">An optional predicate to filter elements.</param>
-    /// <param name="defaultValue">The default value to return if no element matches.</param>
+    /// <param name="defaultValue">The value to return on empty.</param>
     /// <param name="cancellationToken">A cancellation token for the operation.</param>
-    internal sealed class SingleOrDefaultObserver<T>(
+    /// <returns>The single matching element, or the default value on empty.</returns>
+    private static async ValueTask<T?> SingleOrDefaultCoreAsync<T>(
+        IObservableAsync<T> source,
         Func<T, bool>? predicate,
         T? defaultValue,
-        CancellationToken cancellationToken) : TaskObserverAsyncBase<T, T>(cancellationToken)
+        CancellationToken cancellationToken)
     {
-        /// <summary>
-        /// A value indicating whether a matching element has been found.
-        /// </summary>
-        private bool _hasValue;
-
-        /// <summary>
-        /// The single matching element, or the default value if no match has been found.
-        /// </summary>
-        private T? _value = defaultValue;
-
-        /// <inheritdoc/>
-        protected override async ValueTask OnNextAsyncCore(T value, CancellationToken cancellationToken)
-        {
-            if (predicate is null || predicate(value))
-            {
-                if (_hasValue)
-                {
-                    var message = predicate is null
-                        ? "Sequence contains more than one element."
-                        : "Sequence contains more than one matching element.";
-                    await TrySetException(new InvalidOperationException(message)).ConfigureAwait(false);
-                }
-                else
-                {
-                    _hasValue = true;
-                    _value = value;
-                }
-            }
-        }
-
-        /// <inheritdoc/>
-        protected override ValueTask OnErrorResumeAsyncCore(Exception error, CancellationToken cancellationToken) =>
-            TrySetException(error);
-
-        /// <inheritdoc/>
-        protected override ValueTask OnCompletedAsyncCore(Result result)
-        {
-            if (!result.IsSuccess)
-            {
-                return TrySetException(result.Exception);
-            }
-
-            return TrySetCompleted(_value!);
-        }
+        cancellationToken.ThrowIfCancellationRequested();
+        var observer = new SingleElementObserver<T>(predicate, requireExactlyOne: false, defaultValue, cancellationToken);
+        await using var subscription = await source.SubscribeAsync(observer, cancellationToken).ConfigureAwait(false);
+        return await observer.WaitValueAsync().ConfigureAwait(false);
     }
 }

@@ -36,7 +36,8 @@ internal sealed class DebounceUntilObservable<T>(
     }
 
     /// <summary>
-    /// Sink for the debounce until observable.
+    /// Sink for the debounce-until observable. Composes <see cref="TimerSinkState{T}"/> for the
+    /// shared gate / timer / done-flag plumbing so this class only carries the OnNext logic.
     /// </summary>
     /// <param name="downstream">The downstream observer.</param>
     /// <param name="debounce">The debounce duration.</param>
@@ -48,47 +49,31 @@ internal sealed class DebounceUntilObservable<T>(
         Func<T, bool> condition,
         IScheduler scheduler) : IObserver<T>, IDisposable
     {
-        /// <summary>
-        /// The gate for thread safety.
-        /// </summary>
-#if NET9_0_OR_GREATER
-        private readonly Lock _gate = new();
-#else
-        private readonly object _gate = new();
-#endif
-
-        /// <summary>
-        /// The timer for debouncing.
-        /// </summary>
-        private readonly SwapDisposable _timer = new();
-
-        /// <summary>
-        /// Whether the sequence is done.
-        /// </summary>
-        private bool _done;
+        /// <summary>Shared gate / timer / done-flag plumbing.</summary>
+        private readonly TimerSinkState<T> _state = new(downstream);
 
         /// <inheritdoc/>
         public void OnNext(T value)
         {
-            lock (_gate)
+            lock (_state.Gate)
             {
-                if (_done)
+                if (_state.Done)
                 {
                     return;
                 }
 
                 if (condition(value))
                 {
-                    _timer.Disposable = null;
+                    _state.Timer.Disposable = null;
                     downstream.OnNext(value);
                 }
                 else
                 {
-                    _timer.Disposable = scheduler.Schedule(debounce, () =>
+                    _state.Timer.Disposable = scheduler.Schedule(debounce, () =>
                     {
-                        lock (_gate)
+                        lock (_state.Gate)
                         {
-                            if (!_done)
+                            if (!_state.Done)
                             {
                                 downstream.OnNext(value);
                             }
@@ -99,45 +84,12 @@ internal sealed class DebounceUntilObservable<T>(
         }
 
         /// <inheritdoc/>
-        public void OnError(Exception error)
-        {
-            lock (_gate)
-            {
-                if (_done)
-                {
-                    return;
-                }
-
-                _done = true;
-                _timer.Dispose();
-                downstream.OnError(error);
-            }
-        }
+        public void OnError(Exception error) => _state.HandleError(error);
 
         /// <inheritdoc/>
-        public void OnCompleted()
-        {
-            lock (_gate)
-            {
-                if (_done)
-                {
-                    return;
-                }
-
-                _done = true;
-                _timer.Dispose();
-                downstream.OnCompleted();
-            }
-        }
+        public void OnCompleted() => _state.HandleCompleted();
 
         /// <inheritdoc/>
-        public void Dispose()
-        {
-            lock (_gate)
-            {
-                _done = true;
-                _timer.Dispose();
-            }
-        }
+        public void Dispose() => _state.HandleDispose();
     }
 }

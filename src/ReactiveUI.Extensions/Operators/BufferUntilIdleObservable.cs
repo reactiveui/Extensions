@@ -9,7 +9,8 @@ using ReactiveUI.Extensions.Internal.Disposables;
 namespace ReactiveUI.Extensions.Operators;
 
 /// <summary>
-/// Buffers elements and emits them when the stream has been idle for a specified duration.
+/// Buffers elements and emits them when the stream has been idle for a specified duration. Backs both
+/// the <c>BufferUntilIdle</c> and <c>BufferUntilInactive</c> public operators.
 /// </summary>
 /// <typeparam name="T">The type of elements in the source sequence.</typeparam>
 /// <param name="source">The source observable.</param>
@@ -33,7 +34,8 @@ internal sealed class BufferUntilIdleObservable<T>(
     }
 
     /// <summary>
-    /// Sink that manages the buffer and idle timer.
+    /// Sink that manages the buffer and idle timer. Composes <see cref="TimerSinkState{T}"/> for
+    /// the shared gate / timer / done-flag plumbing so this class only carries the buffer logic.
     /// </summary>
     /// <param name="downstream">The downstream observer.</param>
     /// <param name="idleTime">The idle time period.</param>
@@ -43,29 +45,18 @@ internal sealed class BufferUntilIdleObservable<T>(
         TimeSpan idleTime,
         IScheduler scheduler) : IObserver<T>, IDisposable
     {
-#if NET9_0_OR_GREATER
-        /// <summary>The gate for buffer access.</summary>
-        private readonly Lock _gate = new();
-#else
-        /// <summary>The gate for buffer access.</summary>
-        private readonly object _gate = new();
-#endif
-
-        /// <summary>The timer for flushing.</summary>
-        private readonly SwapDisposable _timer = new();
+        /// <summary>Shared gate / timer / done-flag plumbing.</summary>
+        private readonly TimerSinkState<IList<T>> _state = new(downstream);
 
         /// <summary>The current buffer of elements.</summary>
         private List<T> _buffer = [];
 
-        /// <summary>Whether the sink has reached a terminal state.</summary>
-        private bool _done;
-
         /// <inheritdoc/>
         public void OnNext(T value)
         {
-            lock (_gate)
+            lock (_state.Gate)
             {
-                if (_done)
+                if (_state.Done)
                 {
                     return;
                 }
@@ -79,52 +70,27 @@ internal sealed class BufferUntilIdleObservable<T>(
         public void OnError(Exception error)
         {
             Flush();
-            lock (_gate)
-            {
-                if (_done)
-                {
-                    return;
-                }
-
-                _done = true;
-                downstream.OnError(error);
-            }
+            _state.HandleError(error);
         }
 
         /// <inheritdoc/>
         public void OnCompleted()
         {
             Flush();
-            lock (_gate)
-            {
-                if (_done)
-                {
-                    return;
-                }
-
-                _done = true;
-                downstream.OnCompleted();
-            }
+            _state.HandleCompleted();
         }
 
         /// <inheritdoc/>
-        public void Dispose()
-        {
-            lock (_gate)
-            {
-                _done = true;
-                _timer.Dispose();
-            }
-        }
+        public void Dispose() => _state.HandleDispose();
 
         /// <summary>Schedules a flush after the idle period.</summary>
-        private void ScheduleFlush() => _timer.Disposable = scheduler.Schedule(idleTime, Flush);
+        private void ScheduleFlush() => _state.Timer.Disposable = scheduler.Schedule(idleTime, Flush);
 
         /// <summary>Flushes the current buffer to the downstream observer.</summary>
         private void Flush()
         {
             List<T>? toEmit = null;
-            lock (_gate)
+            lock (_state.Gate)
             {
                 if (_buffer.Count > 0)
                 {
@@ -133,7 +99,7 @@ internal sealed class BufferUntilIdleObservable<T>(
                 }
             }
 
-            if (toEmit == null)
+            if (toEmit is null)
             {
                 return;
             }

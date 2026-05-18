@@ -35,7 +35,9 @@ internal sealed class ThrottleDistinctObservable<T>(
     }
 
     /// <summary>
-    /// Sink that implements the throttle distinct logic.
+    /// Sink that implements the throttle distinct logic. Composes <see cref="TimerSinkState{T}"/>
+    /// for the shared gate / timer / done-flag plumbing so this class only carries the throttle
+    /// and distinct-value tracking.
     /// </summary>
     /// <param name="downstream">The observer to forward elements to.</param>
     /// <param name="throttle">The throttle duration.</param>
@@ -45,54 +47,27 @@ internal sealed class ThrottleDistinctObservable<T>(
         TimeSpan throttle,
         IScheduler scheduler) : IObserver<T>, IDisposable
     {
-#if NET9_0_OR_GREATER
-        /// <summary>
-        /// The gate to synchronize access to the sink state.
-        /// </summary>
-        private readonly Lock _gate = new();
-#else
-        /// <summary>
-        /// The gate to synchronize access to the sink state.
-        /// </summary>
-        private readonly object _gate = new();
-#endif
+        /// <summary>Shared gate / timer / done-flag plumbing.</summary>
+        private readonly TimerSinkState<T> _state = new(downstream);
 
-        /// <summary>
-        /// The timer for throttling.
-        /// </summary>
-        private readonly SwapDisposable _timer = new();
-
-        /// <summary>
-        /// The last emitted value.
-        /// </summary>
+        /// <summary>The last emitted value.</summary>
         private T? _lastEmitted;
 
-        /// <summary>
-        /// The last received value.
-        /// </summary>
+        /// <summary>The last received value.</summary>
         private T? _lastReceived;
 
-        /// <summary>
-        /// Whether a value has been received but not yet emitted.
-        /// </summary>
+        /// <summary>Whether a value has been received but not yet emitted.</summary>
         private bool _hasLastReceived;
 
-        /// <summary>
-        /// Whether any value has been emitted yet.
-        /// </summary>
+        /// <summary>Whether any value has been emitted yet.</summary>
         private bool _hasLastEmitted;
-
-        /// <summary>
-        /// Whether the sink has finished.
-        /// </summary>
-        private bool _done;
 
         /// <inheritdoc/>
         public void OnNext(T value)
         {
-            lock (_gate)
+            lock (_state.Gate)
             {
-                if (_done)
+                if (_state.Done)
                 {
                     return;
                 }
@@ -100,67 +75,32 @@ internal sealed class ThrottleDistinctObservable<T>(
                 if (_hasLastEmitted && EqualityComparer<T>.Default.Equals(value, _lastEmitted!))
                 {
                     _hasLastReceived = false;
-                    _timer.Disposable = null;
+                    _state.Timer.Disposable = null;
                     return;
                 }
 
                 _lastReceived = value;
                 _hasLastReceived = true;
-                _timer.Disposable = scheduler.Schedule(throttle, Emit);
+                _state.Timer.Disposable = scheduler.Schedule(throttle, Emit);
             }
         }
 
         /// <inheritdoc/>
-        public void OnError(Exception error)
-        {
-            lock (_gate)
-            {
-                if (_done)
-                {
-                    return;
-                }
-
-                _done = true;
-                _timer.Dispose();
-                downstream.OnError(error);
-            }
-        }
+        public void OnError(Exception error) => _state.HandleError(error);
 
         /// <inheritdoc/>
-        public void OnCompleted()
-        {
-            lock (_gate)
-            {
-                if (_done)
-                {
-                    return;
-                }
-
-                _done = true;
-                _timer.Dispose();
-                downstream.OnCompleted();
-            }
-        }
+        public void OnCompleted() => _state.HandleCompleted();
 
         /// <inheritdoc/>
-        public void Dispose()
-        {
-            lock (_gate)
-            {
-                _done = true;
-                _timer.Dispose();
-            }
-        }
+        public void Dispose() => _state.HandleDispose();
 
-        /// <summary>
-        /// Emits the last received value if it differs from the last emitted value.
-        /// </summary>
+        /// <summary>Emits the last received value if it differs from the last emitted value.</summary>
         private void Emit()
         {
             T? toEmit;
-            lock (_gate)
+            lock (_state.Gate)
             {
-                if (_done || !_hasLastReceived)
+                if (_state.Done || !_hasLastReceived)
                 {
                     return;
                 }

@@ -34,7 +34,8 @@ internal sealed class DetectStaleObservable<T>(
     }
 
     /// <summary>
-    /// Sink that manages staleness detection.
+    /// Sink that manages staleness detection. Composes <see cref="TimerSinkState{T}"/> for the
+    /// shared gate / timer / done-flag plumbing so this class only carries the OnNext / schedule logic.
     /// </summary>
     /// <param name="downstream">The downstream observer.</param>
     /// <param name="stalenessPeriod">The staleness period.</param>
@@ -44,19 +45,8 @@ internal sealed class DetectStaleObservable<T>(
         TimeSpan stalenessPeriod,
         IScheduler scheduler) : IObserver<T>, IDisposable
     {
-#if NET9_0_OR_GREATER
-        /// <summary>The gate for state access.</summary>
-        private readonly Lock _gate = new();
-#else
-        /// <summary>The gate for state access.</summary>
-        private readonly object _gate = new();
-#endif
-
-        /// <summary>The timer for staleness notification.</summary>
-        private readonly SwapDisposable _timer = new();
-
-        /// <summary>Whether the sink has reached a terminal state.</summary>
-        private bool _done;
+        /// <summary>Shared gate / timer / done-flag plumbing.</summary>
+        private readonly TimerSinkState<Stale<T>> _state = new(downstream);
 
         /// <summary>Initializes the staleness timer.</summary>
         public void Initialize() => ScheduleStale();
@@ -64,9 +54,9 @@ internal sealed class DetectStaleObservable<T>(
         /// <inheritdoc/>
         public void OnNext(T value)
         {
-            lock (_gate)
+            lock (_state.Gate)
             {
-                if (_done)
+                if (_state.Done)
                 {
                     return;
                 }
@@ -77,54 +67,21 @@ internal sealed class DetectStaleObservable<T>(
         }
 
         /// <inheritdoc/>
-        public void OnError(Exception error)
-        {
-            lock (_gate)
-            {
-                if (_done)
-                {
-                    return;
-                }
-
-                _done = true;
-                _timer.Dispose();
-                downstream.OnError(error);
-            }
-        }
+        public void OnError(Exception error) => _state.HandleError(error);
 
         /// <inheritdoc/>
-        public void OnCompleted()
-        {
-            lock (_gate)
-            {
-                if (_done)
-                {
-                    return;
-                }
-
-                _done = true;
-                _timer.Dispose();
-                downstream.OnCompleted();
-            }
-        }
+        public void OnCompleted() => _state.HandleCompleted();
 
         /// <inheritdoc/>
-        public void Dispose()
-        {
-            lock (_gate)
-            {
-                _done = true;
-                _timer.Dispose();
-            }
-        }
+        public void Dispose() => _state.HandleDispose();
 
         /// <summary>Schedules the staleness notification.</summary>
         private void ScheduleStale() =>
-            _timer.Disposable = scheduler.Schedule(stalenessPeriod, () =>
+            _state.Timer.Disposable = scheduler.Schedule(stalenessPeriod, () =>
             {
-                lock (_gate)
+                lock (_state.Gate)
                 {
-                    if (!_done)
+                    if (!_state.Done)
                     {
                         downstream.OnNext(new Stale<T>());
                     }
