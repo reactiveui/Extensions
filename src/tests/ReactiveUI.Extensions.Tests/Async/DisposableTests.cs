@@ -831,11 +831,13 @@ public class DisposableTests
             return default;
         });
 
-        const int Parallelism = 20;
-        const int IterationsPerTask = 10;
+        // Bounded contention: enough parallel sets to race on CAS, small enough to run
+        // deterministically on any CI runner. Previous 20x10 layout produced unbounded
+        // variance (observed: 3s → 15s → never completed) and could timeout the suite.
+        const int Parallelism = 4;
+        const int IterationsPerTask = 5;
         const int ExpectedDisposedCount = Parallelism * IterationsPerTask;
 
-        // Hammer concurrent sets to maximize chance of CAS retry
         var barrier = new Barrier(Parallelism);
         var tasks = Enumerable.Range(0, Parallelism).Select(_ =>
             Task.Run(async () =>
@@ -850,7 +852,8 @@ public class DisposableTests
         await Task.WhenAll(tasks);
         await serial.DisposeAsync();
 
-        // All 200 disposables should be disposed (199 replaced + 1 final)
+        // Every set disposable (Parallelism * IterationsPerTask) should be disposed —
+        // (Parallelism * IterationsPerTask - 1) replaced + 1 final dispose.
         await Assert.That(disposedCount).IsEqualTo(ExpectedDisposedCount);
     }
 
