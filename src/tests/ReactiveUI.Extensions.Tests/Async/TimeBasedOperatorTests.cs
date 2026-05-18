@@ -18,9 +18,6 @@ public class TimeBasedOperatorTests
     /// <summary>Fallback value99 (99).</summary>
     private const int FallbackValue99 = 99;
 
-    /// <summary>Settle delay millis (200).</summary>
-    private const int SettleDelayMillis = 200;
-
     /// <summary>Tests Throttle only last in burst is emitted.</summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
@@ -852,15 +849,21 @@ public class TimeBasedOperatorTests
     [Test]
     public async Task WhenThrottleReceivesRapidValues_ThenOnlyEmitsLatest()
     {
+        const int SecondValue = 2;
+        const int LastValue = 3;
+
         var source = new DirectSource<int>();
         var items = new List<int>();
-        var completed = new TaskCompletionSource();
+        var completed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var lastEmitted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
         await using var sub = await source.Throttle(TimeSpan.FromMilliseconds(50))
             .SubscribeAsync(
-                (x, _) =>
+                (x, ct) =>
                 {
+                    _ = ct;
                     items.Add(x);
+                    _ = x == LastValue && lastEmitted.TrySetResult();
                     return default;
                 },
                 null,
@@ -870,14 +873,15 @@ public class TimeBasedOperatorTests
                     return default;
                 });
 
-        const int SecondValue = 2;
-        const int LastValue = 3;
-
         await source.EmitNext(1);
         await source.EmitNext(SecondValue);
         await source.EmitNext(LastValue);
 
-        await Task.Delay(SettleDelayMillis);
+        // Wait for the throttle window to actually fire the latest value rather than relying on a
+        // wall-clock delay — Task.Delay drifts on slow CI runners (macOS arm64 saw the throttle
+        // fail to fire inside the 200ms window).
+        await lastEmitted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
         await source.Complete(Result.Success);
         await completed.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
