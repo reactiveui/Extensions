@@ -334,7 +334,11 @@ public partial class CombineLatestOperatorTests
         var normalSource = new DirectSource<int>();
         IObservableAsync<int>[] sources = [slowSource, normalSource];
 
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(WaitTimeoutSeconds));
+        // Cancel after 1s, not WaitTimeoutSeconds (5s): this test pure-waits for cancellation
+        // by design (nothing ever sets disposeTrigger) — the cancellation is the only exit,
+        // so we want the shortest window that reliably lets the subscribe loop start. 1s is
+        // safe even on slow CI runners.
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(1));
 
         try
         {

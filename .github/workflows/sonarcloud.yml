@@ -32,6 +32,8 @@ jobs:
             # CombineLatestEnumerable.cs (10 chars after the prefix) won't match either pattern.
             sonarCpdExclusions: '**/tests/**,**/tools/**,**/benchmarks/**,**/CombineLatest?.cs,**/CombineLatest??.cs'
             sonarTestExclusions: '**/tests/**,**/tools/**,**/benchmarks/**'
-            testTimeout: '8m'
+            # See ci-build.yml for rationale: net10 + Windows + assembly-wide
+            # NotInParallel(UnhandledExceptionHandler) needs more than 8m.
+            testTimeout: '15m'
         secrets:
             SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
