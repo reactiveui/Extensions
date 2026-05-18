@@ -73,6 +73,30 @@ public partial class CombineLatestArityTests
     /// <summary>Place value 10,000,000 used to build unique per-source sums.</summary>
     private const int PlaceValue7 = 10_000_000;
 
+    /// <summary>Place value 100,000,000 used by arity-9+ tests.</summary>
+    private const int PlaceValue8 = 100_000_000;
+
+    /// <summary>Place value 11 used by arity-10+ tests to keep sums unique without overflowing int.</summary>
+    private const int PlaceValue9 = 11;
+
+    /// <summary>Place value 13 used by arity-11+ tests.</summary>
+    private const int PlaceValue10 = 13;
+
+    /// <summary>Place value 17 used by arity-12+ tests.</summary>
+    private const int PlaceValue11 = 17;
+
+    /// <summary>Place value 19 used by arity-13+ tests.</summary>
+    private const int PlaceValue12 = 19;
+
+    /// <summary>Place value 23 used by arity-14+ tests.</summary>
+    private const int PlaceValue13 = 23;
+
+    /// <summary>Place value 29 used by arity-15+ tests.</summary>
+    private const int PlaceValue14 = 29;
+
+    /// <summary>Place value 31 used by arity-16 tests.</summary>
+    private const int PlaceValue15 = 31;
+
     /// <summary>Re-emit value (2 × PlaceValue1) used to verify combined-value updates from source 2.</summary>
     private const int ReEmitValue2 = 20;
 
