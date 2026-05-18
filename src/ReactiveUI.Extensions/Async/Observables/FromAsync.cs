@@ -2,6 +2,10 @@
 // ReactiveUI Association Incorporated licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
+using System.Diagnostics.CodeAnalysis;
+using System.Reactive;
+using ReactiveUI.Extensions.Internal;
+
 namespace ReactiveUI.Extensions.Async;
 
 /// <summary>
@@ -25,17 +29,21 @@ public static partial class ObservableAsync
     /// cref="CancellationToken"/>. Cannot be null.</param>
     /// <returns>An <see cref="ObservableAsync{T}"/> that emits the value returned by the factory function and then completes.</returns>
     /// <exception cref="ArgumentNullException">Thrown if <paramref name="factory"/> is null.</exception>
+    [SuppressMessage(
+        "Roslynator",
+        "RCS1047:Non-asynchronous method name should not end with \'Async\'",
+        Justification = "This is an existing method")]
     public static IObservableAsync<T> FromAsync<T>(Func<CancellationToken, ValueTask<T>> factory)
     {
         ArgumentExceptionHelper.ThrowIfNull(factory);
 
         return CreateAsBackgroundJob<T>(
             async (obs, token) =>
-        {
-            var result = await factory(token);
-            await obs.OnNextAsync(result, token);
-            await obs.OnCompletedAsync(Result.Success);
-        },
+            {
+                var result = await factory(token).ConfigureAwait(false);
+                await obs.OnNextAsync(result, token).ConfigureAwait(false);
+                await obs.OnCompletedAsync(Result.Success).ConfigureAwait(false);
+            },
             true);
     }
 
@@ -51,6 +59,10 @@ public static partial class ObservableAsync
     /// <returns>An observable sequence that emits a single value of <see cref="Unit"/> when the factory function completes,
     /// followed by a completion notification.</returns>
     /// <exception cref="ArgumentNullException">Thrown if <paramref name="factory"/> is <see langword="null"/>.</exception>
+    [SuppressMessage(
+        "Roslynator",
+        "RCS1047:Non-asynchronous method name should not end with \'Async\'",
+        Justification = "This is an existing method")]
     public static IObservableAsync<Unit> FromAsync(Func<CancellationToken, ValueTask> factory)
     {
         if (factory is null)
@@ -60,11 +72,11 @@ public static partial class ObservableAsync
 
         return CreateAsBackgroundJob<Unit>(
             async (obs, token) =>
-        {
-            await factory(token);
-            await obs.OnNextAsync(Unit.Default, token);
-            await obs.OnCompletedAsync(Result.Success);
-        },
+            {
+                await factory(token).ConfigureAwait(false);
+                await obs.OnNextAsync(Unit.Default, token).ConfigureAwait(false);
+                await obs.OnCompletedAsync(Result.Success).ConfigureAwait(false);
+            },
             true);
     }
 }

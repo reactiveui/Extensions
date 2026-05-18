@@ -21,7 +21,9 @@ public class ConcurrentObserverCallsException : Exception
     /// <summary>
     /// The default error message describing the concurrent observer call violation.
     /// </summary>
-    private const string DefaultMessage = $"Concurrent calls of {nameof(ObserverAsync<>)}.OnNextAsync, {nameof(ObserverAsync<>)}.OnErrorResumeAsync, {nameof(ObserverAsync<>)}.OnCompletedAsync are not allowed. There is already a call pending";
+    private const string DefaultMessage =
+        $"Concurrent calls of {nameof(ObserverAsync<>)}.OnNextAsync, {nameof(ObserverAsync<>)}.OnErrorResumeAsync," +
+        $" {nameof(ObserverAsync<>)}.OnCompletedAsync are not allowed. There is already a call pending";
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ConcurrentObserverCallsException"/> class.

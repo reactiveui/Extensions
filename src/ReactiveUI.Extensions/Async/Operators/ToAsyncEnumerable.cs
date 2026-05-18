@@ -4,6 +4,7 @@
 
 using System.Runtime.CompilerServices;
 using System.Threading.Channels;
+using ReactiveUI.Extensions.Internal;
 
 namespace ReactiveUI.Extensions.Async;
 
@@ -12,6 +13,29 @@ namespace ReactiveUI.Extensions.Async;
 /// </summary>
 public static partial class ObservableAsync
 {
+    /// <summary>
+    /// Converts the specified asynchronous observable sequence to an asynchronous enumerable sequence, enabling
+    /// consumption using asynchronous iteration.
+    /// </summary>
+    /// <remarks>
+    /// The resulting asynchronous enumerable sequence reflects the items and completion behavior of the source
+    /// asynchronous observable. The buffering behavior is determined by the channel created by the provided
+    /// <paramref name="channelFactory"/>.
+    /// </remarks>
+    /// <typeparam name="T">The type of elements contained within the asynchronous observable and the resulting
+    /// asynchronous enumerable.</typeparam>
+    /// <param name="this">The asynchronous observable to convert into an asynchronous enumerable.</param>
+    /// <param name="channelFactory">A factory function that produces a channel to buffer elements, controlling
+    /// the buffering and backpressure behavior between the asynchronous observable and the asynchronous enumerable.</param>
+    /// <returns>An asynchronous enumerable sequence that yields elements from the asynchronous observable. The
+    /// enumeration completes when the source observable completes, or an unhandled error occurs.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="this"/> or <paramref name="channelFactory"/>
+    /// is null.</exception>
+    public static IAsyncEnumerable<T> ToAsyncEnumerable<T>(
+        this IObservableAsync<T> @this,
+        Func<Channel<T>> channelFactory)
+        => @this.ToAsyncEnumerable(channelFactory, null);
+
     /// <summary>
     /// Converts the specified observable sequence to an asynchronous enumerable sequence, enabling consumption using
     /// asynchronous iteration.
@@ -33,10 +57,10 @@ public static partial class ObservableAsync
     public static IAsyncEnumerable<T> ToAsyncEnumerable<T>(
         this IObservableAsync<T> @this,
         Func<Channel<T>> channelFactory,
-        Func<Exception, CancellationToken, ValueTask>? onErrorResume = null)
+        Func<Exception, CancellationToken, ValueTask>? onErrorResume)
     {
-        ArgumentExceptionHelper.ThrowIfNull(@this, nameof(@this));
-        ArgumentExceptionHelper.ThrowIfNull(channelFactory, nameof(channelFactory));
+        ArgumentExceptionHelper.ThrowIfNull(@this);
+        ArgumentExceptionHelper.ThrowIfNull(channelFactory);
 
         return Impl(@this, channelFactory, onErrorResume);
 
@@ -61,7 +85,7 @@ public static partial class ObservableAsync
                     channel.Writer.Complete(result.Exception);
                     return default;
                 },
-                cancellationToken);
+                cancellationToken).ConfigureAwait(false);
 
             await foreach (var x in channel.Reader.ReadAllAsync(cancellationToken))
             {

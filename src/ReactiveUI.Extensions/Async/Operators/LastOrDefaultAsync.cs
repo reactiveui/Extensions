@@ -14,50 +14,98 @@ namespace ReactiveUI.Extensions.Async;
 /// asynchronous and cancellation-aware operations on observable sequences.</remarks>
 public static partial class ObservableAsync
 {
-    extension<T>(IObservableAsync<T> @this)
+    /// <summary>
+    /// Asynchronously returns the last element in the sequence that satisfies the specified predicate, or a default
+    /// value if no such element is found.
+    /// </summary>
+    /// <typeparam name="T">The type of elements in the sequence.</typeparam>
+    /// <param name="this">The source observable sequence.</param>
+    /// <param name="predicate">A function to test each element for a condition. The method returns the last element for which this
+    /// predicate returns <see langword="true"/>.</param>
+    /// <param name="defaultValue">The value to return if no element in the sequence satisfies the predicate.</param>
+    /// <returns>A value task that represents the asynchronous operation. The result contains the last element that matches
+    /// the predicate, or <paramref name="defaultValue"/> if no such element is found.</returns>
+    public static ValueTask<T?> LastOrDefaultAsync<T>(
+        this IObservableAsync<T> @this,
+        Func<T, bool> predicate,
+        T? defaultValue) =>
+        @this.LastOrDefaultAsync(predicate, defaultValue, CancellationToken.None);
+
+    /// <summary>
+    /// Asynchronously returns the last element in the sequence that satisfies the specified predicate, or a default
+    /// value if no such element is found.
+    /// </summary>
+    /// <typeparam name="T">The type of elements in the sequence.</typeparam>
+    /// <param name="this">The source observable sequence.</param>
+    /// <param name="predicate">A function to test each element for a condition. The method returns the last element for which this
+    /// predicate returns <see langword="true"/>.</param>
+    /// <param name="defaultValue">The value to return if no element in the sequence satisfies the predicate.</param>
+    /// <param name="cancellationToken">A cancellation token that can be used to cancel the asynchronous operation.</param>
+    /// <returns>A value task that represents the asynchronous operation. The result contains the last element that matches
+    /// the predicate, or <paramref name="defaultValue"/> if no such element is found.</returns>
+    public static async ValueTask<T?> LastOrDefaultAsync<T>(
+        this IObservableAsync<T> @this,
+        Func<T, bool> predicate,
+        T? defaultValue,
+        CancellationToken cancellationToken)
     {
-        /// <summary>
-        /// Asynchronously returns the last element in the sequence that satisfies the specified predicate, or a default
-        /// value if no such element is found.
-        /// </summary>
-        /// <param name="predicate">A function to test each element for a condition. The method returns the last element for which this
-        /// predicate returns <see langword="true"/>.</param>
-        /// <param name="defaultValue">The value to return if no element in the sequence satisfies the predicate.</param>
-        /// <param name="cancellationToken">A cancellation token that can be used to cancel the asynchronous operation.</param>
-        /// <returns>A value task that represents the asynchronous operation. The result contains the last element that matches
-        /// the predicate, or <paramref name="defaultValue"/> if no such element is found.</returns>
-        public async ValueTask<T?> LastOrDefaultAsync(Func<T, bool> predicate, T? defaultValue, CancellationToken cancellationToken = default)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            var observer = new LastOrDefaultObserver<T>(predicate, defaultValue, cancellationToken);
-            _ = await @this.SubscribeAsync(observer, cancellationToken);
-            return await observer.WaitValueAsync();
-        }
+        cancellationToken.ThrowIfCancellationRequested();
+        var observer = new LastOrDefaultObserver<T>(predicate, defaultValue, cancellationToken);
+        await using var subscription = await @this.SubscribeAsync(observer, cancellationToken).ConfigureAwait(false);
+        return await observer.WaitValueAsync().ConfigureAwait(false);
+    }
 
-        /// <summary>
-        /// Asynchronously returns the last element of a sequence, or a default value if the sequence contains no
-        /// elements.
-        /// </summary>
-        /// <param name="cancellationToken">A cancellation token that can be used to cancel the asynchronous operation.</param>
-        /// <returns>A value task that represents the asynchronous operation. The task result contains the last element of the
-        /// sequence, or the default value for type T if the sequence is empty.</returns>
-        public ValueTask<T?> LastOrDefaultAsync(CancellationToken cancellationToken = default) => @this.LastOrDefaultAsync(default, cancellationToken);
+    /// <summary>
+    /// Asynchronously returns the last element of a sequence, or a default value if the sequence contains no
+    /// elements.
+    /// </summary>
+    /// <typeparam name="T">The type of elements in the sequence.</typeparam>
+    /// <param name="this">The source observable sequence.</param>
+    /// <returns>A value task that represents the asynchronous operation. The task result contains the last element of the
+    /// sequence, or the default value for type T if the sequence is empty.</returns>
+    public static ValueTask<T?> LastOrDefaultAsync<T>(this IObservableAsync<T> @this) =>
+        @this.LastOrDefaultAsync(default, CancellationToken.None);
 
-        /// <summary>
-        /// Asynchronously returns the last element of the sequence, or a specified default value if the sequence
-        /// contains no elements.
-        /// </summary>
-        /// <param name="defaultValue">The value to return if the sequence is empty.</param>
-        /// <param name="cancellationToken">A cancellation token that can be used to cancel the asynchronous operation.</param>
-        /// <returns>A value task that represents the asynchronous operation. The task result contains the last element of the
-        /// sequence, or <paramref name="defaultValue"/> if the sequence is empty.</returns>
-        public async ValueTask<T?> LastOrDefaultAsync(T? defaultValue, CancellationToken cancellationToken = default)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            var observer = new LastOrDefaultObserver<T>(null, defaultValue, cancellationToken);
-            _ = await @this.SubscribeAsync(observer, cancellationToken);
-            return await observer.WaitValueAsync();
-        }
+    /// <summary>
+    /// Asynchronously returns the last element of a sequence, or a default value if the sequence contains no
+    /// elements.
+    /// </summary>
+    /// <typeparam name="T">The type of elements in the sequence.</typeparam>
+    /// <param name="this">The source observable sequence.</param>
+    /// <param name="cancellationToken">A cancellation token that can be used to cancel the asynchronous operation.</param>
+    /// <returns>A value task that represents the asynchronous operation. The task result contains the last element of the
+    /// sequence, or the default value for type T if the sequence is empty.</returns>
+    public static ValueTask<T?> LastOrDefaultAsync<T>(this IObservableAsync<T> @this, CancellationToken cancellationToken) =>
+        @this.LastOrDefaultAsync(default, cancellationToken);
+
+    /// <summary>
+    /// Asynchronously returns the last element of the sequence, or a specified default value if the sequence
+    /// contains no elements.
+    /// </summary>
+    /// <typeparam name="T">The type of elements in the sequence.</typeparam>
+    /// <param name="this">The source observable sequence.</param>
+    /// <param name="defaultValue">The value to return if the sequence is empty.</param>
+    /// <returns>A value task that represents the asynchronous operation. The task result contains the last element of the
+    /// sequence, or <paramref name="defaultValue"/> if the sequence is empty.</returns>
+    public static ValueTask<T?> LastOrDefaultAsync<T>(this IObservableAsync<T> @this, T? defaultValue) =>
+        @this.LastOrDefaultAsync(defaultValue, CancellationToken.None);
+
+    /// <summary>
+    /// Asynchronously returns the last element of the sequence, or a specified default value if the sequence
+    /// contains no elements.
+    /// </summary>
+    /// <typeparam name="T">The type of elements in the sequence.</typeparam>
+    /// <param name="this">The source observable sequence.</param>
+    /// <param name="defaultValue">The value to return if the sequence is empty.</param>
+    /// <param name="cancellationToken">A cancellation token that can be used to cancel the asynchronous operation.</param>
+    /// <returns>A value task that represents the asynchronous operation. The task result contains the last element of the
+    /// sequence, or <paramref name="defaultValue"/> if the sequence is empty.</returns>
+    public static async ValueTask<T?> LastOrDefaultAsync<T>(this IObservableAsync<T> @this, T? defaultValue, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var observer = new LastOrDefaultObserver<T>(null, defaultValue, cancellationToken);
+        await using var subscription = await @this.SubscribeAsync(observer, cancellationToken).ConfigureAwait(false);
+        return await observer.WaitValueAsync().ConfigureAwait(false);
     }
 
     /// <summary>
@@ -67,7 +115,10 @@ public static partial class ObservableAsync
     /// <param name="predicate">An optional predicate to filter elements.</param>
     /// <param name="defaultValue">The default value to return if no element matches.</param>
     /// <param name="cancellationToken">A cancellation token for the operation.</param>
-    internal sealed class LastOrDefaultObserver<T>(Func<T, bool>? predicate, T? defaultValue, CancellationToken cancellationToken) : TaskObserverAsyncBase<T, T>(cancellationToken)
+    internal sealed class LastOrDefaultObserver<T>(
+        Func<T, bool>? predicate,
+        T? defaultValue,
+        CancellationToken cancellationToken) : TaskObserverAsyncBase<T, T>(cancellationToken)
     {
         /// <summary>
         /// The most recently observed matching element, or the default value if no match has been found.
@@ -77,16 +128,19 @@ public static partial class ObservableAsync
         /// <inheritdoc/>
         protected override ValueTask OnNextAsyncCore(T value, CancellationToken cancellationToken)
         {
-            if (predicate is null || predicate(value))
+            if (predicate is not null && !predicate(value))
             {
-                _last = value;
+                return default;
             }
+
+            _last = value;
 
             return default;
         }
 
         /// <inheritdoc/>
-        protected override ValueTask OnErrorResumeAsyncCore(Exception error, CancellationToken cancellationToken) => TrySetException(error);
+        protected override ValueTask OnErrorResumeAsyncCore(Exception error, CancellationToken cancellationToken) =>
+            TrySetException(error);
 
         /// <inheritdoc/>
         protected override ValueTask OnCompletedAsyncCore(Result result) =>

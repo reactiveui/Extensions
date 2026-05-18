@@ -26,7 +26,6 @@ public sealed record BehaviorSubjectCreationOptions
     /// custom behavior is required.</remarks>
     public static BehaviorSubjectCreationOptions Default { get; } = new()
     {
-        PublishingOption = PublishingOption.Serial,
-        IsStateless = false
+        PublishingOption = PublishingOption.Serial, IsStateless = false
     };
 }

@@ -2,6 +2,9 @@
 // ReactiveUI Association Incorporated licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
+using System.Diagnostics.CodeAnalysis;
+using System.Reactive;
+
 namespace ReactiveUI.Extensions.Async;
 
 /// <summary>
@@ -25,14 +28,18 @@ public static partial class ObservableAsync
     /// <param name="this">The task to convert to an asynchronous observable sequence. Cannot be null.</param>
     /// <returns>An asynchronous observable sequence that emits the result of the task when it completes, followed by a
     /// completion notification.</returns>
+    [SuppressMessage(
+        "Roslynator",
+        "RCS1047:Non-asynchronous method name should not end with \'Async\'",
+        Justification = "This is an existing method")]
     public static IObservableAsync<T> ToObservableAsync<T>(this Task<T> @this) => CreateAsBackgroundJob<T>(
-            async (obs, cancellationToken) =>
+        async (obs, cancellationToken) =>
         {
-            var result = await @this.WaitAsync(System.Threading.Timeout.InfiniteTimeSpan, cancellationToken);
-            await obs.OnNextAsync(result, cancellationToken);
-            await obs.OnCompletedAsync(Result.Success);
+            var result = await @this.WaitAsync(System.Threading.Timeout.InfiniteTimeSpan, cancellationToken).ConfigureAwait(false);
+            await obs.OnNextAsync(result, cancellationToken).ConfigureAwait(false);
+            await obs.OnCompletedAsync(Result.Success).ConfigureAwait(false);
         },
-            true);
+        true);
 
     /// <summary>
     /// Converts the specified task into an asynchronous observable sequence that signals completion when the task
@@ -44,14 +51,18 @@ public static partial class ObservableAsync
     /// <param name="this">The task to be observed. Cannot be null.</param>
     /// <returns>An asynchronous observable sequence that emits a single value when the task completes successfully, followed by
     /// a completion notification.</returns>
+    [SuppressMessage(
+        "Roslynator",
+        "RCS1047:Non-asynchronous method name should not end with \'Async\'",
+        Justification = "This is an existing method")]
     public static IObservableAsync<Unit> ToObservableAsync(this Task @this) => CreateAsBackgroundJob<Unit>(
-            async (obs, cancellationToken) =>
+        async (obs, cancellationToken) =>
         {
-            await @this.WaitAsync(System.Threading.Timeout.InfiniteTimeSpan, cancellationToken);
-            await obs.OnNextAsync(Unit.Default, cancellationToken);
-            await obs.OnCompletedAsync(Result.Success);
+            await @this.WaitAsync(System.Threading.Timeout.InfiniteTimeSpan, cancellationToken).ConfigureAwait(false);
+            await obs.OnNextAsync(Unit.Default, cancellationToken).ConfigureAwait(false);
+            await obs.OnCompletedAsync(Result.Success).ConfigureAwait(false);
         },
-            true);
+        true);
 
     /// <summary>
     /// Converts an asynchronous enumerable sequence to an asynchronous observable sequence.
@@ -62,17 +73,21 @@ public static partial class ObservableAsync
     /// <typeparam name="T">The type of elements in the source sequence.</typeparam>
     /// <param name="this">The asynchronous enumerable sequence to convert. Cannot be null.</param>
     /// <returns>An asynchronous observable sequence that emits the elements of the source sequence.</returns>
+    [SuppressMessage(
+        "Roslynator",
+        "RCS1047:Non-asynchronous method name should not end with \'Async\'",
+        Justification = "This is an existing method")]
     public static IObservableAsync<T> ToObservableAsync<T>(this IAsyncEnumerable<T> @this) => CreateAsBackgroundJob<T>(
-            async (obs, cancellationToken) =>
+        async (obs, cancellationToken) =>
         {
             await foreach (var value in @this.WithCancellation(cancellationToken))
             {
-                await obs.OnNextAsync(value, cancellationToken);
+                await obs.OnNextAsync(value, cancellationToken).ConfigureAwait(false);
             }
 
-            await obs.OnCompletedAsync(Result.Success);
+            await obs.OnCompletedAsync(Result.Success).ConfigureAwait(false);
         },
-            true);
+        true);
 
     /// <summary>
     /// Converts the specified enumerable sequence to an asynchronous observable sequence, emitting each element in the
@@ -84,9 +99,13 @@ public static partial class ObservableAsync
     /// <param name="this">The enumerable sequence to convert to an asynchronous observable. Cannot be null.</param>
     /// <returns>An asynchronous observable sequence that emits each element from the source enumerable and completes when all
     /// elements have been emitted.</returns>
+    [SuppressMessage(
+        "Roslynator",
+        "RCS1047:Non-asynchronous method name should not end with \'Async\'",
+        Justification = "This is an existing method")]
     public static IObservableAsync<T> ToObservableAsync<T>(this IEnumerable<T> @this) => CreateAsBackgroundJob<T>(
-            (obs, cancellationToken) => EmitEnumerableAsync(@this, obs, cancellationToken),
-            true);
+        (obs, cancellationToken) => EmitEnumerableAsync(@this, obs, cancellationToken),
+        true);
 
     /// <summary>
     /// Emits each element of the enumerable to the observer, checking for cancellation between elements.
@@ -96,7 +115,10 @@ public static partial class ObservableAsync
     /// <param name="observer">The observer to emit to.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
     /// <returns>A ValueTask representing the operation.</returns>
-    internal static async ValueTask EmitEnumerableAsync<T>(IEnumerable<T> source, IObserverAsync<T> observer, CancellationToken cancellationToken)
+    internal static async ValueTask EmitEnumerableAsync<T>(
+        IEnumerable<T> source,
+        IObserverAsync<T> observer,
+        CancellationToken cancellationToken)
     {
         foreach (var value in source)
         {
@@ -105,9 +127,9 @@ public static partial class ObservableAsync
                 return;
             }
 
-            await observer.OnNextAsync(value, cancellationToken);
+            await observer.OnNextAsync(value, cancellationToken).ConfigureAwait(false);
         }
 
-        await observer.OnCompletedAsync(Result.Success);
+        await observer.OnCompletedAsync(Result.Success).ConfigureAwait(false);
     }
 }

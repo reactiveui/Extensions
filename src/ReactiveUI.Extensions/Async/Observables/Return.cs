@@ -2,6 +2,8 @@
 // ReactiveUI Association Incorporated licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
+using ReactiveUI.Extensions.Async.Internals;
+
 namespace ReactiveUI.Extensions.Async;
 
 /// <summary>
@@ -16,16 +18,43 @@ public static partial class ObservableAsync
     /// Creates an observable sequence that emits a single value and then completes.
     /// </summary>
     /// <remarks>The returned observable sequence emits the value asynchronously and completes immediately
-    /// after. This method is useful for creating simple observable sequences for testing or composing with other
-    /// observables.</remarks>
+    /// after. Subscribe returns before the value is observed — emit + complete are scheduled onto the
+    /// threadpool, preserving the deferred semantic the surrounding pipeline expects.</remarks>
     /// <typeparam name="T">The type of the value to be emitted by the observable sequence.</typeparam>
     /// <param name="value">The value to be emitted by the observable sequence.</param>
     /// <returns>An observable sequence that emits the specified value and then signals completion.</returns>
-    public static IObservableAsync<T> Return<T>(T value) => CreateAsBackgroundJob<T>(
-            async (obs, token) =>
+    public static IObservableAsync<T> Return<T>(T value) => new ReturnObservableAsync<T>(value);
+
+    /// <summary>
+    /// Single-value observable that captures the emitted value as a field and routes through a typed
+    /// <see cref="CancelableTaskSubscription{T}"/>. Same deferred-emit semantic as the previous
+    /// <c>CreateAsBackgroundJob</c> path, but without the per-call <c>Func</c> closure allocation.
+    /// </summary>
+    /// <typeparam name="T">The element type emitted.</typeparam>
+    /// <param name="value">The captured value emitted on each subscribe.</param>
+    internal sealed class ReturnObservableAsync<T>(T value) : ObservableAsync<T>
+    {
+        /// <inheritdoc/>
+        protected override ValueTask<IAsyncDisposable> SubscribeAsyncCore(
+            IObserverAsync<T> observer,
+            CancellationToken cancellationToken)
         {
-            await obs.OnNextAsync(value, token);
-            await obs.OnCompletedAsync(Result.Success);
-        },
-            true);
+            var subscription = new ReturnSubscription(observer, value);
+            subscription.Run();
+            return new ValueTask<IAsyncDisposable>(subscription);
+        }
+
+        /// <summary>Per-subscription task body that emits the captured value and signals completion.</summary>
+        /// <param name="observer">The downstream observer.</param>
+        /// <param name="value">The captured value.</param>
+        private sealed class ReturnSubscription(IObserverAsync<T> observer, T value) : CancelableTaskSubscription<T>(observer)
+        {
+            /// <inheritdoc/>
+            protected override async ValueTask RunAsyncCore(IObserverAsync<T> downstream, CancellationToken cancellationToken)
+            {
+                await downstream.OnNextAsync(value, cancellationToken).ConfigureAwait(false);
+                await downstream.OnCompletedAsync(Result.Success).ConfigureAwait(false);
+            }
+        }
+    }
 }

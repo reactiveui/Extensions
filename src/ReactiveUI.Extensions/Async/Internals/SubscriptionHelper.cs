@@ -24,11 +24,11 @@ internal static class SubscriptionHelper
     {
         try
         {
-            await subscribeAsync();
+            await subscribeAsync().ConfigureAwait(false);
         }
         catch
         {
-            await subscription.DisposeAsync();
+            await subscription.DisposeAsync().ConfigureAwait(false);
             throw;
         }
 

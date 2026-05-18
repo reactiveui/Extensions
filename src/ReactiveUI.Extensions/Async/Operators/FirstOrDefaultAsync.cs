@@ -15,51 +15,98 @@ namespace ReactiveUI.Extensions.Async;
 /// via cancellation tokens.</remarks>
 public static partial class ObservableAsync
 {
-    extension<T>(IObservableAsync<T> @this)
+    /// <summary>
+    /// Asynchronously returns the first element that matches the specified predicate, or a default value if no such
+    /// element is found.
+    /// </summary>
+    /// <typeparam name="T">The type of elements in the source sequence.</typeparam>
+    /// <param name="this">The source observable sequence.</param>
+    /// <param name="predicate">A function to test each element for a condition. The method returns the first element for which this
+    /// predicate returns <see langword="true"/>.</param>
+    /// <param name="defaultValue">The value to return if no element satisfies the predicate.</param>
+    /// <returns>A value task that represents the asynchronous operation. The result contains the first element that matches
+    /// the predicate, or <paramref name="defaultValue"/> if no such element is found.</returns>
+    public static ValueTask<T?> FirstOrDefaultAsync<T>(
+        this IObservableAsync<T> @this,
+        Func<T, bool> predicate,
+        T? defaultValue) =>
+        @this.FirstOrDefaultAsync(predicate, defaultValue, CancellationToken.None);
+
+    /// <summary>
+    /// Asynchronously returns the first element that matches the specified predicate, or a default value if no such
+    /// element is found.
+    /// </summary>
+    /// <typeparam name="T">The type of elements in the source sequence.</typeparam>
+    /// <param name="this">The source observable sequence.</param>
+    /// <param name="predicate">A function to test each element for a condition. The method returns the first element for which this
+    /// predicate returns <see langword="true"/>.</param>
+    /// <param name="defaultValue">The value to return if no element satisfies the predicate.</param>
+    /// <param name="cancellationToken">A cancellation token that can be used to cancel the asynchronous operation.</param>
+    /// <returns>A value task that represents the asynchronous operation. The result contains the first element that matches
+    /// the predicate, or <paramref name="defaultValue"/> if no such element is found.</returns>
+    public static async ValueTask<T?> FirstOrDefaultAsync<T>(
+        this IObservableAsync<T> @this,
+        Func<T, bool> predicate,
+        T? defaultValue,
+        CancellationToken cancellationToken)
     {
-        /// <summary>
-        /// Asynchronously returns the first element that matches the specified predicate, or a default value if no such
-        /// element is found.
-        /// </summary>
-        /// <param name="predicate">A function to test each element for a condition. The method returns the first element for which this
-        /// predicate returns <see langword="true"/>.</param>
-        /// <param name="defaultValue">The value to return if no element satisfies the predicate.</param>
-        /// <param name="cancellationToken">A cancellation token that can be used to cancel the asynchronous operation.</param>
-        /// <returns>A value task that represents the asynchronous operation. The result contains the first element that matches
-        /// the predicate, or <paramref name="defaultValue"/> if no such element is found.</returns>
-        public async ValueTask<T?> FirstOrDefaultAsync(Func<T, bool> predicate, T? defaultValue, CancellationToken cancellationToken = default)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            var observer = new FirstOrDefaultObserver<T>(predicate, defaultValue, cancellationToken);
-            _ = await @this.SubscribeAsync(observer, cancellationToken);
-            return await observer.WaitValueAsync();
-        }
+        cancellationToken.ThrowIfCancellationRequested();
+        var observer = new FirstOrDefaultObserver<T>(predicate, defaultValue, cancellationToken);
+        await using var subscription = await @this.SubscribeAsync(observer, cancellationToken).ConfigureAwait(false);
+        return await observer.WaitValueAsync().ConfigureAwait(false);
+    }
 
-        /// <summary>
-        /// Asynchronously returns the first element of the sequence, or a default value if the sequence contains no
-        /// elements.
-        /// </summary>
-        /// <param name="cancellationToken">A cancellation token that can be used to cancel the asynchronous operation.</param>
-        /// <returns>A value task that represents the asynchronous operation. The task result contains the first element of the
-        /// sequence, or the default value for type T if the sequence is empty.</returns>
-        public ValueTask<T?> FirstOrDefaultAsync(CancellationToken cancellationToken = default) =>
-            @this.FirstOrDefaultAsync(default, cancellationToken);
+    /// <summary>
+    /// Asynchronously returns the first element of the sequence, or a default value if the sequence contains no
+    /// elements.
+    /// </summary>
+    /// <typeparam name="T">The type of elements in the source sequence.</typeparam>
+    /// <param name="this">The source observable sequence.</param>
+    /// <returns>A value task that represents the asynchronous operation. The task result contains the first element of the
+    /// sequence, or the default value for type T if the sequence is empty.</returns>
+    public static ValueTask<T?> FirstOrDefaultAsync<T>(this IObservableAsync<T> @this) =>
+        @this.FirstOrDefaultAsync(default, CancellationToken.None);
 
-        /// <summary>
-        /// Asynchronously returns the first element of the sequence, or a specified default value if the sequence
-        /// contains no elements.
-        /// </summary>
-        /// <param name="defaultValue">The value to return if the sequence is empty.</param>
-        /// <param name="cancellationToken">A cancellation token that can be used to cancel the asynchronous operation.</param>
-        /// <returns>A task that represents the asynchronous operation. The task result contains the first element of the
-        /// sequence, or <paramref name="defaultValue"/> if the sequence is empty.</returns>
-        public async ValueTask<T?> FirstOrDefaultAsync(T? defaultValue, CancellationToken cancellationToken = default)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            var observer = new FirstOrDefaultObserver<T>(null, defaultValue, cancellationToken);
-            _ = await @this.SubscribeAsync(observer, cancellationToken);
-            return await observer.WaitValueAsync();
-        }
+    /// <summary>
+    /// Asynchronously returns the first element of the sequence, or a default value if the sequence contains no
+    /// elements.
+    /// </summary>
+    /// <typeparam name="T">The type of elements in the source sequence.</typeparam>
+    /// <param name="this">The source observable sequence.</param>
+    /// <param name="cancellationToken">A cancellation token that can be used to cancel the asynchronous operation.</param>
+    /// <returns>A value task that represents the asynchronous operation. The task result contains the first element of the
+    /// sequence, or the default value for type T if the sequence is empty.</returns>
+    public static ValueTask<T?> FirstOrDefaultAsync<T>(this IObservableAsync<T> @this, CancellationToken cancellationToken) =>
+        @this.FirstOrDefaultAsync(default, cancellationToken);
+
+    /// <summary>
+    /// Asynchronously returns the first element of the sequence, or a specified default value if the sequence
+    /// contains no elements.
+    /// </summary>
+    /// <typeparam name="T">The type of elements in the source sequence.</typeparam>
+    /// <param name="this">The source observable sequence.</param>
+    /// <param name="defaultValue">The value to return if the sequence is empty.</param>
+    /// <returns>A task that represents the asynchronous operation. The task result contains the first element of the
+    /// sequence, or <paramref name="defaultValue"/> if the sequence is empty.</returns>
+    public static ValueTask<T?> FirstOrDefaultAsync<T>(this IObservableAsync<T> @this, T? defaultValue) =>
+        @this.FirstOrDefaultAsync(defaultValue, CancellationToken.None);
+
+    /// <summary>
+    /// Asynchronously returns the first element of the sequence, or a specified default value if the sequence
+    /// contains no elements.
+    /// </summary>
+    /// <typeparam name="T">The type of elements in the source sequence.</typeparam>
+    /// <param name="this">The source observable sequence.</param>
+    /// <param name="defaultValue">The value to return if the sequence is empty.</param>
+    /// <param name="cancellationToken">A cancellation token that can be used to cancel the asynchronous operation.</param>
+    /// <returns>A task that represents the asynchronous operation. The task result contains the first element of the
+    /// sequence, or <paramref name="defaultValue"/> if the sequence is empty.</returns>
+    public static async ValueTask<T?> FirstOrDefaultAsync<T>(this IObservableAsync<T> @this, T? defaultValue, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var observer = new FirstOrDefaultObserver<T>(null, defaultValue, cancellationToken);
+        await using var subscription = await @this.SubscribeAsync(observer, cancellationToken).ConfigureAwait(false);
+        return await observer.WaitValueAsync().ConfigureAwait(false);
     }
 
     /// <summary>
@@ -69,19 +116,23 @@ public static partial class ObservableAsync
     /// <param name="predicate">An optional predicate to filter elements.</param>
     /// <param name="defaultValue">The default value to return if no element matches.</param>
     /// <param name="cancellationToken">A cancellation token for the operation.</param>
-    internal sealed class FirstOrDefaultObserver<T>(Func<T, bool>? predicate, T? defaultValue, CancellationToken cancellationToken) : TaskObserverAsyncBase<T, T>(cancellationToken)
+    internal sealed class FirstOrDefaultObserver<T>(
+        Func<T, bool>? predicate,
+        T? defaultValue,
+        CancellationToken cancellationToken) : TaskObserverAsyncBase<T, T>(cancellationToken)
     {
         /// <inheritdoc/>
         protected override async ValueTask OnNextAsyncCore(T value, CancellationToken cancellationToken)
         {
             if (predicate is null || predicate(value))
             {
-                await TrySetCompleted(value);
+                await TrySetCompleted(value).ConfigureAwait(false);
             }
         }
 
         /// <inheritdoc/>
-        protected override ValueTask OnErrorResumeAsyncCore(Exception error, CancellationToken cancellationToken) => TrySetException(error);
+        protected override ValueTask OnErrorResumeAsyncCore(Exception error, CancellationToken cancellationToken) =>
+            TrySetException(error);
 
         /// <inheritdoc/>
         protected override ValueTask OnCompletedAsyncCore(Result result) =>

@@ -1,0 +1,37 @@
+name: SonarCloud
+
+on:
+    push:
+        branches: [ main ]
+    pull_request:
+        branches: [ main ]
+
+permissions:
+    contents: read
+
+jobs:
+    sonarcloud:
+        uses: reactiveui/actions-common/.github/workflows/workflow-common-sonarcloud.yml@main
+        with:
+            productNamespacePrefix: ReactiveUI.Extensions
+            installWorkloads: true
+            versioningTool: minver
+            minverMinimumMajorMinor: '2.3'
+            sonarProjectKey: reactiveui_Extensions
+            sonarOrganization: reactiveui
+            sonarExclusions: '**/tests/**,**/tools/**,**/benchmarks/**'
+            sonarCoverageExclusions: '**/tests/**,**/tools/**,**/benchmarks/**,**/*Tests/**,**/*Tests.cs,**/Generated/**'
+            # CombineLatest{N}.cs are template-style arity-specific operator files. The remaining
+            # duplication after the lifecycle / indexed-observer / base-class extractions is the
+            # irreducible per-source typed surface (N SourceNBit consts, N typed _valN / _obsN
+            # fields, N switch arms, N TryGetValue conditions, N selector args). Compressing
+            # further would require source generators or boxing-based erasure; suppressing CPD on
+            # these files keeps the metric honest while every other Sonar rule still runs on them.
+            # Sonar path matchers only support *, **, ? — character classes like [0-9] match
+            # literally nothing. Use ? (exactly one char) twice to cover 1- and 2-digit arities;
+            # CombineLatestEnumerable.cs (10 chars after the prefix) won't match either pattern.
+            sonarCpdExclusions: '**/tests/**,**/tools/**,**/benchmarks/**,**/CombineLatest?.cs,**/CombineLatest??.cs'
+            sonarTestExclusions: '**/tests/**,**/tools/**,**/benchmarks/**'
+            testTimeout: '8m'
+        secrets:
+            SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}

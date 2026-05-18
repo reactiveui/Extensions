@@ -2,7 +2,10 @@
 // ReactiveUI Association Incorporated licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
+using System.Reactive.Concurrency;
 using System.Runtime.CompilerServices;
+using ReactiveUI.Extensions.Internal;
+using ReactiveUI.Extensions.Internal.Disposables;
 
 namespace ReactiveUI.Extensions.Async;
 
@@ -50,7 +53,8 @@ public record AsyncContext
     /// Gets a value indicating whether the current context uses the default task scheduler and no synchronization
     /// context.
     /// </summary>
-    internal bool IsDefaultContext => SynchronizationContext is null && (TaskScheduler is null || TaskScheduler == TaskScheduler.Default);
+    internal bool IsDefaultContext => SynchronizationContext is null &&
+                                      (TaskScheduler is null || TaskScheduler == TaskScheduler.Default);
 
     /// <summary>
     /// Creates a new AsyncContext that uses the specified SynchronizationContext for asynchronous operations.
@@ -63,13 +67,9 @@ public record AsyncContext
     /// <exception cref="ArgumentNullException">Thrown if synchronizationContext is null.</exception>
     public static AsyncContext From(SynchronizationContext synchronizationContext)
     {
-        ArgumentExceptionHelper.ThrowIfNull(synchronizationContext, nameof(synchronizationContext));
+        ArgumentExceptionHelper.ThrowIfNull(synchronizationContext);
 
-        return new()
-        {
-            SynchronizationContext = synchronizationContext,
-            TaskScheduler = null
-        };
+        return new() { SynchronizationContext = synchronizationContext, TaskScheduler = null };
     }
 
     /// <summary>
@@ -81,13 +81,9 @@ public record AsyncContext
     /// <exception cref="ArgumentNullException">Thrown if taskScheduler is null.</exception>
     public static AsyncContext From(TaskScheduler taskScheduler)
     {
-        ArgumentExceptionHelper.ThrowIfNull(taskScheduler, nameof(taskScheduler));
+        ArgumentExceptionHelper.ThrowIfNull(taskScheduler);
 
-        return new()
-        {
-            SynchronizationContext = null,
-            TaskScheduler = taskScheduler
-        };
+        return new() { SynchronizationContext = null, TaskScheduler = taskScheduler };
     }
 
     /// <summary>
@@ -101,18 +97,15 @@ public record AsyncContext
     /// <exception cref="ArgumentNullException">Thrown if scheduler is null.</exception>
     public static AsyncContext From(IScheduler scheduler)
     {
-        ArgumentExceptionHelper.ThrowIfNull(scheduler, nameof(scheduler));
+        ArgumentExceptionHelper.ThrowIfNull(scheduler);
 
-        if (scheduler is SynchronizationContext sc)
-        {
-            return From(sc);
-        }
-
-        return new()
-        {
-            SynchronizationContext = null,
-            TaskScheduler = scheduler as TaskScheduler ?? new SchedulerTaskScheduler(scheduler)
-        };
+        return scheduler is SynchronizationContext sc
+            ? From(sc)
+            : new()
+                {
+                    SynchronizationContext = null,
+                    TaskScheduler = new SchedulerTaskScheduler(scheduler)
+                };
     }
 
     /// <summary>
@@ -137,7 +130,8 @@ public record AsyncContext
     /// yielding if already in the context.</param>
     /// <param name="cancellationToken">A cancellation token that can be used to cancel the context switch operation.</param>
     /// <returns>An awaitable that completes when execution has switched to the asynchronous context.</returns>
-    public AsyncContextSwitcherAwaitable SwitchContextAsync(bool forceYielding, CancellationToken cancellationToken) => new(this, forceYielding, cancellationToken);
+    public AsyncContextSwitcherAwaitable SwitchContextAsync(bool forceYielding, CancellationToken cancellationToken) =>
+        new(this, forceYielding, cancellationToken);
 
     /// <summary>
     /// Provides an awaitable that switches execution to a specified asynchronous context, optionally forcing a yield
@@ -152,7 +146,10 @@ public record AsyncContext
     /// <param name="ForceYielding">true to always yield execution even if already in the target context; otherwise, false to avoid yielding if
     /// already in the specified context.</param>
     /// <param name="CancellationToken">A cancellation token that can be used to cancel the await operation before the continuation is scheduled.</param>
-    public readonly record struct AsyncContextSwitcherAwaitable(AsyncContext AsyncContext, bool ForceYielding, CancellationToken CancellationToken) : INotifyCompletion
+    public readonly record struct AsyncContextSwitcherAwaitable(
+        AsyncContext AsyncContext,
+        bool ForceYielding,
+        CancellationToken CancellationToken) : INotifyCompletion
     {
         /// <summary>
         /// Gets a value indicating whether the asynchronous operation has completed in the current context.
@@ -185,7 +182,7 @@ public record AsyncContext
         /// <param name="continuation">The action to execute when the operation is complete. Cannot be null.</param>
         public void OnCompleted(Action continuation)
         {
-            ArgumentExceptionHelper.ThrowIfNull(continuation, nameof(continuation));
+            ArgumentExceptionHelper.ThrowIfNull(continuation);
 
             if (CancellationToken.IsCancellationRequested)
             {
@@ -200,7 +197,17 @@ public record AsyncContext
                 return;
             }
 
-            var ts = AsyncContext.TaskScheduler ?? TaskScheduler.Default;
+            var ts = AsyncContext.TaskScheduler;
+
+            // Fast path for the default scheduler: bypass Task.Factory.StartNew (which allocates a
+            // Task per call) and queue the continuation directly to the threadpool. This is the
+            // path Yield takes by default, so the saving lands on the operator's hot path.
+            if (ts is null || ts == TaskScheduler.Default)
+            {
+                ThreadPool.UnsafeQueueUserWorkItem(static c => ((Action)c!).Invoke(), continuation);
+                return;
+            }
+
             Task.Factory.StartNew(continuation, CancellationToken.None, TaskCreationOptions.DenyChildAttach, ts);
         }
     }
@@ -215,6 +222,17 @@ public record AsyncContext
     /// <param name="scheduler">The IScheduler used to schedule and execute tasks. Cannot be null.</param>
     internal sealed class SchedulerTaskScheduler(IScheduler scheduler) : TaskScheduler
     {
+        /// <summary>Internal accessor for the protected <see cref="GetScheduledTasks"/> override; used only by the test assembly.</summary>
+        /// <returns>The result of the protected <see cref="GetScheduledTasks"/> implementation.</returns>
+        internal IEnumerable<Task>? GetScheduledTasksForTesting() => GetScheduledTasks();
+
+        /// <summary>Internal accessor for the protected <see cref="TryExecuteTaskInline"/> override; used only by the test assembly.</summary>
+        /// <param name="task">The task to attempt to execute inline.</param>
+        /// <param name="taskWasPreviouslyQueued">Whether the task was previously queued.</param>
+        /// <returns>The result of the protected <see cref="TryExecuteTaskInline"/> implementation.</returns>
+        internal bool TryExecuteTaskInlineForTesting(Task task, bool taskWasPreviouslyQueued) =>
+            TryExecuteTaskInline(task, taskWasPreviouslyQueued);
+
         /// <inheritdoc/>
         protected override IEnumerable<Task>? GetScheduledTasks() => null;
 
@@ -223,7 +241,7 @@ public record AsyncContext
             scheduler.Schedule(task, (_, t) =>
             {
                 TryExecuteTask(t);
-                return Disposable.Empty;
+                return EmptyDisposable.Instance;
             });
 
         /// <inheritdoc/>

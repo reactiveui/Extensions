@@ -31,7 +31,6 @@ public sealed record ReplayLatestSubjectCreationOptions
     /// obtain a baseline configuration that can be modified as needed.</remarks>
     public static ReplayLatestSubjectCreationOptions Default { get; } = new()
     {
-        PublishingOption = PublishingOption.Serial,
-        IsStateless = false
+        PublishingOption = PublishingOption.Serial, IsStateless = false
     };
 }

@@ -2,6 +2,8 @@
 // ReactiveUI Association Incorporated licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
+using System.Diagnostics.CodeAnalysis;
+
 namespace ReactiveUI.Extensions.Async.Subjects;
 
 /// <summary>
@@ -21,6 +23,10 @@ public static class SubjectAsync
     /// <see cref="SubjectCreationOptions"/> to customize subject behavior.</remarks>
     /// <typeparam name="T">The type of elements processed by the subject.</typeparam>
     /// <returns>An <see cref="ISubjectAsync{T}"/> that represents the newly created asynchronous subject.</returns>
+    [SuppressMessage(
+        "Major Code Smell",
+        "S4018:Generic methods should provide type parameters",
+        Justification = "Public factory API — caller specifies T explicitly: SubjectAsync.Create<int>().")]
     public static ISubjectAsync<T> Create<T>() => Create<T>(SubjectCreationOptions.Default);
 
     /// <summary>
@@ -34,14 +40,19 @@ public static class SubjectAsync
     /// for publishing and statelessness.</param>
     /// <returns>An asynchronous subject instance configured according to the specified options.</returns>
     /// <exception cref="ArgumentOutOfRangeException">Thrown if the specified combination of publishing and statelessness options is not supported.</exception>
-    public static ISubjectAsync<T> Create<T>(SubjectCreationOptions options) => (options?.PublishingOption, options?.IsStateless) switch
-    {
-        (PublishingOption.Serial, false) => new SerialSubjectAsync<T>(),
-        (PublishingOption.Concurrent, false) => new ConcurrentSubjectAsync<T>(),
-        (PublishingOption.Serial, true) => new SerialStatelessSubjectAsync<T>(),
-        (PublishingOption.Concurrent, true) => new ConcurrentStatelessSubjectAsync<T>(),
-        _ => throw new ArgumentOutOfRangeException()
-    };
+    [SuppressMessage(
+        "Major Code Smell",
+        "S4018:Generic methods should provide type parameters",
+        Justification = "Public factory API — caller specifies T explicitly: SubjectAsync.Create<int>(options).")]
+    public static ISubjectAsync<T> Create<T>(SubjectCreationOptions? options) =>
+        (options?.PublishingOption, options?.IsStateless) switch
+        {
+            (PublishingOption.Serial, false) => new SerialSubjectAsync<T>(),
+            (PublishingOption.Concurrent, false) => new ConcurrentSubjectAsync<T>(),
+            (PublishingOption.Serial, true) => new SerialStatelessSubjectAsync<T>(),
+            (PublishingOption.Concurrent, true) => new ConcurrentStatelessSubjectAsync<T>(),
+            _ => throw new ArgumentOutOfRangeException()
+        };
 
     /// <summary>
     /// Creates a new asynchronous behavior subject initialized with the specified starting value.
@@ -49,7 +60,8 @@ public static class SubjectAsync
     /// <typeparam name="T">The type of the elements processed by the subject.</typeparam>
     /// <param name="startValue">The initial value to be emitted to new subscribers and stored as the current value of the subject.</param>
     /// <returns>An asynchronous behavior subject that holds the specified starting value and emits it to new subscribers.</returns>
-    public static ISubjectAsync<T> CreateBehavior<T>(T startValue) => CreateBehavior(startValue, BehaviorSubjectCreationOptions.Default);
+    public static ISubjectAsync<T> CreateBehavior<T>(T startValue) =>
+        CreateBehavior(startValue, BehaviorSubjectCreationOptions.Default);
 
     /// <summary>
     /// Creates a new asynchronous subject that replays the latest value to new subscribers, using the specified initial
@@ -61,14 +73,15 @@ public static class SubjectAsync
     /// <returns>An asynchronous subject that replays the latest value to new subscribers, configured according to the specified
     /// options.</returns>
     /// <exception cref="ArgumentOutOfRangeException">Thrown if the specified options contain an unsupported publishing configuration.</exception>
-    public static ISubjectAsync<T> CreateBehavior<T>(T startValue, BehaviorSubjectCreationOptions options) => (options?.PublishingOption, options?.IsStateless) switch
-    {
-        (PublishingOption.Serial, false) => new SerialReplayLatestSubjectAsync<T>(new(startValue)),
-        (PublishingOption.Concurrent, false) => new ConcurrentReplayLatestSubjectAsync<T>(new(startValue)),
-        (PublishingOption.Serial, true) => new SerialStatelessReplayLastSubjectAsync<T>(new(startValue)),
-        (PublishingOption.Concurrent, true) => new ConcurrentStatelessReplayLatestSubjectAsync<T>(new(startValue)),
-        _ => throw new ArgumentOutOfRangeException()
-    };
+    public static ISubjectAsync<T> CreateBehavior<T>(T startValue, BehaviorSubjectCreationOptions? options) =>
+        (options?.PublishingOption, options?.IsStateless) switch
+        {
+            (PublishingOption.Serial, false) => new SerialReplayLatestSubjectAsync<T>(new(startValue)),
+            (PublishingOption.Concurrent, false) => new ConcurrentReplayLatestSubjectAsync<T>(new(startValue)),
+            (PublishingOption.Serial, true) => new SerialStatelessReplayLastSubjectAsync<T>(new(startValue)),
+            (PublishingOption.Concurrent, true) => new ConcurrentStatelessReplayLatestSubjectAsync<T>(new(startValue)),
+            _ => throw new ArgumentOutOfRangeException()
+        };
 
     /// <summary>
     /// Creates a new asynchronous subject that replays only the most recent value to new subscribers.
@@ -78,7 +91,12 @@ public static class SubjectAsync
     /// scenarios where only the most recent state is relevant to new observers.</remarks>
     /// <typeparam name="T">The type of the elements processed by the subject.</typeparam>
     /// <returns>An asynchronous subject that stores and replays the latest value to each new subscriber.</returns>
-    public static ISubjectAsync<T> CreateReplayLatest<T>() => CreateReplayLatest<T>(ReplayLatestSubjectCreationOptions.Default);
+    [SuppressMessage(
+        "Major Code Smell",
+        "S4018:Generic methods should provide type parameters",
+        Justification = "Public factory API — caller specifies T explicitly: SubjectAsync.CreateReplayLatest<int>().")]
+    public static ISubjectAsync<T> CreateReplayLatest<T>() =>
+        CreateReplayLatest<T>(ReplayLatestSubjectCreationOptions.Default);
 
     /// <summary>
     /// Creates a new asynchronous subject that replays the latest value to new subscribers, with configuration options
@@ -89,12 +107,18 @@ public static class SubjectAsync
     /// <returns>An asynchronous subject that replays the latest value to new subscribers, configured according to the specified
     /// options.</returns>
     /// <exception cref="ArgumentOutOfRangeException">Thrown if the combination of options specified in the <paramref name="options"/> parameter is not supported.</exception>
-    public static ISubjectAsync<T> CreateReplayLatest<T>(ReplayLatestSubjectCreationOptions options) => (options?.PublishingOption, options?.IsStateless) switch
-    {
-        (PublishingOption.Serial, false) => new SerialReplayLatestSubjectAsync<T>(Optional<T>.Empty),
-        (PublishingOption.Concurrent, false) => new ConcurrentReplayLatestSubjectAsync<T>(Optional<T>.Empty),
-        (PublishingOption.Serial, true) => new SerialStatelessReplayLastSubjectAsync<T>(Optional<T>.Empty),
-        (PublishingOption.Concurrent, true) => new ConcurrentStatelessReplayLatestSubjectAsync<T>(Optional<T>.Empty),
-        _ => throw new ArgumentOutOfRangeException()
-    };
+    [SuppressMessage(
+        "Major Code Smell",
+        "S4018:Generic methods should provide type parameters",
+        Justification = "Public factory API — caller specifies T explicitly: SubjectAsync.CreateReplayLatest<int>(options).")]
+    public static ISubjectAsync<T> CreateReplayLatest<T>(ReplayLatestSubjectCreationOptions? options) =>
+        (options?.PublishingOption, options?.IsStateless) switch
+        {
+            (PublishingOption.Serial, false) => new SerialReplayLatestSubjectAsync<T>(Optional<T>.Empty),
+            (PublishingOption.Concurrent, false) => new ConcurrentReplayLatestSubjectAsync<T>(Optional<T>.Empty),
+            (PublishingOption.Serial, true) => new SerialStatelessReplayLastSubjectAsync<T>(Optional<T>.Empty),
+            (PublishingOption.Concurrent, true) =>
+                new ConcurrentStatelessReplayLatestSubjectAsync<T>(Optional<T>.Empty),
+            _ => throw new ArgumentOutOfRangeException()
+        };
 }

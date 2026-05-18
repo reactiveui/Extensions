@@ -1,6 +1,8 @@
-﻿// Copyright (c) 2019-2026 ReactiveUI Association Incorporated. All rights reserved.
+// Copyright (c) 2019-2026 ReactiveUI Association Incorporated. All rights reserved.
 // ReactiveUI Association Incorporated licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
+
+using System.Collections.Immutable;
 
 namespace ReactiveUI.Extensions.Async.Subjects;
 
@@ -15,50 +17,24 @@ namespace ReactiveUI.Extensions.Async.Subjects;
 /// or state broadcasts.</remarks>
 /// <typeparam name="T">The type of the elements processed by the subject.</typeparam>
 /// <param name="startValue">An optional initial value to be emitted to new subscribers before any other values are published.</param>
-public sealed class SerialReplayLatestSubjectAsync<T>(Optional<T> startValue) : BaseReplayLatestSubjectAsync<T>(startValue)
+public sealed class SerialReplayLatestSubjectAsync<T>(Optional<T> startValue)
+    : BaseReplayLatestSubjectAsync<T>(startValue)
 {
-    /// <summary>
-    /// Asynchronously notifies each observer in the specified collection with the provided value.
-    /// </summary>
-    /// <param name="observers">A read-only list of observers to be notified. Cannot be null.</param>
-    /// <param name="value">The value to send to each observer.</param>
-    /// <param name="cancellationToken">A cancellation token that can be used to cancel the notification operation.</param>
-    /// <returns>A task that represents the asynchronous notification operation.</returns>
-    protected override async ValueTask OnNextAsyncCore(IReadOnlyList<IObserverAsync<T>> observers, T value, CancellationToken cancellationToken)
-    {
-        foreach (var observer in observers)
-        {
-            await observer.OnNextAsync(value, cancellationToken);
-        }
-    }
+    /// <inheritdoc/>
+    protected override ValueTask OnNextAsyncCore(
+        ImmutableArray<IObserverAsync<T>> observers,
+        T value,
+        CancellationToken cancellationToken) =>
+        SerialBroadcastHelpers.BroadcastOnNextAsync(observers, value, cancellationToken);
 
-    /// <summary>
-    /// Notifies each observer in the collection of an error and allows them to resume processing asynchronously.
-    /// </summary>
-    /// <param name="observers">A read-only list of observers to be notified of the error. Cannot be null.</param>
-    /// <param name="error">The exception that occurred. Cannot be null.</param>
-    /// <param name="cancellationToken">A cancellation token that can be used to cancel the asynchronous operation.</param>
-    /// <returns>A task that represents the asynchronous notification operation.</returns>
-    protected override async ValueTask OnErrorResumeAsyncCore(IReadOnlyList<IObserverAsync<T>> observers, Exception error, CancellationToken cancellationToken)
-    {
-        foreach (var observer in observers)
-        {
-            await observer.OnErrorResumeAsync(error, cancellationToken);
-        }
-    }
+    /// <inheritdoc/>
+    protected override ValueTask OnErrorResumeAsyncCore(
+        ImmutableArray<IObserverAsync<T>> observers,
+        Exception error,
+        CancellationToken cancellationToken) =>
+        SerialBroadcastHelpers.BroadcastOnErrorResumeAsync(observers, error, cancellationToken);
 
-    /// <summary>
-    /// Notifies all specified observers that the asynchronous operation has completed, passing the provided result to
-    /// each observer.
-    /// </summary>
-    /// <param name="observers">A read-only list of observers to be notified of the operation's completion. Cannot be null.</param>
-    /// <param name="result">The result to pass to each observer's completion handler.</param>
-    /// <returns>A task that represents the asynchronous notification operation.</returns>
-    protected override async ValueTask OnCompletedAsyncCore(IReadOnlyList<IObserverAsync<T>> observers, Result result)
-    {
-        foreach (var observer in observers)
-        {
-            await observer.OnCompletedAsync(result);
-        }
-    }
+    /// <inheritdoc/>
+    protected override ValueTask OnCompletedAsyncCore(ImmutableArray<IObserverAsync<T>> observers, Result result) =>
+        SerialBroadcastHelpers.BroadcastOnCompletedAsync(observers, result);
 }

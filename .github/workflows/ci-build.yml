@@ -1,24 +1,27 @@
 name: Build
 
 on:
-  push:
-    branches: [ main ]
-  pull_request:
-    branches: [ main ]
+    push:
+        branches: [ main ]
+    pull_request:
+        branches: [ main ]
 
 env:
-  productNamespacePrefix: "ReactiveUI.Extensions"
-  
+    productNamespacePrefix: "ReactiveUI.Extensions"
+
 # Needed so the reusable workflow can optionally delete the temp per-OS artifacts it creates.
 permissions:
-  contents: read
-  actions: write
+    contents: read
+    actions: write
 
 jobs:
-  build:
-    uses: reactiveui/actions-common/.github/workflows/workflow-common-setup-and-build.yml@main
-    with:
-      productNamespacePrefix: ReactiveUI.Extensions
-      installWorkloads: true
-    secrets:
-      CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+    build:
+        uses: reactiveui/actions-common/.github/workflows/workflow-common-setup-and-build.yml@main
+        with:
+            productNamespacePrefix: ReactiveUI.Extensions
+            installWorkloads: true
+            versioningTool: minver
+            minverMinimumMajorMinor: '2.3'
+            testTimeout: '8m'
+        secrets:
+            CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}

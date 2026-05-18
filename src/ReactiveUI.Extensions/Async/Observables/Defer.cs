@@ -28,8 +28,8 @@ public static partial class ObservableAsync
     public static IObservableAsync<T> Defer<T>(Func<CancellationToken, ValueTask<IObservableAsync<T>>> factory) =>
         Create<T>(async (observer, token) =>
         {
-            var observable = await factory(token);
-            return await observable.SubscribeAsync(observer.Wrap(), token);
+            var observable = await factory(token).ConfigureAwait(false);
+            return await observable.SubscribeAsync(observer.Wrap(), token).ConfigureAwait(false);
         });
 
     /// <summary>
@@ -43,9 +43,9 @@ public static partial class ObservableAsync
     /// <param name="factory">A function that returns a new instance of an observable sequence to be subscribed to for each observer.</param>
     /// <returns>An observable sequence whose observers trigger the invocation of the factory function upon subscription.</returns>
     public static IObservableAsync<T> Defer<T>(Func<IObservableAsync<T>> factory) =>
-        Create<T>(async (observer, token) =>
+        Create<T>((observer, token) =>
         {
             var observable = factory();
-            return await observable.SubscribeAsync(observer.Wrap(), token);
+            return observable.SubscribeAsync(observer.Wrap(), token);
         });
 }

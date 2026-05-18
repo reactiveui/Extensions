@@ -3,6 +3,7 @@
 // See the LICENSE file in the project root for full license information.
 
 using System.Diagnostics.CodeAnalysis;
+using ReactiveUI.Extensions.Internal;
 
 namespace ReactiveUI.Extensions.Async.Internals;
 
@@ -18,13 +19,21 @@ public static class FireAndForgetHelper
     /// Executes an async action as fire-and-forget, swallowing all exceptions.
     /// </summary>
     /// <param name="action">The async action to execute.</param>
+    [SuppressMessage(
+        "Major Bug",
+        "S3168:\"async\" methods should not return \"void\"",
+        Justification = "This is a fire-and-forget helper.")]
+    [SuppressMessage(
+        "ReSharper",
+        "AsyncVoidMethod",
+        Justification = "This is a fire-and-forget helper.")]
     public static async void Run(Func<ValueTask> action)
     {
-        ArgumentExceptionHelper.ThrowIfNull(action, nameof(action));
+        ArgumentExceptionHelper.ThrowIfNull(action);
 
         try
         {
-            await action();
+            await action().ConfigureAwait(false);
         }
         catch
         {

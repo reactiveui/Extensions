@@ -1,0 +1,111 @@
+// Copyright (c) 2019-2026 ReactiveUI Association Incorporated. All rights reserved.
+// ReactiveUI Association Incorporated licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for full license information.
+
+using Microsoft.Reactive.Testing;
+
+namespace ReactiveUI.Extensions.Tests.Operators;
+
+/// <summary>Edge-case coverage for <c>Heartbeat</c> backed by
+/// <c>HeartbeatObservable&lt;T&gt;</c> — heartbeat-on-quiet, error/completion
+/// forwarding, and post-terminal timer suppression.</summary>
+public class HeartbeatObservableTests
+{
+    /// <summary>Heartbeat period for the scheduler-driven tests.</summary>
+    private const int HeartbeatTicks = 100;
+
+    /// <summary>Tick advance large enough to fire several heartbeats.</summary>
+    private const int LargeAdvanceTicks = 500;
+
+    /// <summary>Message attached to synthetic source errors.</summary>
+    private const string SourceErrorMessage = "source error";
+
+    /// <summary>Verifies that the heartbeat scheduler injects heartbeats when the source is quiet.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenHeartbeatSourceQuiet_ThenEmitsHeartbeats()
+    {
+        const int ModestAdvanceTicks = 350;
+        var scheduler = new TestScheduler();
+        var subject = new Subject<int>();
+        var heartbeats = 0;
+
+        using var sub = subject.Heartbeat(TimeSpan.FromTicks(HeartbeatTicks), scheduler)
+            .Subscribe(hb => heartbeats += hb.IsHeartbeat ? 1 : 0);
+
+        scheduler.AdvanceBy(ModestAdvanceTicks);
+
+        await Assert.That(heartbeats).IsGreaterThanOrEqualTo(1);
+    }
+
+    /// <summary>Verifies that <c>Heartbeat</c> forwards source errors and stops the timer.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenHeartbeatSourceErrors_ThenForwardsErrorAndStopsTimer()
+    {
+        var scheduler = new TestScheduler();
+        var subject = new Subject<int>();
+        Exception? caught = null;
+        var postErrorHeartbeats = 0;
+        var expected = new InvalidOperationException(SourceErrorMessage);
+
+        using var sub = subject.Heartbeat(TimeSpan.FromTicks(HeartbeatTicks), scheduler)
+            .Subscribe(
+                hb => postErrorHeartbeats += hb.IsHeartbeat && caught is not null ? 1 : 0,
+                ex => caught = ex);
+
+        subject.OnError(expected);
+        scheduler.AdvanceBy(LargeAdvanceTicks);
+
+        await Assert.That(caught).IsSameReferenceAs(expected);
+        await Assert.That(postErrorHeartbeats).IsEqualTo(0);
+    }
+
+    /// <summary>Verifies that <c>Heartbeat</c> forwards completion and stops the timer.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenHeartbeatSourceCompletes_ThenForwardsCompletionAndStopsTimer()
+    {
+        var scheduler = new TestScheduler();
+        var subject = new Subject<int>();
+        var completed = false;
+        var postCompletionHeartbeats = 0;
+
+        using var sub = subject.Heartbeat(TimeSpan.FromTicks(HeartbeatTicks), scheduler)
+            .Subscribe(
+                hb => postCompletionHeartbeats += hb.IsHeartbeat && completed ? 1 : 0,
+                () => completed = true);
+
+        subject.OnCompleted();
+        scheduler.AdvanceBy(LargeAdvanceTicks);
+
+        await Assert.That(completed).IsTrue();
+        await Assert.That(postCompletionHeartbeats).IsEqualTo(0);
+    }
+
+    /// <summary>Verifies that a source emission wraps the value as a non-heartbeat update.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenHeartbeatSourceEmits_ThenForwardsValueUpdate()
+    {
+        const int Value = 42;
+        var scheduler = new TestScheduler();
+        var subject = new Subject<int>();
+        var updates = new List<int>();
+
+        using var sub = subject.Heartbeat(TimeSpan.FromTicks(HeartbeatTicks), scheduler)
+            .Subscribe(hb =>
+            {
+                if (hb.IsHeartbeat)
+                {
+                    return;
+                }
+
+                updates.Add(hb.Update);
+            });
+
+        subject.OnNext(Value);
+
+        await Assert.That(updates).IsCollectionEqualTo([Value]);
+    }
+}

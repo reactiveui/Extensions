@@ -3,6 +3,7 @@
 // See the LICENSE file in the project root for full license information.
 
 using ReactiveUI.Extensions.Async.Internals;
+using ReactiveUI.Extensions.Internal;
 
 namespace ReactiveUI.Extensions.Async;
 
@@ -14,68 +15,141 @@ namespace ReactiveUI.Extensions.Async;
 /// or reduce operation.</remarks>
 public static partial class ObservableAsync
 {
-    extension<T>(IObservableAsync<T> @this)
+    /// <summary>
+    /// Applies an asynchronous accumulator function over the observable sequence, returning the
+    /// final accumulated value when the sequence completes.
+    /// </summary>
+    /// <typeparam name="T">The type of elements in the source sequence.</typeparam>
+    /// <typeparam name="TAcc">The type of the accumulated value.</typeparam>
+    /// <param name="this">The source observable sequence.</param>
+    /// <param name="seed">The initial accumulator value.</param>
+    /// <param name="accumulator">An asynchronous accumulator function to invoke on each element. Receives the
+    /// current accumulated value, the current element, and a cancellation token.</param>
+    /// <returns>A task representing the asynchronous operation, containing the final accumulated value.</returns>
+    /// <exception cref="ArgumentNullException">Thrown if <paramref name="accumulator"/> is null.</exception>
+    public static ValueTask<TAcc> AggregateAsync<T, TAcc>(
+        this IObservableAsync<T> @this,
+        TAcc seed,
+        Func<TAcc, T, CancellationToken, ValueTask<TAcc>> accumulator) =>
+        @this.AggregateAsync(seed, accumulator, CancellationToken.None);
+
+    /// <summary>
+    /// Applies an asynchronous accumulator function over the observable sequence, returning the
+    /// final accumulated value when the sequence completes.
+    /// </summary>
+    /// <typeparam name="T">The type of elements in the source sequence.</typeparam>
+    /// <typeparam name="TAcc">The type of the accumulated value.</typeparam>
+    /// <param name="this">The source observable sequence.</param>
+    /// <param name="seed">The initial accumulator value.</param>
+    /// <param name="accumulator">An asynchronous accumulator function to invoke on each element. Receives the
+    /// current accumulated value, the current element, and a cancellation token.</param>
+    /// <param name="cancellationToken">A cancellation token that can be used to cancel the operation.</param>
+    /// <returns>A task representing the asynchronous operation, containing the final accumulated value.</returns>
+    /// <exception cref="ArgumentNullException">Thrown if <paramref name="accumulator"/> is null.</exception>
+    public static async ValueTask<TAcc> AggregateAsync<T, TAcc>(
+        this IObservableAsync<T> @this,
+        TAcc seed,
+        Func<TAcc, T, CancellationToken, ValueTask<TAcc>> accumulator,
+        CancellationToken cancellationToken)
     {
-        /// <summary>
-        /// Applies an asynchronous accumulator function over the observable sequence, returning the
-        /// final accumulated value when the sequence completes.
-        /// </summary>
-        /// <typeparam name="TAcc">The type of the accumulated value.</typeparam>
-        /// <param name="seed">The initial accumulator value.</param>
-        /// <param name="accumulator">An asynchronous accumulator function to invoke on each element. Receives the
-        /// current accumulated value, the current element, and a cancellation token.</param>
-        /// <param name="cancellationToken">A cancellation token that can be used to cancel the operation.</param>
-        /// <returns>A task representing the asynchronous operation, containing the final accumulated value.</returns>
-        /// <exception cref="ArgumentNullException">Thrown if <paramref name="accumulator"/> is null.</exception>
-        public async ValueTask<TAcc> AggregateAsync<TAcc>(TAcc seed, Func<TAcc, T, CancellationToken, ValueTask<TAcc>> accumulator, CancellationToken cancellationToken = default)
-        {
-            ArgumentExceptionHelper.ThrowIfNull(accumulator);
-            cancellationToken.ThrowIfCancellationRequested();
+        ArgumentExceptionHelper.ThrowIfNull(accumulator);
+        cancellationToken.ThrowIfCancellationRequested();
 
-            var observer = new AggregateAsyncObserver<T, TAcc>(seed, accumulator, cancellationToken);
-            _ = await @this.SubscribeAsync(observer, cancellationToken);
-            return await observer.WaitValueAsync();
-        }
+        var observer = new AggregateAsyncObserver<T, TAcc>(seed, accumulator, cancellationToken);
+        await using var subscription = await @this.SubscribeAsync(observer, cancellationToken).ConfigureAwait(false);
+        return await observer.WaitValueAsync().ConfigureAwait(false);
+    }
 
-        /// <summary>
-        /// Applies an accumulator function over the observable sequence, returning the final accumulated
-        /// value when the sequence completes.
-        /// </summary>
-        /// <typeparam name="TAcc">The type of the accumulated value.</typeparam>
-        /// <param name="seed">The initial accumulator value.</param>
-        /// <param name="accumulator">An accumulator function to invoke on each element. Receives the current
-        /// accumulated value and the current element.</param>
-        /// <param name="cancellationToken">A cancellation token that can be used to cancel the operation.</param>
-        /// <returns>A task representing the asynchronous operation, containing the final accumulated value.</returns>
-        /// <exception cref="ArgumentNullException">Thrown if <paramref name="accumulator"/> is null.</exception>
-        public ValueTask<TAcc> AggregateAsync<TAcc>(TAcc seed, Func<TAcc, T, TAcc> accumulator, CancellationToken cancellationToken = default)
-        {
-            ArgumentExceptionHelper.ThrowIfNull(accumulator);
+    /// <summary>
+    /// Applies an accumulator function over the observable sequence, returning the final accumulated
+    /// value when the sequence completes.
+    /// </summary>
+    /// <typeparam name="T">The type of elements in the source sequence.</typeparam>
+    /// <typeparam name="TAcc">The type of the accumulated value.</typeparam>
+    /// <param name="this">The source observable sequence.</param>
+    /// <param name="seed">The initial accumulator value.</param>
+    /// <param name="accumulator">An accumulator function to invoke on each element. Receives the current
+    /// accumulated value and the current element.</param>
+    /// <returns>A task representing the asynchronous operation, containing the final accumulated value.</returns>
+    /// <exception cref="ArgumentNullException">Thrown if <paramref name="accumulator"/> is null.</exception>
+    public static ValueTask<TAcc> AggregateAsync<T, TAcc>(
+        this IObservableAsync<T> @this,
+        TAcc seed,
+        Func<TAcc, T, TAcc> accumulator) =>
+        @this.AggregateAsync(seed, accumulator, CancellationToken.None);
 
-            return @this.AggregateAsync(seed, (acc, x, _) => new ValueTask<TAcc>(accumulator(acc, x)), cancellationToken);
-        }
+    /// <summary>
+    /// Applies an accumulator function over the observable sequence, returning the final accumulated
+    /// value when the sequence completes.
+    /// </summary>
+    /// <typeparam name="T">The type of elements in the source sequence.</typeparam>
+    /// <typeparam name="TAcc">The type of the accumulated value.</typeparam>
+    /// <param name="this">The source observable sequence.</param>
+    /// <param name="seed">The initial accumulator value.</param>
+    /// <param name="accumulator">An accumulator function to invoke on each element. Receives the current
+    /// accumulated value and the current element.</param>
+    /// <param name="cancellationToken">A cancellation token that can be used to cancel the operation.</param>
+    /// <returns>A task representing the asynchronous operation, containing the final accumulated value.</returns>
+    /// <exception cref="ArgumentNullException">Thrown if <paramref name="accumulator"/> is null.</exception>
+    public static ValueTask<TAcc> AggregateAsync<T, TAcc>(
+        this IObservableAsync<T> @this,
+        TAcc seed,
+        Func<TAcc, T, TAcc> accumulator,
+        CancellationToken cancellationToken)
+    {
+        ArgumentExceptionHelper.ThrowIfNull(accumulator);
 
-        /// <summary>
-        /// Applies an accumulator function over the observable sequence with a seed value, then applies
-        /// a result selector to the final accumulated value.
-        /// </summary>
-        /// <typeparam name="TAcc">The type of the intermediate accumulated value.</typeparam>
-        /// <typeparam name="TResult">The type of the result value.</typeparam>
-        /// <param name="seed">The initial accumulator value.</param>
-        /// <param name="accumulator">An accumulator function to invoke on each element.</param>
-        /// <param name="resultSelector">A function to transform the final accumulated value into the result value.</param>
-        /// <param name="cancellationToken">A cancellation token that can be used to cancel the operation.</param>
-        /// <returns>A task representing the asynchronous operation, containing the transformed result.</returns>
-        /// <exception cref="ArgumentNullException">Thrown if <paramref name="accumulator"/> or
-        /// <paramref name="resultSelector"/> is null.</exception>
-        public async ValueTask<TResult> AggregateAsync<TAcc, TResult>(TAcc seed, Func<TAcc, T, TAcc> accumulator, Func<TAcc, TResult> resultSelector, CancellationToken cancellationToken = default)
-        {
-            ArgumentExceptionHelper.ThrowIfNull(accumulator);
-            ArgumentExceptionHelper.ThrowIfNull(resultSelector);
+        return @this.AggregateAsync(seed, (acc, x, _) => new(accumulator(acc, x)), cancellationToken);
+    }
 
-            var acc = await @this.AggregateAsync(seed, accumulator, cancellationToken);
-            return resultSelector(acc);
-        }
+    /// <summary>
+    /// Applies an accumulator function over the observable sequence with a seed value, then applies
+    /// a result selector to the final accumulated value.
+    /// </summary>
+    /// <typeparam name="T">The type of elements in the source sequence.</typeparam>
+    /// <typeparam name="TAcc">The type of the intermediate accumulated value.</typeparam>
+    /// <typeparam name="TResult">The type of the result value.</typeparam>
+    /// <param name="this">The source observable sequence.</param>
+    /// <param name="seed">The initial accumulator value.</param>
+    /// <param name="accumulator">An accumulator function to invoke on each element.</param>
+    /// <param name="resultSelector">A function to transform the final accumulated value into the result value.</param>
+    /// <returns>A task representing the asynchronous operation, containing the transformed result.</returns>
+    /// <exception cref="ArgumentNullException">Thrown if <paramref name="accumulator"/> or
+    /// <paramref name="resultSelector"/> is null.</exception>
+    public static ValueTask<TResult> AggregateAsync<T, TAcc, TResult>(
+        this IObservableAsync<T> @this,
+        TAcc seed,
+        Func<TAcc, T, TAcc> accumulator,
+        Func<TAcc, TResult> resultSelector) =>
+        @this.AggregateAsync(seed, accumulator, resultSelector, CancellationToken.None);
+
+    /// <summary>
+    /// Applies an accumulator function over the observable sequence with a seed value, then applies
+    /// a result selector to the final accumulated value.
+    /// </summary>
+    /// <typeparam name="T">The type of elements in the source sequence.</typeparam>
+    /// <typeparam name="TAcc">The type of the intermediate accumulated value.</typeparam>
+    /// <typeparam name="TResult">The type of the result value.</typeparam>
+    /// <param name="this">The source observable sequence.</param>
+    /// <param name="seed">The initial accumulator value.</param>
+    /// <param name="accumulator">An accumulator function to invoke on each element.</param>
+    /// <param name="resultSelector">A function to transform the final accumulated value into the result value.</param>
+    /// <param name="cancellationToken">A cancellation token that can be used to cancel the operation.</param>
+    /// <returns>A task representing the asynchronous operation, containing the transformed result.</returns>
+    /// <exception cref="ArgumentNullException">Thrown if <paramref name="accumulator"/> or
+    /// <paramref name="resultSelector"/> is null.</exception>
+    public static async ValueTask<TResult> AggregateAsync<T, TAcc, TResult>(
+        this IObservableAsync<T> @this,
+        TAcc seed,
+        Func<TAcc, T, TAcc> accumulator,
+        Func<TAcc, TResult> resultSelector,
+        CancellationToken cancellationToken)
+    {
+        ArgumentExceptionHelper.ThrowIfNull(accumulator);
+        ArgumentExceptionHelper.ThrowIfNull(resultSelector);
+
+        var acc = await @this.AggregateAsync(seed, accumulator, cancellationToken).ConfigureAwait(false);
+        return resultSelector(acc);
     }
 
     /// <summary>
@@ -86,7 +160,10 @@ public static partial class ObservableAsync
     /// <param name="seed">The initial accumulator value.</param>
     /// <param name="accumulator">The asynchronous accumulator function.</param>
     /// <param name="cancellationToken">A cancellation token for the operation.</param>
-    internal sealed class AggregateAsyncObserver<T, TAcc>(TAcc seed, Func<TAcc, T, CancellationToken, ValueTask<TAcc>> accumulator, CancellationToken cancellationToken) : TaskObserverAsyncBase<T, TAcc>(cancellationToken)
+    internal sealed class AggregateAsyncObserver<T, TAcc>(
+        TAcc seed,
+        Func<TAcc, T, CancellationToken, ValueTask<TAcc>> accumulator,
+        CancellationToken cancellationToken) : TaskObserverAsyncBase<T, TAcc>(cancellationToken)
     {
         /// <summary>
         /// The current accumulated value.
@@ -94,10 +171,12 @@ public static partial class ObservableAsync
         private TAcc _acc = seed;
 
         /// <inheritdoc/>
-        protected override async ValueTask OnNextAsyncCore(T value, CancellationToken cancellationToken) => _acc = await accumulator(_acc, value, cancellationToken);
+        protected override async ValueTask OnNextAsyncCore(T value, CancellationToken cancellationToken) =>
+            _acc = await accumulator(_acc, value, cancellationToken).ConfigureAwait(false);
 
         /// <inheritdoc/>
-        protected override ValueTask OnErrorResumeAsyncCore(Exception error, CancellationToken cancellationToken) => TrySetException(error);
+        protected override ValueTask OnErrorResumeAsyncCore(Exception error, CancellationToken cancellationToken) =>
+            TrySetException(error);
 
         /// <inheritdoc/>
         protected override ValueTask OnCompletedAsyncCore(Result result) =>

@@ -30,7 +30,6 @@ public sealed record SubjectCreationOptions
     /// baseline when configuring new subjects if standard behavior is desired.</remarks>
     public static SubjectCreationOptions Default { get; } = new()
     {
-        PublishingOption = PublishingOption.Serial,
-        IsStateless = false
+        PublishingOption = PublishingOption.Serial, IsStateless = false
     };
 }

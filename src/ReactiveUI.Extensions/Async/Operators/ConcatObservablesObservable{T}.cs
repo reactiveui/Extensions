@@ -2,6 +2,7 @@
 // ReactiveUI Association Incorporated licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
+using System.Collections.Concurrent;
 using ReactiveUI.Extensions.Async.Disposables;
 using ReactiveUI.Extensions.Async.Internals;
 
@@ -22,10 +23,12 @@ internal sealed class ConcatObservablesObservable<T>(IObservableAsync<IObservabl
     /// <param name="observer">The observer to receive elements from the concatenated sequences.</param>
     /// <param name="cancellationToken">A token to cancel the subscription.</param>
     /// <returns>An async disposable that tears down the subscription when disposed.</returns>
-    protected override async ValueTask<IAsyncDisposable> SubscribeAsyncCore(IObserverAsync<T> observer, CancellationToken cancellationToken)
+    protected override ValueTask<IAsyncDisposable> SubscribeAsyncCore(
+        IObserverAsync<T> observer,
+        CancellationToken cancellationToken)
     {
         var subscription = new ConcatSubscription(observer);
-        return await SubscriptionHelper.SubscribeAndDisposeOnFailureAsync(
+        return SubscriptionHelper.SubscribeAndDisposeOnFailureAsync(
             subscription,
             () => subscription.SubscribeAsync(source, cancellationToken));
     }
@@ -97,10 +100,12 @@ internal sealed class ConcatObservablesObservable<T>(IObservableAsync<IObservabl
         /// <param name="source">The outer observable that emits inner observable sequences.</param>
         /// <param name="subscriptionToken">A token to cancel the subscription.</param>
         /// <returns>A task representing the asynchronous subscribe operation.</returns>
-        public async ValueTask SubscribeAsync(IObservableAsync<IObservableAsync<T>> source, CancellationToken subscriptionToken)
+        public async ValueTask SubscribeAsync(
+            IObservableAsync<IObservableAsync<T>> source,
+            CancellationToken subscriptionToken)
         {
-            var outerSubscription = await source.SubscribeAsync(new ConcatOuterObserver(this), subscriptionToken);
-            await _outerDisposable.SetDisposableAsync(outerSubscription);
+            var outerSubscription = await source.SubscribeAsync(new ConcatOuterObserver(this), subscriptionToken).ConfigureAwait(false);
+            await _outerDisposable.SetDisposableAsync(outerSubscription).ConfigureAwait(false);
         }
 
         /// <summary>
@@ -121,12 +126,12 @@ internal sealed class ConcatObservablesObservable<T>(IObservableAsync<IObservabl
                 }
             }
 
-            if (shouldSubscribe)
+            if (!shouldSubscribe)
             {
-                return SubscribeToInnerLoop(inner);
+                return default;
             }
 
-            return default;
+            return SubscribeToInnerLoop(inner);
         }
 
         /// <summary>
@@ -192,10 +197,12 @@ internal sealed class ConcatObservablesObservable<T>(IObservableAsync<IObservabl
         /// <param name="result">The completion result from the second call.</param>
         internal static void HandleAlreadyDisposed(Result? result)
         {
-            if (result?.Exception is not null and var exception)
+            if (result?.Exception is not { } exception)
             {
-                UnhandledExceptionHandler.OnUnhandledException(exception);
+                return;
             }
+
+            UnhandledExceptionHandler.OnUnhandledException(exception);
         }
 
         /// <summary>
@@ -207,12 +214,13 @@ internal sealed class ConcatObservablesObservable<T>(IObservableAsync<IObservabl
         {
             try
             {
-                var innerSubscription = await currentInner.SubscribeAsync(new ConcatInnerObserver(this), _disposedCancellationToken);
-                await _innerSubscription.SetDisposableAsync(innerSubscription);
+                var innerSubscription =
+                    await currentInner.SubscribeAsync(new ConcatInnerObserver(this), _disposedCancellationToken).ConfigureAwait(false);
+                await _innerSubscription.SetDisposableAsync(innerSubscription).ConfigureAwait(false);
             }
             catch (Exception e)
             {
-                await CompleteAsync(Result.Failure(e));
+                await CompleteAsync(Result.Failure(e)).ConfigureAwait(false);
             }
         }
 
@@ -230,12 +238,12 @@ internal sealed class ConcatObservablesObservable<T>(IObservableAsync<IObservabl
                 return;
             }
 
-            _disposeCts.Cancel();
-            await _innerSubscription.DisposeAsync();
-            await _outerDisposable.DisposeAsync();
+            await _disposeCts.CancelAsync().ConfigureAwait(false);
+            await _innerSubscription.DisposeAsync().ConfigureAwait(false);
+            await _outerDisposable.DisposeAsync().ConfigureAwait(false);
             if (result is not null)
             {
-                await _observer.OnCompletedAsync(result.Value);
+                await _observer.OnCompletedAsync(result.Value).ConfigureAwait(false);
             }
 
             _disposeCts.Dispose();
@@ -263,12 +271,19 @@ internal sealed class ConcatObservablesObservable<T>(IObservableAsync<IObservabl
             /// <param name="error">The error to forward.</param>
             /// <param name="cancellationToken">A token to cancel the operation.</param>
             /// <returns>A task representing the asynchronous operation.</returns>
-            protected override async ValueTask OnErrorResumeAsyncCore(Exception error, CancellationToken cancellationToken)
+            protected override async ValueTask OnErrorResumeAsyncCore(
+                Exception error,
+                CancellationToken cancellationToken)
             {
-                using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(subscription._disposedCancellationToken, cancellationToken);
-                using (await subscription._observerOnSomethingGate.LockAsync())
+                // The outer subscription is rooted in _disposedCancellationToken, so its disposal
+                // already cascades into this observer's cancellation. Forwarding the dispose token
+                // directly preserves the cancellation semantics that a linked CTS would have
+                // provided, without the per-emission Linked2CancellationTokenSource alloc.
+                _ = cancellationToken;
+                var token = subscription._disposedCancellationToken;
+                using (await subscription._observerOnSomethingGate.LockAsync(token).ConfigureAwait(false))
                 {
-                    await subscription._observer.OnErrorResumeAsync(error, linkedCts.Token);
+                    await subscription._observer.OnErrorResumeAsync(error, token).ConfigureAwait(false);
                 }
             }
 
@@ -295,10 +310,11 @@ internal sealed class ConcatObservablesObservable<T>(IObservableAsync<IObservabl
             /// <returns>A task representing the asynchronous operation.</returns>
             protected override async ValueTask OnNextAsyncCore(T value, CancellationToken cancellationToken)
             {
-                using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(subscription._disposedCancellationToken, cancellationToken);
-                using (await subscription._observerOnSomethingGate.LockAsync())
+                _ = cancellationToken;
+                var token = subscription._disposedCancellationToken;
+                using (await subscription._observerOnSomethingGate.LockAsync(token).ConfigureAwait(false))
                 {
-                    await subscription._observer.OnNextAsync(value, linkedCts.Token);
+                    await subscription._observer.OnNextAsync(value, token).ConfigureAwait(false);
                 }
             }
 
@@ -308,12 +324,15 @@ internal sealed class ConcatObservablesObservable<T>(IObservableAsync<IObservabl
             /// <param name="error">The error to forward.</param>
             /// <param name="cancellationToken">A token to cancel the operation.</param>
             /// <returns>A task representing the asynchronous operation.</returns>
-            protected override async ValueTask OnErrorResumeAsyncCore(Exception error, CancellationToken cancellationToken)
+            protected override async ValueTask OnErrorResumeAsyncCore(
+                Exception error,
+                CancellationToken cancellationToken)
             {
-                using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(subscription._disposedCancellationToken, cancellationToken);
-                using (await subscription._observerOnSomethingGate.LockAsync())
+                _ = cancellationToken;
+                var token = subscription._disposedCancellationToken;
+                using (await subscription._observerOnSomethingGate.LockAsync(token).ConfigureAwait(false))
                 {
-                    await subscription._observer.OnErrorResumeAsync(error, linkedCts.Token);
+                    await subscription._observer.OnErrorResumeAsync(error, token).ConfigureAwait(false);
                 }
             }
 

@@ -16,14 +16,24 @@ public static partial class ObservableAsync
     /// then completes.
     /// </summary>
     /// <param name="dueTime">The time span after which to produce the value. Must be non-negative.</param>
+    /// <returns>An observable sequence that produces a single value after the specified delay and then completes.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown if <paramref name="dueTime"/> is negative.</exception>
+    public static IObservableAsync<long> Timer(TimeSpan dueTime)
+        => Timer(dueTime, (TimeProvider?)null);
+
+    /// <summary>
+    /// Creates an observable sequence that produces a single value (0) after the specified delay,
+    /// then completes.
+    /// </summary>
+    /// <param name="dueTime">The time span after which to produce the value. Must be non-negative.</param>
     /// <param name="timeProvider">An optional time provider for controlling timing. If null, <see cref="TimeProvider.System"/>
     /// is used.</param>
     /// <returns>An observable sequence that produces a single value after the specified delay and then completes.</returns>
     /// <exception cref="ArgumentOutOfRangeException">Thrown if <paramref name="dueTime"/> is negative.</exception>
-    public static IObservableAsync<long> Timer(TimeSpan dueTime, TimeProvider? timeProvider = null)
+    public static IObservableAsync<long> Timer(TimeSpan dueTime, TimeProvider? timeProvider)
     {
 #if NET8_0_OR_GREATER
-        ArgumentOutOfRangeException.ThrowIfLessThan(dueTime, TimeSpan.Zero, nameof(dueTime));
+        ArgumentOutOfRangeException.ThrowIfLessThan(dueTime, TimeSpan.Zero);
 #else
         if (dueTime < TimeSpan.Zero)
         {
@@ -36,12 +46,25 @@ public static partial class ObservableAsync
         return CreateAsBackgroundJob<long>(
             async (observer, cancellationToken) =>
             {
-                await DelayAsync(dueTime, tp, cancellationToken);
-                await observer.OnNextAsync(0L, cancellationToken);
-                await observer.OnCompletedAsync(Result.Success);
+                await DelayAsync(dueTime, tp, cancellationToken).ConfigureAwait(false);
+                await observer.OnNextAsync(0L, cancellationToken).ConfigureAwait(false);
+                await observer.OnCompletedAsync(Result.Success).ConfigureAwait(false);
             },
             true);
     }
+
+    /// <summary>
+    /// Creates an observable sequence that produces a single value (0) after the specified delay,
+    /// then continues to produce sequential values at each specified period.
+    /// </summary>
+    /// <param name="dueTime">The initial delay before the first value is produced. Must be non-negative.</param>
+    /// <param name="period">The interval between subsequent values after the initial delay. Must be positive.</param>
+    /// <returns>An observable sequence that produces values starting after the initial delay and continuing
+    /// at the specified period.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown if <paramref name="dueTime"/> is negative
+    /// or <paramref name="period"/> is non-positive.</exception>
+    public static IObservableAsync<long> Timer(TimeSpan dueTime, TimeSpan period)
+        => Timer(dueTime, period, (TimeProvider?)null);
 
     /// <summary>
     /// Creates an observable sequence that produces a single value (0) after the specified delay,
@@ -55,11 +78,11 @@ public static partial class ObservableAsync
     /// at the specified period.</returns>
     /// <exception cref="ArgumentOutOfRangeException">Thrown if <paramref name="dueTime"/> is negative
     /// or <paramref name="period"/> is non-positive.</exception>
-    public static IObservableAsync<long> Timer(TimeSpan dueTime, TimeSpan period, TimeProvider? timeProvider = null)
+    public static IObservableAsync<long> Timer(TimeSpan dueTime, TimeSpan period, TimeProvider? timeProvider)
     {
 #if NET8_0_OR_GREATER
-        ArgumentOutOfRangeException.ThrowIfLessThan(dueTime, TimeSpan.Zero, nameof(dueTime));
-        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(period, TimeSpan.Zero, nameof(period));
+        ArgumentOutOfRangeException.ThrowIfLessThan(dueTime, TimeSpan.Zero);
+        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(period, TimeSpan.Zero);
 #else
         if (dueTime < TimeSpan.Zero)
         {
@@ -77,13 +100,13 @@ public static partial class ObservableAsync
         return CreateAsBackgroundJob<long>(
             async (observer, cancellationToken) =>
             {
-                await DelayAsync(dueTime, tp, cancellationToken);
+                await DelayAsync(dueTime, tp, cancellationToken).ConfigureAwait(false);
 
                 long tick = 0;
                 while (!cancellationToken.IsCancellationRequested)
                 {
-                    await observer.OnNextAsync(tick++, cancellationToken);
-                    await DelayAsync(period, tp, cancellationToken);
+                    await observer.OnNextAsync(tick++, cancellationToken).ConfigureAwait(false);
+                    await DelayAsync(period, tp, cancellationToken).ConfigureAwait(false);
                 }
             },
             true);

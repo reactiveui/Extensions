@@ -5,6 +5,7 @@
 using System.Collections.Immutable;
 using ReactiveUI.Extensions.Async.Disposables;
 using ReactiveUI.Extensions.Async.Internals;
+using ReactiveUI.Extensions.Internal;
 
 namespace ReactiveUI.Extensions.Async.Subjects;
 
@@ -26,6 +27,11 @@ public abstract class BaseReplayLatestSubjectAsync<T>(Optional<T> startValue) : 
     private readonly AsyncGate _gate = new();
 
     /// <summary>
+    /// The cancellation token source that is cancelled when this instance is disposed.
+    /// </summary>
+    private readonly CancellationTokenSource _disposedCts = new();
+
+    /// <summary>
     /// The most recently published value, replayed to new subscribers upon subscription.
     /// </summary>
     private Optional<T> _lastValue = startValue;
@@ -41,9 +47,19 @@ public abstract class BaseReplayLatestSubjectAsync<T>(Optional<T> startValue) : 
     private Result? _result;
 
     /// <summary>
+    /// A value indicating whether this instance has been disposed.
+    /// </summary>
+    private bool _isDisposed;
+
+    /// <summary>
     /// Gets an observable sequence that represents the asynchronous values of the subject.
     /// </summary>
     IObservableAsync<T> ISubjectAsync<T>.Values => this;
+
+    /// <summary>
+    /// Gets the cancellation token that is cancelled when this instance is disposed.
+    /// </summary>
+    private CancellationToken DisposedCancellationToken => _disposedCts.Token;
 
     /// <summary>
     /// Asynchronously notifies all subscribed observers with the specified value.
@@ -54,19 +70,47 @@ public abstract class BaseReplayLatestSubjectAsync<T>(Optional<T> startValue) : 
     /// <returns>A task that represents the asynchronous notification operation.</returns>
     public async ValueTask OnNextAsync(T value, CancellationToken cancellationToken)
     {
-        ImmutableArray<IObserverAsync<T>> observers;
-        using (await _gate.LockAsync())
+        // Fast path: the caller token is None / our own dispose token — no linked CTS needed,
+        // saving a Linked1CancellationTokenSource per emission on the broadcast hot path.
+        CancellationTokenSource? linkedCts = null;
+        CancellationToken token;
+        if (!cancellationToken.CanBeCanceled || cancellationToken == DisposedCancellationToken)
         {
-            if (_result is not null)
-            {
-                return;
-            }
-
-            _lastValue = new(value);
-            observers = _observers;
+            token = DisposedCancellationToken;
+        }
+        else
+        {
+            linkedCts = CancellationTokenSource.CreateLinkedTokenSource(DisposedCancellationToken, cancellationToken);
+            token = linkedCts.Token;
         }
 
-        await OnNextAsyncCore(observers, value, cancellationToken);
+        try
+        {
+            ImmutableArray<IObserverAsync<T>> observers;
+            using (await _gate.LockAsync(token).ConfigureAwait(false))
+            {
+                if (_result is not null)
+                {
+                    return;
+                }
+
+                _lastValue = new(value);
+                observers = _observers;
+            }
+
+            // Pass CancellationToken.None into the broadcast loop so downstream observers'
+            // TryEnter takes the None fast path; otherwise the subject's own dispose token would
+            // appear foreign to each observer and force a Linked2CancellationTokenSource per
+            // emission, as discovered profiling Publish(initialValue) / ReplayLatestPublish.
+            // Subject disposal still terminates emissions because we set _result before locking
+            // and observers stop being added once the subject has completed; in-flight
+            // forwarding does not need the dispose token threaded through.
+            await OnNextAsyncCore(observers, value, CancellationToken.None).ConfigureAwait(false);
+        }
+        finally
+        {
+            linkedCts?.Dispose();
+        }
     }
 
     /// <summary>
@@ -79,18 +123,37 @@ public abstract class BaseReplayLatestSubjectAsync<T>(Optional<T> startValue) : 
     /// <returns>A task that represents the asynchronous notification operation.</returns>
     public async ValueTask OnErrorResumeAsync(Exception error, CancellationToken cancellationToken)
     {
-        ImmutableArray<IObserverAsync<T>> observers;
-        using (await _gate.LockAsync())
+        CancellationTokenSource? linkedCts = null;
+        CancellationToken token;
+        if (!cancellationToken.CanBeCanceled || cancellationToken == DisposedCancellationToken)
         {
-            if (_result is not null)
-            {
-                return;
-            }
-
-            observers = _observers;
+            token = DisposedCancellationToken;
+        }
+        else
+        {
+            linkedCts = CancellationTokenSource.CreateLinkedTokenSource(DisposedCancellationToken, cancellationToken);
+            token = linkedCts.Token;
         }
 
-        await OnErrorResumeAsyncCore(observers, error, cancellationToken);
+        try
+        {
+            ImmutableArray<IObserverAsync<T>> observers;
+            using (await _gate.LockAsync(token).ConfigureAwait(false))
+            {
+                if (_result is not null)
+                {
+                    return;
+                }
+
+                observers = _observers;
+            }
+
+            await OnErrorResumeAsyncCore(observers, error, token).ConfigureAwait(false);
+        }
+        finally
+        {
+            linkedCts?.Dispose();
+        }
     }
 
     /// <summary>
@@ -101,14 +164,14 @@ public abstract class BaseReplayLatestSubjectAsync<T>(Optional<T> startValue) : 
     /// <param name="result">The result to deliver to observers upon completion. Cannot be null.</param>
     /// <returns>A ValueTask that represents the asynchronous notification operation. The task completes when all observers have
     /// been notified.</returns>
-    public ValueTask OnCompletedAsync(Result result)
+    public async ValueTask OnCompletedAsync(Result result)
     {
         ImmutableArray<IObserverAsync<T>> observers;
-        lock (_gate)
+        using (await _gate.LockAsync(DisposedCancellationToken).ConfigureAwait(false))
         {
             if (_result is not null)
             {
-                return default;
+                return;
             }
 
             _result = result;
@@ -116,18 +179,25 @@ public abstract class BaseReplayLatestSubjectAsync<T>(Optional<T> startValue) : 
             _observers = [];
         }
 
-        return OnCompletedAsyncCore(observers, result);
+        await OnCompletedAsyncCore(observers, result).ConfigureAwait(false);
     }
 
     /// <summary>
     /// Asynchronously releases the unmanaged resources used by the object.
     /// </summary>
     /// <returns>A ValueTask that represents the asynchronous dispose operation.</returns>
-    public ValueTask DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
+        if (_isDisposed)
+        {
+            return;
+        }
+
+        _isDisposed = true;
+        await _disposedCts.CancelAsync().ConfigureAwait(false);
         _gate.Dispose();
+        _disposedCts.Dispose();
         GC.SuppressFinalize(this);
-        return default;
     }
 
     /// <summary>
@@ -137,7 +207,10 @@ public abstract class BaseReplayLatestSubjectAsync<T>(Optional<T> startValue) : 
     /// <param name="value">The value to send to each observer.</param>
     /// <param name="cancellationToken">A cancellation token that can be used to cancel the notification operation.</param>
     /// <returns>A ValueTask that represents the asynchronous notification operation.</returns>
-    protected abstract ValueTask OnNextAsyncCore(IReadOnlyList<IObserverAsync<T>> observers, T value, CancellationToken cancellationToken);
+    protected abstract ValueTask OnNextAsyncCore(
+        ImmutableArray<IObserverAsync<T>> observers,
+        T value,
+        CancellationToken cancellationToken);
 
     /// <summary>
     /// Handles error recovery for the specified observers by resuming asynchronous processing after an error occurs.
@@ -149,7 +222,10 @@ public abstract class BaseReplayLatestSubjectAsync<T>(Optional<T> startValue) : 
     /// <param name="error">The exception that triggered the error handling logic. Cannot be null.</param>
     /// <param name="cancellationToken">A cancellation token that can be used to cancel the asynchronous operation.</param>
     /// <returns>A ValueTask that represents the asynchronous error recovery operation.</returns>
-    protected abstract ValueTask OnErrorResumeAsyncCore(IReadOnlyList<IObserverAsync<T>> observers, Exception error, CancellationToken cancellationToken);
+    protected abstract ValueTask OnErrorResumeAsyncCore(
+        ImmutableArray<IObserverAsync<T>> observers,
+        Exception error,
+        CancellationToken cancellationToken);
 
     /// <summary>
     /// Invoked to asynchronously notify all observers of the completion event with the specified result.
@@ -160,7 +236,7 @@ public abstract class BaseReplayLatestSubjectAsync<T>(Optional<T> startValue) : 
     /// <param name="observers">A read-only list of observers to be notified of the completion event. Cannot be null.</param>
     /// <param name="result">The result to provide to each observer upon completion.</param>
     /// <returns>A ValueTask that represents the asynchronous notification operation.</returns>
-    protected abstract ValueTask OnCompletedAsyncCore(IReadOnlyList<IObserverAsync<T>> observers, Result result);
+    protected abstract ValueTask OnCompletedAsyncCore(ImmutableArray<IObserverAsync<T>> observers, Result result);
 
     /// <summary>
     /// Subscribes the specified asynchronous observer to receive notifications from the observable sequence.
@@ -172,13 +248,19 @@ public abstract class BaseReplayLatestSubjectAsync<T>(Optional<T> startValue) : 
     /// <param name="cancellationToken">A cancellation token that can be used to cancel the subscription operation.</param>
     /// <returns>A disposable object that can be used to unsubscribe the observer from the sequence. If the sequence has already
     /// completed, returns an empty disposable.</returns>
-    protected override async ValueTask<IAsyncDisposable> SubscribeAsyncCore(IObserverAsync<T> observer, CancellationToken cancellationToken)
+    protected override async ValueTask<IAsyncDisposable> SubscribeAsyncCore(
+        IObserverAsync<T> observer,
+        CancellationToken cancellationToken)
     {
+        using var linkedCts =
+            CancellationTokenSource.CreateLinkedTokenSource(DisposedCancellationToken, cancellationToken);
+        var token = linkedCts.Token;
+
         ArgumentExceptionHelper.ThrowIfNull(observer);
 
-        cancellationToken.ThrowIfCancellationRequested();
+        token.ThrowIfCancellationRequested();
         Result? result;
-        using (await _gate.LockAsync())
+        using (await _gate.LockAsync(token).ConfigureAwait(false))
         {
             result = _result;
             if (result is null)
@@ -186,23 +268,25 @@ public abstract class BaseReplayLatestSubjectAsync<T>(Optional<T> startValue) : 
                 _observers = _observers.Add(observer);
                 if (_lastValue.TryGetValue(out var lastValue))
                 {
-                    await observer.OnNextAsync(lastValue, cancellationToken);
+                    await observer.OnNextAsync(lastValue, token).ConfigureAwait(false);
                 }
             }
         }
 
         if (result is not null)
         {
-            await observer.OnCompletedAsync(result.Value);
+            await observer.OnCompletedAsync(result.Value).ConfigureAwait(false);
             return DisposableAsync.Empty;
         }
 
-        return DisposableAsync.Create(async () =>
-        {
-            using (await _gate.LockAsync())
+        return DisposableAsync.Create(
+            (subject: this, observer, token),
+            static async state =>
             {
-                _observers = _observers.Remove(observer);
-            }
-        });
+                using (await state.subject._gate.LockAsync(state.token).ConfigureAwait(false))
+                {
+                    state.subject._observers = state.subject._observers.Remove(state.observer);
+                }
+            });
     }
 }

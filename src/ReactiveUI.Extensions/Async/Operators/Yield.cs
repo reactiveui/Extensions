@@ -2,6 +2,8 @@
 // ReactiveUI Association Incorporated licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
+using ReactiveUI.Extensions.Internal;
+
 namespace ReactiveUI.Extensions.Async;
 
 /// <summary>
@@ -24,7 +26,7 @@ public static partial class ObservableAsync
     /// each emission.</returns>
     public static IObservableAsync<T> Yield<T>(this IObservableAsync<T> @this)
     {
-        ArgumentExceptionHelper.ThrowIfNull(@this, nameof(@this));
+        ArgumentExceptionHelper.ThrowIfNull(@this);
 
         return new YieldObservable<T>(@this);
     }
@@ -37,10 +39,14 @@ public static partial class ObservableAsync
     internal sealed class YieldObservable<T>(IObservableAsync<T> source) : ObservableAsync<T>
     {
         /// <inheritdoc/>
-        protected override ValueTask<IAsyncDisposable> SubscribeAsyncCore(IObserverAsync<T> observer, CancellationToken cancellationToken)
+        protected override ValueTask<IAsyncDisposable> SubscribeAsyncCore(
+            IObserverAsync<T> observer,
+            CancellationToken cancellationToken)
         {
             var currentContext = AsyncContext.GetCurrent();
-            return source.SubscribeAsync(new ObserveOnAsyncObservable<T>.ObserveOnObserver(observer, currentContext, true), cancellationToken);
+            return source.SubscribeAsync(
+                new ObserveOnAsyncObservable<T>.ObserveOnObserver(observer, currentContext, true),
+                cancellationToken);
         }
     }
 }

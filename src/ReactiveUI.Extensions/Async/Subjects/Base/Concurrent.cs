@@ -2,8 +2,9 @@
 // ReactiveUI Association Incorporated licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
+using System.Collections.Immutable;
 using System.Runtime.CompilerServices;
-using ReactiveUI.Extensions.Async;
+using ReactiveUI.Extensions.Internal;
 
 namespace ReactiveUI.Extensions.Async.Subjects;
 
@@ -29,11 +30,14 @@ public static class Concurrent
     /// <returns>A ValueTask that represents the asynchronous operation of forwarding the value to all observers. The task
     /// completes when all observers have processed the value.</returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static ValueTask ForwardOnNextConcurrently<T>(IReadOnlyList<IObserverAsync<T>> observers, T value, CancellationToken cancellationToken)
+    public static ValueTask ForwardOnNextConcurrently<T>(
+        ImmutableArray<IObserverAsync<T>> observers,
+        T value,
+        CancellationToken cancellationToken)
     {
-        ArgumentExceptionHelper.ThrowIfNull(observers, nameof(observers));
+        ArgumentExceptionHelper.ThrowIfNull(observers);
 
-        var count = observers.Count;
+        var count = observers.Length;
         if (count == 0)
         {
             return default;
@@ -44,13 +48,25 @@ public static class Concurrent
             return observers[0].OnNextAsync(value, cancellationToken);
         }
 
-        var tasks = new Task[count];
         for (var i = 0; i < count; i++)
         {
-            tasks[i] = observers[i].OnNextAsync(value, cancellationToken).AsTask();
+            var vt = observers[i].OnNextAsync(value, cancellationToken);
+            if (vt.IsCompletedSuccessfully)
+            {
+                continue;
+            }
+
+            var tasks = new Task[count - i];
+            tasks[0] = vt.AsTask();
+            for (var j = i + 1; j < count; j++)
+            {
+                tasks[j - i] = observers[j].OnNextAsync(value, cancellationToken).AsTask();
+            }
+
+            return new(Task.WhenAll(tasks));
         }
 
-        return new ValueTask(Task.WhenAll(tasks));
+        return default;
     }
 
     /// <summary>
@@ -67,11 +83,14 @@ public static class Concurrent
     /// <returns>A ValueTask that represents the asynchronous operation of forwarding the error to all observers. The task
     /// completes when all observers have processed the error notification.</returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static ValueTask ForwardOnErrorResumeConcurrently<T>(IReadOnlyList<IObserverAsync<T>> observers, Exception error, CancellationToken cancellationToken)
+    public static ValueTask ForwardOnErrorResumeConcurrently<T>(
+        ImmutableArray<IObserverAsync<T>> observers,
+        Exception error,
+        CancellationToken cancellationToken)
     {
-        ArgumentExceptionHelper.ThrowIfNull(observers, nameof(observers));
+        ArgumentExceptionHelper.ThrowIfNull(observers);
 
-        var count = observers.Count;
+        var count = observers.Length;
         if (count == 0)
         {
             return default;
@@ -82,13 +101,25 @@ public static class Concurrent
             return observers[0].OnErrorResumeAsync(error, cancellationToken);
         }
 
-        var tasks = new Task[count];
         for (var i = 0; i < count; i++)
         {
-            tasks[i] = observers[i].OnErrorResumeAsync(error, cancellationToken).AsTask();
+            var vt = observers[i].OnErrorResumeAsync(error, cancellationToken);
+            if (vt.IsCompletedSuccessfully)
+            {
+                continue;
+            }
+
+            var tasks = new Task[count - i];
+            tasks[0] = vt.AsTask();
+            for (var j = i + 1; j < count; j++)
+            {
+                tasks[j - i] = observers[j].OnErrorResumeAsync(error, cancellationToken).AsTask();
+            }
+
+            return new(Task.WhenAll(tasks));
         }
 
-        return new ValueTask(Task.WhenAll(tasks));
+        return default;
     }
 
     /// <summary>
@@ -105,11 +136,11 @@ public static class Concurrent
     /// observers have finished processing the completion notification. If the observers list is empty, a default
     /// ValueTask is returned.</returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static ValueTask ForwardOnCompletedConcurrently<T>(IReadOnlyList<IObserverAsync<T>> observers, Result result)
+    public static ValueTask ForwardOnCompletedConcurrently<T>(ImmutableArray<IObserverAsync<T>> observers, Result result)
     {
-        ArgumentExceptionHelper.ThrowIfNull(observers, nameof(observers));
+        ArgumentExceptionHelper.ThrowIfNull(observers);
 
-        var count = observers.Count;
+        var count = observers.Length;
         if (count == 0)
         {
             return default;
@@ -120,12 +151,24 @@ public static class Concurrent
             return observers[0].OnCompletedAsync(result);
         }
 
-        var tasks = new Task[count];
         for (var i = 0; i < count; i++)
         {
-            tasks[i] = observers[i].OnCompletedAsync(result).AsTask();
+            var vt = observers[i].OnCompletedAsync(result);
+            if (vt.IsCompletedSuccessfully)
+            {
+                continue;
+            }
+
+            var tasks = new Task[count - i];
+            tasks[0] = vt.AsTask();
+            for (var j = i + 1; j < count; j++)
+            {
+                tasks[j - i] = observers[j].OnCompletedAsync(result).AsTask();
+            }
+
+            return new(Task.WhenAll(tasks));
         }
 
-        return new ValueTask(Task.WhenAll(tasks));
+        return default;
     }
 }

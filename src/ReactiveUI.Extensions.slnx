@@ -1,17 +1,28 @@
 <Solution>
-  <Folder Name="/SolutionConfig/">
-    <File Path="../.editorconfig" />
-    <File Path="../.gitattributes" />
-    <File Path="../.github/workflows/ci-build.yml" />
-    <File Path="../.gitignore" />
-    <File Path="../LICENSE" />
-    <File Path="../README.md" />
-    <File Path="../version.json" />
-    <File Path="directory.build.props" />
-    <File Path="directory.build.targets" />
-    <File Path="directory.packages.props" />
-    <File Path="stylecop.json" />
-  </Folder>
-  <Project Path="ReactiveUI.Extensions.Tests/ReactiveUI.Extensions.Tests.csproj" />
-  <Project Path="ReactiveUI.Extensions/ReactiveUI.Extensions.csproj" />
+    <Folder Name="/benchmarks/">
+        <Project Path="benchmarks/ReactiveUI.Extensions.Benchmarks/ReactiveUI.Extensions.Benchmarks.csproj" />
+    </Folder>
+    <Folder Name="/SolutionConfig/">
+        <File Path="../.editorconfig" />
+        <File Path="../.gitattributes" />
+        <File Path="../.github/workflows/ci-build.yml" />
+        <File Path="../.gitignore" />
+        <File Path="../LICENSE" />
+        <File Path="../README.md" />
+        <File Path="../version.json" />
+        <File Path="directory.build.props" />
+        <File Path="directory.build.targets" />
+        <File Path="directory.packages.props" />
+        <File Path="global.json" />
+        <File Path="stylecop.json" />
+        <File Path="testconfig.json" />
+    </Folder>
+    <Folder Name="/tools/">
+        <Project Path="tools/ReactiveUI.Extensions.AllocReport/ReactiveUI.Extensions.AllocReport.csproj" />
+        <Project Path="tools/ReactiveUI.Extensions.CpuReport/ReactiveUI.Extensions.CpuReport.csproj" />
+    </Folder>
+    <Project Path="ReactiveUI.Extensions/ReactiveUI.Extensions.csproj" />
+    <Folder Name="/tests/">
+        <Project Path="tests/ReactiveUI.Extensions.Tests/ReactiveUI.Extensions.Tests.csproj" />
+    </Folder>
 </Solution>

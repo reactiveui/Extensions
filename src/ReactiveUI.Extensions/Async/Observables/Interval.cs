@@ -20,30 +20,59 @@ public static partial class ObservableAsync
     /// token is triggered. This method is useful for generating periodic events or timers in asynchronous
     /// workflows.</remarks>
     /// <param name="period">The time interval between emissions of values. Must be a positive duration.</param>
+    /// <returns>An ObservableAsync{long} that emits an increasing long value at each interval, starting from 1, until the
+    /// sequence is cancelled.</returns>
+    public static IObservableAsync<long> Interval(TimeSpan period) =>
+        Interval(period, (TimeProvider?)null);
+
+    /// <summary>
+    /// Creates an asynchronous observable sequence that emits a long integer value at each specified time interval.
+    /// </summary>
+    /// <remarks>The sequence continues emitting values until the observer unsubscribes or the cancellation
+    /// token is triggered. This method is useful for generating periodic events or timers in asynchronous
+    /// workflows.</remarks>
+    /// <param name="period">The time interval between emissions of values. Must be a positive duration.</param>
     /// <param name="timeProvider">An optional time provider used to control the timing of emissions. If null or set to TimeProvider.System, the
     /// system clock is used.</param>
     /// <returns>An ObservableAsync{long} that emits an increasing long value at each interval, starting from 1, until the
     /// sequence is cancelled.</returns>
-    public static IObservableAsync<long> Interval(TimeSpan period, TimeProvider? timeProvider = null) => CreateAsBackgroundJob<long>(
+    public static IObservableAsync<long> Interval(TimeSpan period, TimeProvider? timeProvider) =>
+        CreateAsBackgroundJob<long>(
             async (observer, cancellationToken) =>
-        {
-            long tick = 1;
-            while (!cancellationToken.IsCancellationRequested)
             {
-                if (timeProvider is null || timeProvider == TimeProvider.System)
+                long tick = 1;
+                while (!cancellationToken.IsCancellationRequested)
                 {
-                    await Task.Delay(period, cancellationToken);
-                }
-                else
-                {
-                    var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-                    await using var tp = timeProvider.CreateTimer(x => ((TaskCompletionSource<bool>)x!).TrySetResult(true), tcs, period, System.Threading.Timeout.InfiniteTimeSpan);
-                    using var ct = cancellationToken.Register(x => ((TaskCompletionSource<bool>)x!).TrySetCanceled(cancellationToken), tcs);
-                    await tcs.Task;
-                }
+                    if (timeProvider is null || timeProvider == TimeProvider.System)
+                    {
+                        await Task.Delay(period, cancellationToken).ConfigureAwait(false);
+                    }
+                    else
+                    {
+                        var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+                        await using var tp = timeProvider.CreateTimer(
+                            x => ((TaskCompletionSource<bool>)x!).TrySetResult(true),
+                            tcs,
+                            period,
+                            System.Threading.Timeout.InfiniteTimeSpan);
 
-                await observer.OnNextAsync(tick++, cancellationToken);
-            }
-        },
+#if NET8_0_OR_GREATER
+                        await using var ct =
+                            cancellationToken.Register(
+                                x => ((TaskCompletionSource<bool>)x!).TrySetCanceled(cancellationToken),
+                                tcs);
+#else
+                        using var ct =
+                            cancellationToken.Register(
+                                x => ((TaskCompletionSource<bool>)x!).TrySetCanceled(cancellationToken),
+                                tcs);
+#endif
+
+                        await tcs.Task.ConfigureAwait(false);
+                    }
+
+                    await observer.OnNextAsync(tick++, cancellationToken).ConfigureAwait(false);
+                }
+            },
             true);
 }

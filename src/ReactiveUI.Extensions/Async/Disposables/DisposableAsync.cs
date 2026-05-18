@@ -2,6 +2,8 @@
 // ReactiveUI Association Incorporated licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
+using ReactiveUI.Extensions.Internal;
+
 namespace ReactiveUI.Extensions.Async.Disposables;
 
 /// <summary>
@@ -27,9 +29,26 @@ public static class DisposableAsync
     /// <returns>An <see cref="IAsyncDisposable"/> instance that invokes the specified delegate when disposed asynchronously.</returns>
     public static IAsyncDisposable Create(Func<ValueTask> disposeAsync)
     {
-        ArgumentExceptionHelper.ThrowIfNull(disposeAsync, nameof(disposeAsync));
+        ArgumentExceptionHelper.ThrowIfNull(disposeAsync);
 
         return new AnonymousAsyncDisposable(disposeAsync);
+    }
+
+    /// <summary>
+    /// Creates a new asynchronous disposable that invokes the specified delegate, passing the supplied state, when
+    /// disposed asynchronously. Prefer this overload over <see cref="Create(Func{ValueTask})"/> at call sites that
+    /// would otherwise capture locals or <c>this</c> in the lambda — the state-carrying overload removes the
+    /// closure object and lets the lambda be declared <c>static</c>.
+    /// </summary>
+    /// <typeparam name="TState">The type of the state passed to the dispose delegate.</typeparam>
+    /// <param name="state">The state forwarded to <paramref name="disposeAsync"/> at dispose time.</param>
+    /// <param name="disposeAsync">The dispose delegate. Must not be null.</param>
+    /// <returns>An <see cref="IAsyncDisposable"/> instance that invokes the specified delegate when disposed.</returns>
+    public static IAsyncDisposable Create<TState>(TState state, Func<TState, ValueTask> disposeAsync)
+    {
+        ArgumentExceptionHelper.ThrowIfNull(disposeAsync);
+
+        return new AnonymousAsyncDisposable<TState>(state, disposeAsync);
     }
 
     /// <summary>
@@ -44,6 +63,23 @@ public static class DisposableAsync
 
         /// <inheritdoc/>
         public ValueTask DisposeAsync() => Interlocked.Exchange(ref _disposed, 1) == 1 ? default : disposeAsync();
+    }
+
+    /// <summary>
+    /// An asynchronous disposable that invokes a delegate, passing a stored state, when disposed. The state
+    /// indirection avoids a closure allocation when the caller can supply the captured data as <typeparamref
+    /// name="TState"/>.
+    /// </summary>
+    /// <typeparam name="TState">The type of the state passed to the dispose delegate.</typeparam>
+    internal sealed class AnonymousAsyncDisposable<TState>(TState state, Func<TState, ValueTask> disposeAsync) : IAsyncDisposable
+    {
+        /// <summary>
+        /// A flag indicating whether <see cref="DisposeAsync"/> has already been called (0 = not disposed, 1 = disposed).
+        /// </summary>
+        private int _disposed;
+
+        /// <inheritdoc/>
+        public ValueTask DisposeAsync() => Interlocked.Exchange(ref _disposed, 1) == 1 ? default : disposeAsync(state);
     }
 
     /// <summary>

@@ -31,7 +31,8 @@ public static class UnhandledExceptionHandler
     /// will be called for each unhandled exception that occurs after registration.</remarks>
     /// <param name="unhandledExceptionHandler">An action to execute when an unhandled exception is encountered. The exception instance is passed as a
     /// parameter to the handler. Cannot be null.</param>
-    public static void Register(Action<Exception> unhandledExceptionHandler) => _unhandledException = unhandledExceptionHandler;
+    public static void Register(Action<Exception> unhandledExceptionHandler) =>
+        _unhandledException = unhandledExceptionHandler;
 
     /// <summary>
     /// Invokes the application's unhandled exception handler for exceptions that are not operation cancellations.
@@ -63,5 +64,6 @@ public static class UnhandledExceptionHandler
     /// an application. It writes the exception details to the standard console output for diagnostic
     /// purposes.</remarks>
     /// <param name="exception">The exception that was not handled. Cannot be null.</param>
-    internal static void DefaultUnhandledExceptionHandler(Exception exception) => Console.WriteLine("UnhandleException: " + exception);
+    internal static void DefaultUnhandledExceptionHandler(Exception exception) =>
+        System.Diagnostics.Trace.TraceError("UnhandleException: {0}", exception);
 }

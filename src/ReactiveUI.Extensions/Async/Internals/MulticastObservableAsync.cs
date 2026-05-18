@@ -2,6 +2,8 @@
 // ReactiveUI Association Incorporated licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
+using System.Diagnostics.CodeAnalysis;
+
 using ReactiveUI.Extensions.Async.Disposables;
 using ReactiveUI.Extensions.Async.Subjects;
 
@@ -13,8 +15,14 @@ namespace ReactiveUI.Extensions.Async.Internals;
 /// <typeparam name="T">The type of the elements in the observable sequence.</typeparam>
 /// <param name="observable">The source observable to multicast.</param>
 /// <param name="subject">The subject used to broadcast notifications to multiple observers.</param>
-internal class MulticastObservableAsync<T>(IObservableAsync<T> observable, ISubjectAsync<T> subject) : ConnectableObservableAsync<T>, IDisposable
+internal class MulticastObservableAsync<T>(IObservableAsync<T> observable, ISubjectAsync<T> subject)
+    : ConnectableObservableAsync<T>, IDisposable
 {
+    /// <summary>
+    /// The cancellation token source that is cancelled when this instance is disposed.
+    /// </summary>
+    private readonly CancellationTokenSource _disposedCts = new();
+
     /// <summary>
     /// The asynchronous gate used to synchronize connection and disconnection operations.
     /// </summary>
@@ -31,6 +39,11 @@ internal class MulticastObservableAsync<T>(IObservableAsync<T> observable, ISubj
     private bool _disposedValue;
 
     /// <summary>
+    /// Gets the cancellation token that is cancelled when this instance is disposed.
+    /// </summary>
+    private CancellationToken DisposedCancellationToken => _disposedCts.Token;
+
+    /// <summary>
     /// Asynchronously establishes a connection to the underlying observable sequence and returns a disposable handle
     /// for managing the connection's lifetime.
     /// </summary>
@@ -41,31 +54,55 @@ internal class MulticastObservableAsync<T>(IObservableAsync<T> observable, ISubj
     /// that disconnects the subscription when disposed.</returns>
     public override async ValueTask<IAsyncDisposable> ConnectAsync(CancellationToken cancellationToken)
     {
-        using (await _gate.LockAsync())
+        // Fast path: when the caller passes our own dispose token (or no token at all), there is nothing to
+        // combine — use DisposedCancellationToken directly and skip the per-call linked CTS allocation.
+        // Slow path keeps the linked CTS scoped to this call.
+        CancellationTokenSource? linkedCts = null;
+        CancellationToken token;
+        if (cancellationToken == DisposedCancellationToken || !cancellationToken.CanBeCanceled)
         {
-            if (_connection != null)
-            {
-                return _connection;
-            }
+            token = DisposedCancellationToken;
+        }
+        else
+        {
+            linkedCts = CancellationTokenSource.CreateLinkedTokenSource(DisposedCancellationToken, cancellationToken);
+            token = linkedCts.Token;
+        }
 
-            SingleAssignmentDisposableAsync? connection = new();
-            _connection = connection;
-            await connection.SetDisposableAsync(await observable.SubscribeAsync(subject.AsObserverAsync(), cancellationToken));
-            return DisposableAsync.Create(async () =>
+        try
+        {
+            using (await _gate.LockAsync(token).ConfigureAwait(false))
             {
-                using (await _gate.LockAsync())
+                if (_connection != null)
                 {
-                    if (connection is null)
-                    {
-                        return;
-                    }
-
-                    var localConn = connection;
-                    connection = null;
-                    _connection = null;
-                    await localConn.DisposeAsync();
+                    return _connection;
                 }
-            });
+
+                SingleAssignmentDisposableAsync? connection = new();
+                _connection = connection;
+                await connection.SetDisposableAsync(await observable.SubscribeAsync(
+                    subject.AsObserverAsync(),
+                    token).ConfigureAwait(false)).ConfigureAwait(false);
+                return DisposableAsync.Create(async () =>
+                {
+                    using (await _gate.LockAsync(DisposedCancellationToken).ConfigureAwait(false))
+                    {
+                        if (connection is null)
+                        {
+                            return;
+                        }
+
+                        var localConn = connection;
+                        connection = null;
+                        _connection = null;
+                        await localConn.DisposeAsync().ConfigureAwait(false);
+                    }
+                });
+            }
+        }
+        finally
+        {
+            linkedCts?.Dispose();
         }
     }
 
@@ -76,7 +113,7 @@ internal class MulticastObservableAsync<T>(IObservableAsync<T> observable, ISubj
     /// perform other cleanup operations. After calling Dispose, the object should not be used.</remarks>
     public void Dispose()
     {
-        Dispose(disposing: true);
+        Dispose(true);
         GC.SuppressFinalize(this);
     }
 
@@ -87,8 +124,23 @@ internal class MulticastObservableAsync<T>(IObservableAsync<T> observable, ISubj
     /// <param name="cancellationToken">A cancellation token that can be used to cancel the subscription operation.</param>
     /// <returns>A task that represents the asynchronous subscription operation. The result contains an object that can be
     /// disposed to unsubscribe the observer.</returns>
-    protected override ValueTask<IAsyncDisposable> SubscribeAsyncCore(IObserverAsync<T> observer, CancellationToken cancellationToken) =>
-        subject.Values.SubscribeAsync(observer.Wrap(), cancellationToken);
+    protected override ValueTask<IAsyncDisposable> SubscribeAsyncCore(
+        IObserverAsync<T> observer,
+        CancellationToken cancellationToken)
+    {
+        // The downstream observer (when it itself is an ObserverAsync) receives the wrap's dispose
+        // token through the broadcast chain — pre-linking it here eliminates the per-emission
+        // linked-CTS allocation that the downstream's TryEnter would otherwise produce. The wrap
+        // itself benefits from SubjectAsyncObserver forwarding CancellationToken.None to the
+        // subject (the wrap's TryEnter sees None and fast-paths), so no wrap-side link is needed.
+        var wrap = new WrappedObserverAsync<T>(observer);
+        if (observer is ObserverAsync<T> downstream)
+        {
+            downstream.LinkUpstreamCancellation(wrap.InternalDisposedToken);
+        }
+
+        return subject.Values.SubscribeAsync(wrap, cancellationToken);
+    }
 
     /// <summary>
     /// Releases the unmanaged resources used by the object and optionally releases the managed resources.
@@ -97,17 +149,25 @@ internal class MulticastObservableAsync<T>(IObservableAsync<T> observable, ISubj
     /// resources in a derived class. When disposing is true, both managed and unmanaged resources can be disposed; when
     /// false, only unmanaged resources should be released.</remarks>
     /// <param name="disposing">true to release both managed and unmanaged resources; false to release only unmanaged resources.</param>
+    [SuppressMessage(
+        "Major Bug",
+        "S4462:Calls to async methods should not be blocking",
+        Justification = "IDisposable.Dispose is intrinsically synchronous; this method must tear down async connection state on the sync dispose path.")]
     protected virtual void Dispose(bool disposing)
     {
-        if (!_disposedValue)
+        if (_disposedValue)
         {
-            if (disposing)
-            {
-                _connection?.DisposeAsync().AsTask().Wait();
-                _gate.Dispose();
-            }
-
-            _disposedValue = true;
+            return;
         }
+
+        if (disposing)
+        {
+            _disposedCts.Cancel();
+            _connection?.DisposeAsync().AsTask().Wait();
+            _gate.Dispose();
+            _disposedCts.Dispose();
+        }
+
+        _disposedValue = true;
     }
 }
