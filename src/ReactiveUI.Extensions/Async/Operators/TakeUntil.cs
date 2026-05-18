@@ -396,7 +396,7 @@ public static partial class ObservableAsync
             public async ValueTask SubscribeSourcesAsync(CancellationToken cancellationToken)
             {
                 _tokenRegistration = _parent._cancellationToken.Register(OnTokenCanceled);
-                _subscription = await _parent._source.SubscribeAsync(new SourceObserver(this), cancellationToken).ConfigureAwait(false);
+                _subscription = await _parent._source.SubscribeAsync(new TakeUntilSourceObserver<T>(_lifecycle), cancellationToken).ConfigureAwait(false);
             }
 
             /// <summary>
@@ -435,30 +435,6 @@ public static partial class ObservableAsync
                 await Task.Yield();
                 await _lifecycle.ForwardOnCompletedAsync(Result.Success).ConfigureAwait(false);
             });
-
-            /// <summary>
-            /// Observer that forwards source items to the parent subscription's shared lifecycle.
-            /// </summary>
-            internal sealed class SourceObserver(Subscription parent) : ObserverAsync<T>
-            {
-                /// <inheritdoc/>
-                protected override ValueTask OnNextAsyncCore(T value, CancellationToken cancellationToken)
-                {
-                    _ = cancellationToken;
-                    return parent._lifecycle.ForwardOnNextAsync(value);
-                }
-
-                /// <inheritdoc/>
-                protected override ValueTask OnErrorResumeAsyncCore(Exception error, CancellationToken cancellationToken)
-                {
-                    _ = cancellationToken;
-                    return parent._lifecycle.ForwardOnErrorResumeAsync(error);
-                }
-
-                /// <inheritdoc/>
-                protected override ValueTask OnCompletedAsyncCore(Result result) =>
-                    parent._lifecycle.ForwardOnCompletedAsync(result);
-            }
         }
     }
 
@@ -525,7 +501,7 @@ public static partial class ObservableAsync
             public async ValueTask SubscribeSourcesAsync(CancellationToken cancellationToken)
             {
                 WaitAndComplete();
-                _subscription = await _parent._source.SubscribeAsync(new SourceObserver(this), cancellationToken).ConfigureAwait(false);
+                _subscription = await _parent._source.SubscribeAsync(new TakeUntilSourceObserver<T>(_lifecycle), cancellationToken).ConfigureAwait(false);
             }
 
             /// <summary>
@@ -603,30 +579,6 @@ public static partial class ObservableAsync
                     }
                 }
             });
-
-            /// <summary>
-            /// Observer that forwards source items to the parent subscription's shared lifecycle.
-            /// </summary>
-            internal sealed class SourceObserver(Subscription parent) : ObserverAsync<T>
-            {
-                /// <inheritdoc/>
-                protected override ValueTask OnNextAsyncCore(T value, CancellationToken cancellationToken)
-                {
-                    _ = cancellationToken;
-                    return parent._lifecycle.ForwardOnNextAsync(value);
-                }
-
-                /// <inheritdoc/>
-                protected override ValueTask OnErrorResumeAsyncCore(Exception error, CancellationToken cancellationToken)
-                {
-                    _ = cancellationToken;
-                    return parent._lifecycle.ForwardOnErrorResumeAsync(error);
-                }
-
-                /// <inheritdoc/>
-                protected override ValueTask OnCompletedAsyncCore(Result result) =>
-                    parent._lifecycle.ForwardOnCompletedAsync(result);
-            }
         }
     }
 
@@ -693,7 +645,7 @@ public static partial class ObservableAsync
             {
                 var task = _parent._task;
                 WaitAndComplete(task);
-                _subscription = await _parent._source.SubscribeAsync(new SourceObserver(this), cancellationToken).ConfigureAwait(false);
+                _subscription = await _parent._source.SubscribeAsync(new TakeUntilSourceObserver<T>(_lifecycle), cancellationToken).ConfigureAwait(false);
             }
 
             /// <summary>
@@ -738,30 +690,6 @@ public static partial class ObservableAsync
                     }
                 }
             });
-
-            /// <summary>
-            /// Observer that forwards source items to the parent subscription's shared lifecycle.
-            /// </summary>
-            internal sealed class SourceObserver(Subscription parent) : ObserverAsync<T>
-            {
-                /// <inheritdoc/>
-                protected override ValueTask OnNextAsyncCore(T value, CancellationToken cancellationToken)
-                {
-                    _ = cancellationToken;
-                    return parent._lifecycle.ForwardOnNextAsync(value);
-                }
-
-                /// <inheritdoc/>
-                protected override ValueTask OnErrorResumeAsyncCore(Exception error, CancellationToken cancellationToken)
-                {
-                    _ = cancellationToken;
-                    return parent._lifecycle.ForwardOnErrorResumeAsync(error);
-                }
-
-                /// <inheritdoc/>
-                protected override ValueTask OnCompletedAsyncCore(Result result) =>
-                    parent._lifecycle.ForwardOnCompletedAsync(result);
-            }
         }
     }
 
@@ -836,7 +764,7 @@ public static partial class ObservableAsync
                 await _otherDisposable.SetDisposableAsync(otherSubscription).ConfigureAwait(false);
 
                 var sourceSubscription =
-                    await _parent._source.SubscribeAsync(new FirstSubscription(this), cancellationToken).ConfigureAwait(false);
+                    await _parent._source.SubscribeAsync(new TakeUntilSourceObserver<T>(_lifecycle), cancellationToken).ConfigureAwait(false);
                 await _disposable.SetDisposableAsync(sourceSubscription).ConfigureAwait(false);
 
                 return this;
@@ -857,30 +785,6 @@ public static partial class ObservableAsync
             /// <param name="external">The subscribe-time token.</param>
             internal void LinkExternalCancellation(CancellationToken external) =>
                 _lifecycle.LinkExternalCancellation(external);
-
-            /// <summary>
-            /// Observer that forwards source items to the parent subscription's shared lifecycle.
-            /// </summary>
-            internal sealed class FirstSubscription(Subscription parent) : ObserverAsync<T>
-            {
-                /// <inheritdoc/>
-                protected override ValueTask OnNextAsyncCore(T value, CancellationToken cancellationToken)
-                {
-                    _ = cancellationToken;
-                    return parent._lifecycle.ForwardOnNextAsync(value);
-                }
-
-                /// <inheritdoc/>
-                protected override ValueTask OnErrorResumeAsyncCore(Exception error, CancellationToken cancellationToken)
-                {
-                    _ = cancellationToken;
-                    return parent._lifecycle.ForwardOnErrorResumeAsync(error);
-                }
-
-                /// <inheritdoc/>
-                protected override ValueTask OnCompletedAsyncCore(Result result) =>
-                    parent._lifecycle.ForwardOnCompletedAsync(result);
-            }
 
             /// <summary>
             /// Observer for the signal observable that triggers completion of the source subscription.

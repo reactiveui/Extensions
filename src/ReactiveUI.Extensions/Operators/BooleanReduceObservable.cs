@@ -34,123 +34,66 @@ internal sealed class BooleanReduceObservable(IEnumerable<IObservable<bool>> sou
         }
 
         var sink = new Sink(observer, _sourceList.Count, target);
-        var composite = new DisposableBag();
-        for (var i = 0; i < _sourceList.Count; i++)
-        {
-            var index = i;
-            composite.Add(_sourceList[i].SubscribeCallbacks(
-                value => sink.OnNext(index, value),
-                sink.OnError,
-                () => sink.OnCompleted(index)));
-        }
-
-        return composite;
+        return IndexedSubscribeHelper.SubscribeIndexed<bool>(_sourceList, sink.OnNext, sink.OnError, sink.OnCompleted);
     }
 
     /// <summary>
     /// Sink that holds the latest value per source and reduces them against <paramref name="target"/>.
+    /// Composes <see cref="ReduceSinkState{TIn, TOut}"/> for the shared gate / value cache / OnError /
+    /// OnCompleted plumbing so this class carries only the per-operator reduce step.
     /// </summary>
     /// <param name="downstream">The downstream observer.</param>
     /// <param name="count">The number of sources.</param>
     /// <param name="target">The value every source must hold for emit to be <c>true</c>.</param>
     private sealed class Sink(IObserver<bool> downstream, int count, bool target)
     {
-        /// <summary>The synchronization gate.</summary>
-#if NET9_0_OR_GREATER
-        private readonly Lock _gate = new();
-#else
-        private readonly object _gate = new();
-#endif
-
-        /// <summary>The latest values.</summary>
-        private readonly bool?[] _values = new bool?[count];
-
-        /// <summary>The completion status.</summary>
-        private readonly bool[] _completed = new bool[count];
-
-        /// <summary>The number of sources with values.</summary>
-        private int _hasValueCount;
-
-        /// <summary>The number of completed sources.</summary>
-        private int _completedCount;
-
-        /// <summary>The terminal flag.</summary>
-        private bool _isDone;
+        /// <summary>Shared gate / value cache / terminal-state plumbing.</summary>
+        private readonly ReduceSinkState<bool, bool> _state = new(downstream, count);
 
         /// <summary>Handles OnNext from a source.</summary>
         /// <param name="index">Source index.</param>
         /// <param name="value">Emitted value.</param>
         public void OnNext(int index, bool value)
         {
-            lock (_gate)
+            lock (_state.Gate)
             {
-                if (_isDone)
+                if (_state.IsDone)
                 {
                     return;
                 }
 
-                if (!_values[index].HasValue)
+                if (!_state.Values[index].HasValue)
                 {
-                    _hasValueCount++;
+                    _state.HasValueCount++;
                 }
 
-                _values[index] = value;
+                _state.Values[index] = value;
 
-                if (_hasValueCount < _values.Length)
+                if (!_state.AllValuesPresent)
                 {
                     return;
                 }
 
                 var matches = true;
-                for (var i = 0; i < _values.Length; i++)
+                for (var i = 0; i < _state.Values.Length; i++)
                 {
-                    if (_values[i] != target)
+                    if (_state.Values[i] != target)
                     {
                         matches = false;
                         break;
                     }
                 }
 
-                downstream.OnNext(matches);
+                _state.Downstream.OnNext(matches);
             }
         }
 
         /// <summary>Handles OnError from any source.</summary>
         /// <param name="error">The error.</param>
-        public void OnError(Exception error)
-        {
-            lock (_gate)
-            {
-                if (_isDone)
-                {
-                    return;
-                }
-
-                _isDone = true;
-                downstream.OnError(error);
-            }
-        }
+        public void OnError(Exception error) => _state.HandleError(error);
 
         /// <summary>Handles OnCompleted from a source.</summary>
         /// <param name="index">Source index.</param>
-        public void OnCompleted(int index)
-        {
-            lock (_gate)
-            {
-                if (_isDone || _completed[index])
-                {
-                    return;
-                }
-
-                _completed[index] = true;
-                _completedCount++;
-
-                if (_completedCount == _values.Length || !_values[index].HasValue)
-                {
-                    _isDone = true;
-                    downstream.OnCompleted();
-                }
-            }
-        }
+        public void OnCompleted(int index) => _state.HandleCompleted(index);
     }
 }
