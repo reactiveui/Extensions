@@ -22,9 +22,5 @@ jobs:
             installWorkloads: true
             versioningTool: minver
             minverMinimumMajorMinor: '2.3'
-            enableSonarCloud: true
-            sonarProjectKey: reactiveui_Extensions
-            sonarOrganization: reactiveui
         secrets:
             CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
-            SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}

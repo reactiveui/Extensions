@@ -1,0 +1,27 @@
+name: SonarCloud
+
+on:
+    push:
+        branches: [ main ]
+    pull_request:
+        branches: [ main ]
+
+permissions:
+    contents: read
+
+jobs:
+    sonarcloud:
+        uses: reactiveui/actions-common/.github/workflows/workflow-common-sonarcloud.yml@main
+        with:
+            productNamespacePrefix: ReactiveUI.Extensions
+            installWorkloads: true
+            versioningTool: minver
+            minverMinimumMajorMinor: '2.3'
+            sonarProjectKey: reactiveui_Extensions
+            sonarOrganization: reactiveui
+            sonarExclusions: '**/tests/**,**/tools/**'
+            sonarCoverageExclusions: '**/tests/**,**/tools/**,**/*Tests/**,**/*Tests.cs,**/Generated/**'
+            sonarCpdExclusions: '**/tests/**,**/tools/**'
+            sonarTestExclusions: '**/tests/**,**/tools/**'
+        secrets:
+            SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
