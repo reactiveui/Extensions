@@ -286,10 +286,6 @@ public static class ObservableBridgeExtensions
         /// </summary>
         /// <param name="observer">The synchronous observer to receive notifications.</param>
         /// <returns>A disposable that tears down the async subscription when disposed.</returns>
-        [SuppressMessage(
-            "Major Bug",
-            "S4462:Calls to async methods should not be blocking",
-            Justification = "The IDisposable.Dispose callback is intrinsically synchronous and must tear down the async subscription it bridged on subscribe.")]
         public IDisposable Subscribe(IObserver<T> observer)
         {
             ArgumentExceptionHelper.ThrowIfNull(observer);
@@ -300,37 +296,49 @@ public static class ObservableBridgeExtensions
 
             return new ActionDisposable(() =>
             {
+                // Cancel synchronously: the cancellation token is the actual stop signal that
+                // propagates into the async producer. The remaining IAsyncDisposable teardown
+                // is dispatched to a thread-pool task so the calling thread is never blocked
+                // on it. Synchronously awaiting the dispose deadlocks when a downstream Rx
+                // operator (e.g. Take after enough items) calls Dispose from inside an OnNext
+                // — that OnNext is running on the producer's pump thread, and the producer's
+                // DisposeAsync waits for the pump to terminate, i.e. waits for the very thread
+                // currently blocked inside it.
                 cts.Cancel();
-
-                try
-                {
-                    var task = subscriptionTask;
-                    if (task.IsCompleted)
-                    {
-                        if (task.Result is { } subscription)
-                        {
-                            subscription.DisposeAsync().AsTask().GetAwaiter().GetResult();
-                        }
-                    }
-                    else
-                    {
-                        var subscription = task.GetAwaiter().GetResult();
-                        subscription?.DisposeAsync().AsTask().GetAwaiter().GetResult();
-                    }
-                }
-                catch (OperationCanceledException)
-                {
-                    // Expected during cancellation
-                }
-                catch (Exception e)
-                {
-                    UnhandledExceptionHandler.OnUnhandledException(e);
-                }
-                finally
-                {
-                    cts.Dispose();
-                }
+                _ = Task.Run(() => CleanupAsync(subscriptionTask, cts));
             });
+        }
+
+        /// <summary>
+        /// Drains the deferred subscription task, disposes the underlying async subscription, and
+        /// disposes the cancellation token source. Runs on a thread-pool task so the calling
+        /// thread of <see cref="ActionDisposable"/> is never blocked on async cleanup.
+        /// </summary>
+        /// <param name="subscriptionTask">The subscription task captured at <c>Subscribe</c> time.</param>
+        /// <param name="cts">The cancellation token source owned by the subscription.</param>
+        /// <returns>A task that completes when cleanup finishes.</returns>
+        private static async Task CleanupAsync(Task<IAsyncDisposable?> subscriptionTask, CancellationTokenSource cts)
+        {
+            try
+            {
+                var subscription = await subscriptionTask.ConfigureAwait(false);
+                if (subscription is not null)
+                {
+                    await subscription.DisposeAsync().ConfigureAwait(false);
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                // Expected during cancellation.
+            }
+            catch (Exception e)
+            {
+                UnhandledExceptionHandler.OnUnhandledException(e);
+            }
+            finally
+            {
+                cts.Dispose();
+            }
         }
 
         /// <summary>

@@ -217,6 +217,32 @@ public class BridgeTests
     }
 
     /// <summary>
+    /// Regression test for the re-entrant-dispose deadlock between <c>ToObservable()</c> and a
+    /// downstream synchronous operator (e.g. <c>Take</c>) that calls <c>Dispose</c> from inside
+    /// an <c>OnNext</c> while the producer pump is still emitting. If the bridge's
+    /// <see cref="IDisposable.Dispose"/> blocks synchronously on the underlying
+    /// <see cref="IAsyncDisposable"/>, the producer thread ends up waiting for itself to
+    /// finish and the test hangs. Wrapped in a 10s deadline so a regression fails fast with a
+    /// clear timeout instead of timing out the whole suite.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenAsyncObservableTakeDisposesFromInsideOnNext_ThenDoesNotDeadlock()
+    {
+        const int FirstItemsToConsume = 3;
+        const int RangeLength = 10;
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+
+        var result = await AsyncObs.Range(1, RangeLength)
+            .ToObservable()
+            .Take(FirstItemsToConsume)
+            .ToList()
+            .ToTask(deadline.Token);
+
+        await Assert.That(result).IsCollectionEqualTo([1, SequenceItemTwo, SequenceItemThree]);
+    }
+
+    /// <summary>
     /// Tests Rx Subject pushing data through async pipeline.
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
@@ -528,8 +554,14 @@ public class BridgeTests
             var rxObs = source.ToObservable();
             var sub = rxObs.Subscribe(_ => { });
 
-            // Disposing triggers disposal path that throws a general exception
+            // Disposing triggers disposal path that throws a general exception. The cleanup
+            // (and therefore the routed unhandled exception) runs on a background task so the
+            // calling thread is never blocked on async work, so the assertion has to wait for
+            // the handler to be invoked.
             sub.Dispose();
+            await AsyncTestHelpers.WaitForConditionAsync(
+                () => captured is not null,
+                TimeSpan.FromSeconds(5));
 
             await Assert.That(captured).IsNotNull();
             await Assert.That(captured!.Message).IsEqualTo("dispose error");
