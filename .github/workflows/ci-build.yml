@@ -22,6 +22,11 @@ jobs:
             installWorkloads: true
             versioningTool: minver
             minverMinimumMajorMinor: '2.3'
-            testTimeout: '8m'
+            # 15m, not 8m: the entire test assembly is serialized via
+            # [assembly: NotInParallel(nameof(UnhandledExceptionHandler))] because the
+            # global unhandled-exception handler is mutable static. On Windows net10 the
+            # MTP/TUnit per-test overhead is ~17x net8/9, so even though net8/9 finish in
+            # ~29s the same suite needs ~8-12m on Windows net10. 15m leaves headroom.
+            testTimeout: '15m'
         secrets:
             CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
