@@ -9,7 +9,7 @@ namespace ReactiveUI.Extensions.Tests;
 
 /// <summary>Tests for <see cref="CurrentValueSubject{T}"/>, <see cref="SingleValueObservable{T}"/>,
 /// and the <see cref="CachedObservables"/> singletons.</summary>
-public class CurrentValueSubjectTests
+public partial class CurrentValueSubjectTests
 {
     /// <summary>Initial value used by subject tests so the replay value is unambiguous.</summary>
     private const int InitialValue = 42;

@@ -7,7 +7,7 @@ namespace ReactiveUI.Extensions.Tests.Operators;
 /// <summary>
 /// Tests for the <see cref="ScanWithInitialObservable{TSource, TAccumulate}"/> class.
 /// </summary>
-public class ScanWithInitialTests
+public partial class ScanWithInitialTests
 {
 #if NET9_0_OR_GREATER
     /// <summary>Synchronization gate used by tests.</summary>
