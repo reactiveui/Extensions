@@ -562,6 +562,74 @@ public class ParityHelpersOperatorFusionsTests
         }
     }
 
+    /// <summary>Verifies that an exception thrown by the downstream observer inside <c>Throttle</c>'s
+    /// post-delay forwarding is caught by the operator's <c>catch (Exception e)</c> block and
+    /// routed through <see cref="UnhandledExceptionHandler"/>.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenThrottleDownstreamThrowsInDelay_ThenRoutedToUnhandled()
+    {
+        var previousHandler = UnhandledExceptionHandler.CurrentHandler;
+        try
+        {
+            Exception? unhandled = null;
+            var unhandledTcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            UnhandledExceptionHandler.Register(ex =>
+            {
+                unhandled = ex;
+                unhandledTcs.TrySetResult();
+            });
+
+            var subject = SubjectAsync.Create<int>();
+            var throwingObserver = new ThrowingAsyncObserver<int>(new InvalidOperationException("throttle-downstream-throws"));
+
+            await using var sub = await subject.Values
+                .Throttle(TimeSpan.FromMilliseconds(ThrottleWindowMilliseconds))
+                .SubscribeAsync(throwingObserver, CancellationToken.None);
+
+            await subject.OnNextAsync(One, CancellationToken.None);
+            await unhandledTcs.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+            await Assert.That(unhandled).IsNotNull();
+            await Assert.That(unhandled!.Message).IsEqualTo("throttle-downstream-throws");
+        }
+        finally
+        {
+            UnhandledExceptionHandler.Register(previousHandler);
+        }
+    }
+
+    /// <summary>Exercises the <c>!IsCurrentEmission(id)</c> guard inside <c>DebounceUntil</c>'s
+    /// <c>DelayAndEmitAsync</c> — when a later emission supersedes the current pending one
+    /// before its debounce window elapses, the older delayed-emit task wakes, sees its id is
+    /// stale, and returns early without forwarding.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenDebounceUntilSecondEmissionSupersedesFirst_ThenStaleDelayDropsValue()
+    {
+        var subject = SubjectAsync.Create<int>();
+        var values = new List<int>();
+        var emitted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        await using var sub = await subject.Values
+            .DebounceUntil(TimeSpan.FromMilliseconds(80), static _ => false)
+            .SubscribeAsync(
+                (v, _) =>
+                {
+                    values.Add(v);
+                    emitted.TrySetResult();
+                    return default;
+                });
+
+        await subject.OnNextAsync(One, CancellationToken.None);
+        await subject.OnNextAsync(Two, CancellationToken.None);
+
+        await emitted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await Task.Delay(ThrottleWindowMilliseconds);
+
+        await Assert.That(values).IsCollectionEqualTo([Two]);
+    }
+
     /// <summary>Verifies that an unhandled exception thrown by the downstream observer inside
     /// <c>DebounceUntil</c>'s delayed-emit task is routed to <see cref="UnhandledExceptionHandler"/>.</summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>

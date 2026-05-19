@@ -1317,6 +1317,26 @@ public class TerminalOperatorTests
         await Assert.That(result).IsFalse();
     }
 
+    /// <summary>Exercises the <c>ContainsAsync(value, comparer)</c> overload — the no-cancellation
+    /// shortcut that forwards to the full overload with <see cref="CancellationToken.None"/>.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenContainsAsyncWithComparerOverload_ThenForwardsResult()
+    {
+        var result = await ObservableAsync.Range(1, 3).ContainsAsync(2, EqualityComparer<int>.Default);
+        await Assert.That(result).IsTrue();
+    }
+
+    /// <summary>Exercises the <c>ContainsAsync(value, cancellationToken)</c> overload — the
+    /// no-comparer shortcut that forwards to the full overload with a null comparer.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenContainsAsyncWithCancellationTokenOverload_ThenForwardsResult()
+    {
+        var result = await ObservableAsync.Range(1, 3).ContainsAsync(2, CancellationToken.None);
+        await Assert.That(result).IsTrue();
+    }
+
     /// <summary>Tests CountAsync with predicate that filters some elements.</summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]

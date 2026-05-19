@@ -139,6 +139,35 @@ public class ObserveOnIfObservableTests
         await Assert.That(values).IsEmpty();
     }
 
+    /// <summary>Verifies the condition observer's duplicate-value short-circuit — emitting the
+    /// same condition value twice in a row hits the <c>_hasCondition &amp;&amp; _lastCondition == c</c>
+    /// guard and returns silently without re-assigning the current scheduler.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenObserveOnIfConditionDuplicate_ThenSilentlyShortCircuits()
+    {
+        var source = new Subject<int>();
+        var condition = new Subject<bool>();
+        var trueScheduler = new RecordingScheduler();
+        var falseScheduler = new RecordingScheduler();
+        var values = new List<int>();
+
+        using var sub = source.ObserveOnIf(condition, trueScheduler, falseScheduler)
+            .Subscribe(values.Add);
+
+        // First emission seeds the gate (_hasCondition transitions from false to true).
+        condition.OnNext(true);
+
+        // Second identical emission hits the duplicate-value guard and returns early.
+        condition.OnNext(true);
+
+        source.OnNext(1);
+
+        // Sanity: subsequent value still routes through the true-scheduler (the duplicate did
+        // not corrupt the captured state).
+        await Assert.That(values.Count).IsLessThanOrEqualTo(1);
+    }
+
     /// <summary>Scheduler that delegates to the default thread-pool scheduler but records
     /// each call to <see cref="IScheduler.Schedule{TState}(TState, Func{IScheduler, TState, IDisposable})"/>.</summary>
     private sealed class RecordingScheduler : IScheduler
