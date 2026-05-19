@@ -971,4 +971,82 @@ public partial class CombiningOperatorTests
         // After external cancellation the subscription must be unaffected.
         await Assert.That(sub).IsNotNull();
     }
+
+    /// <summary>Verifies the <see cref="ObservableAsync.MergeSubscription{T}.ForwardOnNextLocked"/>
+    /// inside-gate after-dispose guard by subscribing, disposing the subscription, then calling
+    /// the locked-helper directly — exercising the defensive branch that is otherwise only
+    /// reachable through a real concurrency race between dispose and gate acquisition.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenMergeForwardOnNextLockedAfterDispose_ThenDropped()
+    {
+        var captured = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var downstream = new CapturingObserver<int>(onNext: captured);
+        var subscription = new ObservableAsync.MergeSubscription<int>(downstream);
+
+        await subscription.DisposeAsync();
+        await subscription.ForwardOnNextLocked(1);
+
+        await Assert.That(captured.Task.IsCompleted).IsFalse();
+    }
+
+    /// <summary>Verifies the <see cref="ObservableAsync.MergeSubscription{T}.ForwardOnErrorResumeLocked"/>
+    /// inside-gate after-dispose guard.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenMergeForwardOnErrorResumeLockedAfterDispose_ThenDropped()
+    {
+        var captured = new TaskCompletionSource<Exception>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var downstream = new CapturingObserver<int>(onError: captured);
+        var subscription = new ObservableAsync.MergeSubscription<int>(downstream);
+
+        await subscription.DisposeAsync();
+        await subscription.ForwardOnErrorResumeLocked(new InvalidOperationException("late"));
+
+        await Assert.That(captured.Task.IsCompleted).IsFalse();
+    }
+
+    /// <summary>Test observer used by direct-invocation Merge tests; captures the first
+    /// <c>OnNextAsync</c> or <c>OnErrorResumeAsync</c> via the supplied TCS so the assertion
+    /// can verify the post-dispose call did not deliver anything.</summary>
+    /// <typeparam name="T">The element type.</typeparam>
+    private sealed class CapturingObserver<T> : IObserverAsync<T>
+    {
+        /// <summary>Captures the first <c>OnNextAsync</c> value, if a TCS was supplied.</summary>
+        private readonly TaskCompletionSource<T>? _onNext;
+
+        /// <summary>Captures the first <c>OnErrorResumeAsync</c> exception, if a TCS was supplied.</summary>
+        private readonly TaskCompletionSource<Exception>? _onError;
+
+        /// <summary>Initializes a new instance of the <see cref="CapturingObserver{T}"/> class.</summary>
+        /// <param name="onNext">Optional TCS for capturing the first <c>OnNextAsync</c> value.</param>
+        /// <param name="onError">Optional TCS for capturing the first <c>OnErrorResumeAsync</c> exception.</param>
+        public CapturingObserver(
+            TaskCompletionSource<T>? onNext = null,
+            TaskCompletionSource<Exception>? onError = null)
+        {
+            _onNext = onNext;
+            _onError = onError;
+        }
+
+        /// <inheritdoc/>
+        public ValueTask OnNextAsync(T value, CancellationToken cancellationToken)
+        {
+            _onNext?.TrySetResult(value);
+            return default;
+        }
+
+        /// <inheritdoc/>
+        public ValueTask OnErrorResumeAsync(Exception error, CancellationToken cancellationToken)
+        {
+            _onError?.TrySetResult(error);
+            return default;
+        }
+
+        /// <inheritdoc/>
+        public ValueTask OnCompletedAsync(Result result) => default;
+
+        /// <inheritdoc/>
+        public ValueTask DisposeAsync() => default;
+    }
 }

@@ -185,4 +185,80 @@ public class ConflateObservableTests
         await Assert.That(caught).IsSameReferenceAs(expected);
         await Assert.That(completed).IsFalse();
     }
+
+    /// <summary>Verifies <see cref="ReactiveUI.Extensions.Operators.ConflateObservable{T}.SchedulerMarshaller"/>'s
+    /// post-dispose <c>Enqueue</c> guard by constructing the marshaller directly, disposing it,
+    /// and then pushing a notification — exercising the defensive branch that is otherwise
+    /// unreachable through the front-door <c>Conflate</c> pipeline.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenMarshallerEnqueuedAfterDispose_ThenSilentlyDropped()
+    {
+        var downstream = new RecordingObserver<int>();
+        var scheduler = new TestScheduler();
+        var marshaller = new ReactiveUI.Extensions.Operators.ConflateObservable<int>.SchedulerMarshaller(
+            downstream,
+            scheduler);
+
+        marshaller.Dispose();
+        marshaller.OnNext(1);
+        marshaller.OnError(new InvalidOperationException("late"));
+        marshaller.OnCompleted();
+        scheduler.AdvanceBy(UpdatePeriodTicks);
+
+        await Assert.That(downstream.Values).IsEmpty();
+        await Assert.That(downstream.Error).IsNull();
+        await Assert.That(downstream.Completed).IsFalse();
+    }
+
+    /// <summary>Verifies <see cref="ReactiveUI.Extensions.Operators.ConflateObservable{T}.ConflateSink"/>'s
+    /// after-terminal guards on <c>OnNext</c>, <c>OnError</c>, and <c>OnCompleted</c> by constructing
+    /// the sink directly, terminating via <c>OnError</c>, and then pushing follow-up notifications.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenSinkEventsAfterTerminated_ThenDropped()
+    {
+        var downstream = new RecordingObserver<int>();
+        var scheduler = new TestScheduler();
+        var sink = new ReactiveUI.Extensions.Operators.ConflateObservable<int>.ConflateSink(
+            downstream,
+            TimeSpan.FromTicks(UpdatePeriodTicks),
+            scheduler);
+
+        var expected = new InvalidOperationException("first");
+        sink.OnError(expected);
+
+        sink.OnNext(1);
+        sink.OnError(new InvalidOperationException("ignored"));
+        sink.OnCompleted();
+
+        await Assert.That(downstream.Error).IsSameReferenceAs(expected);
+        await Assert.That(downstream.Values).IsEmpty();
+        await Assert.That(downstream.Completed).IsFalse();
+    }
+
+    /// <summary>Recording observer used to verify direct-invocation tests of the conflate sink
+    /// and marshaller — does not race with a scheduler, so the assertion sees exactly the
+    /// notifications that were forwarded.</summary>
+    /// <typeparam name="T">The element type.</typeparam>
+    private sealed class RecordingObserver<T> : IObserver<T>
+    {
+        /// <summary>Gets the captured <c>OnNext</c> values in order.</summary>
+        public List<T> Values { get; } = [];
+
+        /// <summary>Gets the first captured <c>OnError</c> exception, if any.</summary>
+        public Exception? Error { get; private set; }
+
+        /// <summary>Gets a value indicating whether <c>OnCompleted</c> has been called.</summary>
+        public bool Completed { get; private set; }
+
+        /// <inheritdoc/>
+        public void OnNext(T value) => Values.Add(value);
+
+        /// <inheritdoc/>
+        public void OnError(Exception error) => Error ??= error;
+
+        /// <inheritdoc/>
+        public void OnCompleted() => Completed = true;
+    }
 }
