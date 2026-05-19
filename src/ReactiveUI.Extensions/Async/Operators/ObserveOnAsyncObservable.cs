@@ -34,6 +34,39 @@ internal sealed class ObserveOnAsyncObservable<T>(
     internal sealed class ObserveOnObserver(IObserverAsync<T> observer, AsyncContext asyncContext, bool forceYielding)
         : ObserverAsync<T>
     {
+        /// <summary>Slow path: switch to the target context then forward the value.
+        /// Exposed as <see langword="internal"/> so tests can invoke the slow-path body
+        /// directly without needing to race the current-context check.</summary>
+        /// <param name="value">The value to forward.</param>
+        /// <param name="cancellationToken">The cancellation token.</param>
+        /// <returns>A task that completes after the context switch and downstream forward.</returns>
+        internal async ValueTask SwitchThenForwardAsync(T value, CancellationToken cancellationToken)
+        {
+            await asyncContext.SwitchContextAsync(forceYielding, cancellationToken);
+            await observer.OnNextAsync(value, cancellationToken).ConfigureAwait(false);
+        }
+
+        /// <summary>Slow path: switch to the target context then forward the error.
+        /// Exposed as <see langword="internal"/> for direct unit testing.</summary>
+        /// <param name="error">The error to forward.</param>
+        /// <param name="cancellationToken">The cancellation token.</param>
+        /// <returns>A task that completes after the context switch and downstream forward.</returns>
+        internal async ValueTask SwitchThenErrorAsync(Exception error, CancellationToken cancellationToken)
+        {
+            await asyncContext.SwitchContextAsync(forceYielding, cancellationToken);
+            await observer.OnErrorResumeAsync(error, cancellationToken).ConfigureAwait(false);
+        }
+
+        /// <summary>Slow path: switch to the target context then forward completion.
+        /// Exposed as <see langword="internal"/> for direct unit testing.</summary>
+        /// <param name="result">The completion result.</param>
+        /// <returns>A task that completes after the context switch and downstream forward.</returns>
+        internal async ValueTask SwitchThenCompletedAsync(Result result)
+        {
+            await asyncContext.SwitchContextAsync(forceYielding, CancellationToken.None);
+            await observer.OnCompletedAsync(result).ConfigureAwait(false);
+        }
+
         /// <inheritdoc/>
         protected override ValueTask OnNextAsyncCore(T value, CancellationToken cancellationToken)
         {
@@ -67,35 +100,6 @@ internal sealed class ObserveOnAsyncObservable<T>(
             }
 
             return SwitchThenCompletedAsync(result);
-        }
-
-        /// <summary>Slow path: switch to the target context then forward the value.</summary>
-        /// <param name="value">The value to forward.</param>
-        /// <param name="cancellationToken">The cancellation token.</param>
-        /// <returns>A task that completes after the context switch and downstream forward.</returns>
-        private async ValueTask SwitchThenForwardAsync(T value, CancellationToken cancellationToken)
-        {
-            await asyncContext.SwitchContextAsync(forceYielding, cancellationToken);
-            await observer.OnNextAsync(value, cancellationToken).ConfigureAwait(false);
-        }
-
-        /// <summary>Slow path: switch to the target context then forward the error.</summary>
-        /// <param name="error">The error to forward.</param>
-        /// <param name="cancellationToken">The cancellation token.</param>
-        /// <returns>A task that completes after the context switch and downstream forward.</returns>
-        private async ValueTask SwitchThenErrorAsync(Exception error, CancellationToken cancellationToken)
-        {
-            await asyncContext.SwitchContextAsync(forceYielding, cancellationToken);
-            await observer.OnErrorResumeAsync(error, cancellationToken).ConfigureAwait(false);
-        }
-
-        /// <summary>Slow path: switch to the target context then forward completion.</summary>
-        /// <param name="result">The completion result.</param>
-        /// <returns>A task that completes after the context switch and downstream forward.</returns>
-        private async ValueTask SwitchThenCompletedAsync(Result result)
-        {
-            await asyncContext.SwitchContextAsync(forceYielding, CancellationToken.None);
-            await observer.OnCompletedAsync(result).ConfigureAwait(false);
         }
     }
 }

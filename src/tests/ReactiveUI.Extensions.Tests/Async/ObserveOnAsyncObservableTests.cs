@@ -117,4 +117,106 @@ public class ObserveOnAsyncObservableTests
 
         await Assert.That(result).IsEmpty();
     }
+
+    /// <summary>Verifies <c>ObserveOnObserver.SwitchThenForwardAsync</c> by calling it directly
+    /// — the slow path performs the context switch and then forwards the value downstream,
+    /// independent of the fast/slow choice in <c>OnNextAsyncCore</c>.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenSwitchThenForwardAsyncInvokedDirectly_ThenValueForwarded()
+    {
+        var captured = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var downstream = new CapturingAsyncObserver<int>(captured);
+        var sut = new ObserveOnAsyncObservable<int>.ObserveOnObserver(downstream, AsyncContext.Default, forceYielding: true);
+
+        await sut.SwitchThenForwardAsync(Sentinel, CancellationToken.None);
+
+        var received = await captured.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await Assert.That(received).IsEqualTo(Sentinel);
+    }
+
+    /// <summary>Verifies <c>ObserveOnObserver.SwitchThenErrorAsync</c> by calling it directly.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenSwitchThenErrorAsyncInvokedDirectly_ThenErrorForwarded()
+    {
+        var captured = new TaskCompletionSource<Exception>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var downstream = new CapturingAsyncObserver<int>(captured);
+        var sut = new ObserveOnAsyncObservable<int>.ObserveOnObserver(downstream, AsyncContext.Default, forceYielding: true);
+        var expected = new InvalidOperationException("slow-path-error");
+
+        await sut.SwitchThenErrorAsync(expected, CancellationToken.None);
+
+        var received = await captured.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await Assert.That(received).IsSameReferenceAs(expected);
+    }
+
+    /// <summary>Verifies <c>ObserveOnObserver.SwitchThenCompletedAsync</c> by calling it directly.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenSwitchThenCompletedAsyncInvokedDirectly_ThenCompletionForwarded()
+    {
+        var captured = new TaskCompletionSource<Result>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var downstream = new CapturingAsyncObserver<int>(captured);
+        var sut = new ObserveOnAsyncObservable<int>.ObserveOnObserver(downstream, AsyncContext.Default, forceYielding: true);
+
+        await sut.SwitchThenCompletedAsync(Result.Success);
+
+        var result = await captured.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await Assert.That(result.IsSuccess).IsTrue();
+    }
+
+    /// <summary>Test observer that captures the first <c>OnNextAsync</c> value, the first
+    /// <c>OnErrorResumeAsync</c> exception, and the <c>OnCompletedAsync</c> result via TCSes.</summary>
+    /// <typeparam name="T">The element type.</typeparam>
+    private sealed class CapturingAsyncObserver<T> : IObserverAsync<T>
+    {
+        /// <summary>Captures the first <c>OnNextAsync</c> value, if a TCS was supplied.</summary>
+        private readonly TaskCompletionSource<T>? _onNext;
+
+        /// <summary>Captures the first <c>OnErrorResumeAsync</c> exception, if a TCS was supplied.</summary>
+        private readonly TaskCompletionSource<Exception>? _onError;
+
+        /// <summary>Captures the <c>OnCompletedAsync</c> result, if a TCS was supplied.</summary>
+        private readonly TaskCompletionSource<Result>? _onCompleted;
+
+        /// <summary>Initializes a new instance of the <see cref="CapturingAsyncObserver{T}"/> class
+        /// with an <c>OnNext</c> capture target.</summary>
+        /// <param name="onNext">The TCS that receives the first <c>OnNextAsync</c> value.</param>
+        public CapturingAsyncObserver(TaskCompletionSource<T> onNext) => _onNext = onNext;
+
+        /// <summary>Initializes a new instance of the <see cref="CapturingAsyncObserver{T}"/> class
+        /// with an <c>OnErrorResume</c> capture target.</summary>
+        /// <param name="onError">The TCS that receives the first <c>OnErrorResumeAsync</c> exception.</param>
+        public CapturingAsyncObserver(TaskCompletionSource<Exception> onError) => _onError = onError;
+
+        /// <summary>Initializes a new instance of the <see cref="CapturingAsyncObserver{T}"/> class
+        /// with an <c>OnCompleted</c> capture target.</summary>
+        /// <param name="onCompleted">The TCS that receives the <c>OnCompletedAsync</c> result.</param>
+        public CapturingAsyncObserver(TaskCompletionSource<Result> onCompleted) => _onCompleted = onCompleted;
+
+        /// <inheritdoc/>
+        public ValueTask OnNextAsync(T value, CancellationToken cancellationToken)
+        {
+            _onNext?.TrySetResult(value);
+            return default;
+        }
+
+        /// <inheritdoc/>
+        public ValueTask OnErrorResumeAsync(Exception error, CancellationToken cancellationToken)
+        {
+            _onError?.TrySetResult(error);
+            return default;
+        }
+
+        /// <inheritdoc/>
+        public ValueTask OnCompletedAsync(Result result)
+        {
+            _onCompleted?.TrySetResult(result);
+            return default;
+        }
+
+        /// <inheritdoc/>
+        public ValueTask DisposeAsync() => default;
+    }
 }

@@ -83,4 +83,29 @@ public partial class ScanWithInitialTests
 
         await Assert.That(results).IsCollectionEqualTo([TerminalInitial]);
     }
+
+    /// <summary>Verifies that <c>OnNext</c>, <c>OnError</c> and a duplicate <c>OnCompleted</c>
+    /// arriving after the sink has marked itself terminated are silently dropped via the
+    /// <c>_done</c> guard.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenEventsAfterTerminated_ThenDropped()
+    {
+        var source = new SyncDirectSource<int>();
+        var values = new List<int>();
+        Exception? caught = null;
+        var completedCount = 0;
+
+        using var sub = source.ScanWithInitial(TerminalInitial, static (acc, x) => acc + x)
+            .Subscribe(values.Add, ex => caught = ex, () => completedCount++);
+
+        source.Observer.OnCompleted();
+        source.Observer.OnNext(1);
+        source.Observer.OnError(new InvalidOperationException("late"));
+        source.Observer.OnCompleted();
+
+        await Assert.That(completedCount).IsEqualTo(1);
+        await Assert.That(values).IsCollectionEqualTo([TerminalInitial]);
+        await Assert.That(caught).IsNull();
+    }
 }

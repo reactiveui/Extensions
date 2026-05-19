@@ -14,6 +14,9 @@ namespace ReactiveUI.Extensions.Tests.Async;
 /// </summary>
 public class TransformationOperatorTests
 {
+    /// <summary>Number of inputs fed into the async-accumulator <c>Scan</c> sync-result test.</summary>
+    private const int ScanInputCount = 3;
+
     /// <summary>Hoisted source array used by tests (was inline literal).</summary>
     private static readonly int[] Sequence123456 = [1, 2, 3, 4, 5, 6];
 
@@ -1011,6 +1014,78 @@ public class TransformationOperatorTests
                 _ => ObservableAsync.Throw<int>(error)).FirstAsync());
 
         await Assert.That(disposed).IsTrue();
+    }
+
+    /// <summary>Verifies the async-accumulator <c>Scan</c> overload's sync-completed fast path —
+    /// returning a synchronously-completed <see cref="ValueTask{TResult}"/> from the accumulator
+    /// takes the inline <c>pending.Result</c> branch.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenScanAsyncAccumulatorReturnsSync_ThenForwardsAccumulator()
+    {
+        const int ThirdRunningTotal = 3;
+        const int SixthRunningTotal = 6;
+        var result = await ObservableAsync.Range(1, ScanInputCount)
+            .Scan(0, static (acc, x, _) => new ValueTask<int>(acc + x))
+            .ToListAsync();
+
+        await Assert.That(result).IsCollectionEqualTo([1, ThirdRunningTotal, SixthRunningTotal]);
+    }
+
+    /// <summary>Verifies that the sync-accumulator <c>Scan</c> overload forwards a non-terminal
+    /// upstream error downstream.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenScanSyncSourceErrorResume_ThenForwarded()
+    {
+        var subject = SubjectAsync.Create<int>();
+        Exception? caught = null;
+        var errorTcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        await using var sub = await subject.Values
+            .Scan(0, static (acc, x) => acc + x)
+            .SubscribeAsync(
+                static (_, _) => default,
+                (ex, _) =>
+                {
+                    caught = ex;
+                    errorTcs.TrySetResult();
+                    return default;
+                });
+
+        var expected = new InvalidOperationException("scan-sync-error");
+        await subject.OnErrorResumeAsync(expected, CancellationToken.None);
+
+        await errorTcs.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await Assert.That(caught).IsSameReferenceAs(expected);
+    }
+
+    /// <summary>Verifies that the async-accumulator <c>Scan</c> overload forwards a non-terminal
+    /// upstream error downstream.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenScanAsyncSourceErrorResume_ThenForwarded()
+    {
+        var subject = SubjectAsync.Create<int>();
+        Exception? caught = null;
+        var errorTcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        await using var sub = await subject.Values
+            .Scan(0, static (acc, x, _) => new ValueTask<int>(acc + x))
+            .SubscribeAsync(
+                static (_, _) => default,
+                (ex, _) =>
+                {
+                    caught = ex;
+                    errorTcs.TrySetResult();
+                    return default;
+                });
+
+        var expected = new InvalidOperationException("scan-async-error");
+        await subject.OnErrorResumeAsync(expected, CancellationToken.None);
+
+        await errorTcs.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await Assert.That(caught).IsSameReferenceAs(expected);
     }
 
     /// <summary>
