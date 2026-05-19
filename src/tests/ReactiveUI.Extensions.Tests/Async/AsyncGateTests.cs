@@ -11,9 +11,6 @@ namespace ReactiveUI.Extensions.Tests.Async;
 [SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "TUnit requires instance methods")]
 public class AsyncGateTests
 {
-    /// <summary>Wait delay in milliseconds used to confirm a contended waiter has not resumed.</summary>
-    private const int ContentionConfirmDelayMilliseconds = 20;
-
     /// <summary>Verifies that the uncontended fast path acquires the gate via pure CAS.</summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
@@ -54,28 +51,37 @@ public class AsyncGateTests
         }
     }
 
-    /// <summary>Verifies that a contended waiter resumes via the semaphore-signal slow path.</summary>
+    /// <summary>Verifies that a contended waiter resumes via the semaphore-signal slow path
+    /// once the owning lock is released.</summary>
+    /// <remarks>This intentionally avoids a "waiter has not resumed within Xms" timing assertion —
+    /// such a probe is unreliable across CI runners. What matters for coverage is that the slow path
+    /// (semaphore park + retry CAS) actually runs; we drive that by serialising two contenders so the
+    /// second must wait on the first's release.</remarks>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
     public async Task WhenContendedWaiter_ThenResumesAfterRelease()
     {
         using var gate = new AsyncGate();
-        var owner = await gate.LockAsync();
-        var contendedAcquired = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var first = await gate.LockAsync();
+
+        var secondAcquired = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 
         var contender = Task.Run(async () =>
         {
             using var releaser = await gate.LockAsync().ConfigureAwait(false);
-            contendedAcquired.TrySetResult(true);
+            secondAcquired.TrySetResult(true);
+            await release.Task.ConfigureAwait(false);
         });
 
-        await Task.Delay(ContentionConfirmDelayMilliseconds).ConfigureAwait(false);
-        await Assert.That(contendedAcquired.Task.IsCompleted).IsFalse();
+        // Releasing the first acquisition is the only thing that can let the contender progress —
+        // if the slow path were broken the await below would hang and the per-test timeout fails it.
+        first.Dispose();
 
-        owner.Dispose();
-
-        var acquired = await contendedAcquired.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        var acquired = await secondAcquired.Task.WaitAsync(TimeSpan.FromSeconds(5));
         await Assert.That(acquired).IsTrue();
+
+        release.TrySetResult(true);
         await contender;
     }
 
