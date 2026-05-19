@@ -19,7 +19,7 @@ jobs:
             minverMinimumMajorMinor: '2.3'
             sonarProjectKey: reactiveui_Extensions
             sonarOrganization: reactiveui
-            sonarExclusions: '**/tests/**,**/tools/**,**/benchmarks/**'
+            sonarExclusions: '**/tests/**,**/tools/**,**/benchmarks/**,**/TestResults/**'
             sonarCoverageExclusions: '**/tests/**,**/tools/**,**/benchmarks/**,**/*Tests/**,**/*Tests.cs,**/Generated/**'
             # CombineLatest{N}.cs are template-style arity-specific operator files. The remaining
             # duplication after the lifecycle / indexed-observer / base-class extractions is the

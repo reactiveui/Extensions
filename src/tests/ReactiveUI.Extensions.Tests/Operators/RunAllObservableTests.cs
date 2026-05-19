@@ -122,6 +122,33 @@ public class RunAllObservableTests
     }
 
     /// <summary>Returns <c>[0, 1, …, count-1]</c> for collection-equality assertions.</summary>
+    /// <summary>Verifies that <c>OnNext</c>, <c>OnError</c> and a duplicate <c>OnCompleted</c>
+    /// arriving from a candidate after <c>RunAll</c> has already completed are silently dropped.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenEventsAfterCompleted_ThenDropped()
+    {
+        var first = new SyncDirectSource<Unit>();
+        IObservable<Unit>[] sources = [first];
+        var values = new List<Unit>();
+        Exception? caught = null;
+        var completedCount = 0;
+
+        using var sub = ((IReadOnlyList<IObservable<Unit>>)sources).RunAll()
+            .Subscribe(values.Add, ex => caught = ex, () => completedCount++);
+
+        first.Observer.OnNext(Unit.Default);
+        first.Observer.OnCompleted();
+        first.Observer.OnNext(Unit.Default);
+        first.Observer.OnError(new InvalidOperationException("late"));
+        first.Observer.OnCompleted();
+
+        await Assert.That(completedCount).IsEqualTo(1);
+        await Assert.That(values).IsCollectionEqualTo([Unit.Default]);
+        await Assert.That(caught).IsNull();
+    }
+
+    /// <summary>Builds a zero-based index sequence of the given length.</summary>
     /// <param name="count">The exclusive upper bound.</param>
     /// <returns>A new array of zero-based indices.</returns>
     private static int[] BuildIndexSequence(int count)

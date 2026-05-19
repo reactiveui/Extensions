@@ -132,4 +132,45 @@ public class MinMaxObservableTests
 
         Assert.Throws<ArgumentNullException>(() => observable.Subscribe(null!));
     }
+
+    /// <summary>Verifies that when every source completes, the combined sequence completes via
+    /// the per-source <c>OnCompleted</c> path.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenAllSourcesComplete_ThenForwardsCompletion()
+    {
+        var a = new Subject<int>();
+        var b = new Subject<int>();
+        var completed = false;
+
+        using var sub = a.GetMax(b).Subscribe(static _ => { }, () => completed = true);
+
+        a.OnNext(LowValue);
+        b.OnNext(MidValue);
+        a.OnCompleted();
+        b.OnCompleted();
+
+        await Assert.That(completed).IsTrue();
+    }
+
+    /// <summary>Verifies that an <c>OnNext</c> arriving after the combined sequence has terminated
+    /// is silently dropped via the <c>_state.IsDone</c> guard.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenOnNextAfterTerminated_ThenDropped()
+    {
+        var a = new SyncDirectSource<int>();
+        var b = new SyncDirectSource<int>();
+        var results = new List<int>();
+        Exception? caught = null;
+        var expected = new InvalidOperationException(SourceErrorMessage);
+
+        using var sub = a.GetMax(b).Subscribe(results.Add, ex => caught = ex);
+
+        a.Observer.OnError(expected);
+        b.Observer.OnNext(HighValue);
+
+        await Assert.That(caught).IsSameReferenceAs(expected);
+        await Assert.That(results).IsEmpty();
+    }
 }

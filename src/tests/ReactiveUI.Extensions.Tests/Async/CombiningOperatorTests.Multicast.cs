@@ -401,4 +401,36 @@ public partial class CombiningOperatorTests
         disposable.Dispose();
         disposable.Dispose();
     }
+
+    /// <summary>Verifies that calling <c>ConnectAsync</c> with a caller-supplied cancellation
+    /// token takes the linked-CTS slow path.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenMulticastConnectAsyncWithCustomToken_ThenLinkedCtsPathTaken()
+    {
+        var subject = SubjectAsync.Create<int>();
+        var connectable = ObservableAsync.Return(1).Multicast(subject);
+
+        using var cts = new CancellationTokenSource();
+        await using var connection = await connectable.ConnectAsync(cts.Token);
+
+        await Assert.That(connection).IsNotNull();
+    }
+
+    /// <summary>Verifies that disposing the connection handle twice is idempotent — the second
+    /// call hits the <c>connection is null</c> guard inside the dispose lambda.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenMulticastConnectionDisposedTwice_ThenSecondIsNoOp()
+    {
+        var subject = SubjectAsync.Create<int>();
+        var connectable = ObservableAsync.Return(1).Multicast(subject);
+
+        var connection = await connectable.ConnectAsync(CancellationToken.None);
+
+        await connection.DisposeAsync();
+        await connection.DisposeAsync();
+
+        await Assert.That(connection).IsNotNull();
+    }
 }

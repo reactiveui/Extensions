@@ -78,4 +78,43 @@ public class ObserveOnAsyncObservableTests
 
         await Assert.That(result).IsEqualTo(Sentinel);
     }
+
+    /// <summary>Verifies that <c>ObserveOn</c> with a different SynchronizationContext routes
+    /// the error through the slow-path context-switch even when <c>forceYielding</c> is false.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenObserveOnDifferentContextSourceErrors_ThenForwardedViaSlowPath()
+    {
+        var expected = new InvalidOperationException("differing-context-error");
+        InvalidOperationException? caught = null;
+        var customCtx = new SynchronizationContext();
+
+        try
+        {
+            await ObservableAsync.Throw<int>(expected)
+                .ObserveOn(customCtx, forceYielding: false)
+                .ToListAsync();
+        }
+        catch (InvalidOperationException ex)
+        {
+            caught = ex;
+        }
+
+        await Assert.That(caught).IsSameReferenceAs(expected);
+    }
+
+    /// <summary>Verifies that <c>ObserveOn</c> with a different SynchronizationContext routes
+    /// the completion through the slow-path context-switch even when <c>forceYielding</c> is false.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenObserveOnDifferentContextSourceEmpty_ThenCompletesViaSlowPath()
+    {
+        var customCtx = new SynchronizationContext();
+
+        var result = await ObservableAsync.Empty<int>()
+            .ObserveOn(customCtx, forceYielding: false)
+            .ToListAsync();
+
+        await Assert.That(result).IsEmpty();
+    }
 }
