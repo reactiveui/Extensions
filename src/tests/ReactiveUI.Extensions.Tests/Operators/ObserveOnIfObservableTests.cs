@@ -115,6 +115,30 @@ public class ObserveOnIfObservableTests
         await Assert.That(trueScheduler.ScheduleCount).IsEqualTo(0);
     }
 
+    /// <summary>Verifies that an <c>OnNext</c> arriving after the source has completed is silently dropped.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenOnNextAfterCompleted_ThenDropped()
+    {
+        var source = new SyncDirectSource<int>();
+        var condition = new Subject<bool>();
+        var trueScheduler = ImmediateScheduler.Instance;
+        var falseScheduler = ImmediateScheduler.Instance;
+        var values = new List<int>();
+        var completedCount = 0;
+
+        using var sub = source.ObserveOnIf(condition, trueScheduler, falseScheduler)
+            .Subscribe(values.Add, () => completedCount++);
+
+        source.Observer.OnCompleted();
+        source.Observer.OnNext(1);
+        source.Observer.OnError(new InvalidOperationException("late"));
+        source.Observer.OnCompleted();
+
+        await Assert.That(completedCount).IsEqualTo(1);
+        await Assert.That(values).IsEmpty();
+    }
+
     /// <summary>Scheduler that delegates to the default thread-pool scheduler but records
     /// each call to <see cref="IScheduler.Schedule{TState}(TState, Func{IScheduler, TState, IDisposable})"/>.</summary>
     private sealed class RecordingScheduler : IScheduler

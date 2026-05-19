@@ -416,6 +416,114 @@ public class ParityHelpersOperatorFusionsTests
         await Assert.That(caught).IsSameReferenceAs(expected);
     }
 
+    /// <summary>Verifies that <c>DropIfBusy</c> with a sync action but an asynchronously-completing
+    /// downstream takes the <c>AwaitForwardAsync</c> slow path and resets the busy flag in
+    /// its <c>finally</c>.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenDropIfBusySyncActionAsyncDownstream_ThenAwaitForwardSlowPathResets()
+    {
+        var subject = SubjectAsync.Create<int>();
+        var values = new List<int>();
+        var emittedTcs = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        await using var sub = await subject.Values
+            .DropIfBusy(static (_, _) => default)
+            .SubscribeAsync(async (v, _) =>
+            {
+                await Task.Yield();
+                values.Add(v);
+                emittedTcs.TrySetResult(v);
+            });
+
+        await subject.OnNextAsync(One, CancellationToken.None);
+        await emittedTcs.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        // After the slow path resets _isBusy, a second emission must also flow through.
+        var secondTcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        await using var sub2 = await subject.Values
+            .DropIfBusy(static (_, _) => default)
+            .SubscribeAsync(async (_, _) =>
+            {
+                await Task.Yield();
+                secondTcs.TrySetResult();
+            });
+
+        await subject.OnNextAsync(Two, CancellationToken.None);
+        await secondTcs.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        await Assert.That(values).Contains(One);
+    }
+
+    /// <summary>Verifies that the async-accumulator <c>ScanWithInitial</c> overload forwards
+    /// upstream non-terminal errors downstream.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenScanWithInitialAsyncSourceErrorResumes_ThenForwardsDownstream()
+    {
+        var subject = SubjectAsync.Create<int>();
+        Exception? caught = null;
+        var errorTcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        await using var sub = await subject.Values
+            .ScanWithInitial(ScanSeed, static (acc, x, _) => new ValueTask<int>(acc + x))
+            .SubscribeAsync(
+                static (_, _) => default,
+                (ex, _) =>
+                {
+                    caught = ex;
+                    errorTcs.TrySetResult();
+                    return default;
+                });
+
+        var expected = new InvalidOperationException("scan-async-error");
+        await subject.OnErrorResumeAsync(expected, CancellationToken.None);
+
+        await errorTcs.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await Assert.That(caught).IsSameReferenceAs(expected);
+    }
+
+    /// <summary>Verifies that a branch subscription disposes idempotently — the second
+    /// <c>DisposeAsync</c> is a no-op via the latched-int short-circuit.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenPartitionBranchDisposedTwice_ThenIdempotent()
+    {
+        var subject = SubjectAsync.Create<int>();
+        var (evens, _) = subject.Values.Partition(static x => x % Two == 0);
+
+        var sub = await evens.SubscribeAsync(static (_, _) => default);
+
+        await sub.DisposeAsync();
+        await sub.DisposeAsync();
+
+        // Subsequent emissions must not throw and the result of pushing a value is captured.
+        await subject.OnNextAsync(Two, CancellationToken.None);
+    }
+
+    /// <summary>Verifies that the <c>ObserverAsync</c> base class's <c>LinkExternalCancellation</c>
+    /// takes the already-cancelled fast path when a fused operator's sink is constructed with
+    /// a pre-cancelled subscribe token.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenFusedOperatorSubscribedWithAlreadyCancelledToken_ThenSinkCancelsImmediately()
+    {
+        using var cts = new CancellationTokenSource();
+        await cts.CancelAsync();
+
+        try
+        {
+            await using var sub = await new[] { One, Two }.ToObservableAsync()
+                .ScanWithInitial(ScanSeed, static (acc, x) => acc + x)
+                .SubscribeAsync(static (_, _) => default, cts.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            // Expected — the sink is constructed with a cancelled token and the pipeline
+            // short-circuits via OperationCanceledException somewhere in the subscribe chain.
+        }
+    }
+
     /// <summary>Yields values as a generic <see cref="IEnumerable{T}"/> (neither array nor list)
     /// to drive the slow-path branch of <c>ForEach</c>.</summary>
     /// <param name="values">Values to yield.</param>

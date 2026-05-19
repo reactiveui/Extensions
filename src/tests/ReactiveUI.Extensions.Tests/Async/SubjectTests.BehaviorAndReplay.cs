@@ -685,4 +685,61 @@ public partial class SubjectTests
         await Assert.That(lateResult).IsNotNull();
         await Assert.That(lateResult!.Value.IsSuccess).IsTrue();
     }
+
+    /// <summary>Verifies that the replay-latest subject's <c>OnNextAsync</c> with a caller-supplied
+    /// cancellation token takes the linked-CTS slow path.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenReplayLatestOnNextWithCustomToken_ThenForwardsValue()
+    {
+        var subject = SubjectAsync.CreateReplayLatest<int>(new ReplayLatestSubjectCreationOptions
+        {
+            PublishingOption = PublishingOption.Concurrent,
+            IsStateless = false,
+        });
+        var tcs = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        await using var sub = await subject.Values.SubscribeAsync(
+            (v, _) =>
+            {
+                tcs.TrySetResult(v);
+                return default;
+            });
+
+        using var cts = new CancellationTokenSource();
+        const int LinkedCtsValue = 11;
+        await subject.OnNextAsync(LinkedCtsValue, cts.Token);
+
+        var received = await tcs.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await Assert.That(received).IsEqualTo(LinkedCtsValue);
+    }
+
+    /// <summary>Verifies that the replay-latest subject's <c>OnErrorResumeAsync</c> with a
+    /// caller-supplied cancellation token takes the linked-CTS slow path.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenReplayLatestOnErrorResumeWithCustomToken_ThenForwardsError()
+    {
+        var subject = SubjectAsync.CreateReplayLatest<int>(new ReplayLatestSubjectCreationOptions
+        {
+            PublishingOption = PublishingOption.Concurrent,
+            IsStateless = false,
+        });
+        var tcs = new TaskCompletionSource<Exception>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        await using var sub = await subject.Values.SubscribeAsync(
+            static (_, _) => default,
+            (ex, _) =>
+            {
+                tcs.TrySetResult(ex);
+                return default;
+            });
+
+        var expected = new InvalidOperationException("linked-cts");
+        using var cts = new CancellationTokenSource();
+        await subject.OnErrorResumeAsync(expected, cts.Token);
+
+        var received = await tcs.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await Assert.That(received).IsSameReferenceAs(expected);
+    }
 }
