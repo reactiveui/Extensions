@@ -175,4 +175,49 @@ public partial class ObservableSubscriptionExtensionsTests
         subject.WaitForCompletion();
         await pump;
     }
+
+    /// <summary>Exercises the no-op <c>OnError</c> body of <c>ValueCaptureObserver</c> —
+    /// <c>SubscribeGetValue</c> on an erroring source still returns the last captured value
+    /// (default) and the error is silently swallowed by the observer.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenSubscribeGetValueSourceErrors_ThenErrorSwallowed()
+    {
+        var error = new InvalidOperationException("source-error");
+        var source = Observable.Throw<int>(error);
+
+        var value = source.SubscribeGetValue();
+
+        await Assert.That(value).IsEqualTo(0);
+    }
+
+    /// <summary>Exercises the no-op <c>OnNext</c> and <c>OnCompleted</c> bodies of
+    /// <c>ErrorCaptureObserver</c> — <c>SubscribeGetError</c> on a completing source ignores
+    /// the value and the completion, returning a null error.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenSubscribeGetErrorSourceCompletesWithValue_ThenReturnsNull()
+    {
+        IObservable<int> source = Observable.Return(SentinelValue);
+
+        var error = source.SubscribeGetError();
+
+        await Assert.That(error).IsNull();
+    }
+
+    /// <summary>Exercises the <c>OnError</c> path of <c>BlockingValueObserver</c> —
+    /// <c>WaitForValue</c> on an erroring source returns the default value once the gate
+    /// is signalled by the error.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenWaitForValueSourceErrors_ThenGateSignalledAndDefaultReturned()
+    {
+        var subject = new Subject<int>();
+        var pump = Task.Run(() => subject.OnError(new InvalidOperationException("source-error")));
+
+        var value = subject.WaitForValue();
+        await pump;
+
+        await Assert.That(value).IsEqualTo(0);
+    }
 }

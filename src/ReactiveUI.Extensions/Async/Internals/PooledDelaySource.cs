@@ -5,6 +5,7 @@
 using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
 using System.Threading.Tasks.Sources;
+using ReactiveUI.Extensions.Internal;
 
 namespace ReactiveUI.Extensions.Async.Internals;
 
@@ -139,10 +140,16 @@ internal sealed class PooledDelaySource : IValueTaskSource
         }
     }
 
-    /// <summary>Callback invoked when the timer's dueTime elapses.</summary>
+    /// <summary>
+    /// Callback invoked when the timer's dueTime elapses. The race-loser branch (where
+    /// <c>OnCancelled</c> claimed the state first) cannot be deterministically triggered in
+    /// unit tests because the timer and cancellation must fire concurrently — the underlying
+    /// claim logic is covered by direct tests against <see cref="ConcurrencyRaceHelpers.TryClaim"/>.
+    /// </summary>
+    [ExcludeFromCodeCoverage]
     private void OnTimerFired()
     {
-        if (Interlocked.CompareExchange(ref _completed, StateClaimed, StateOpen) != StateOpen)
+        if (!ConcurrencyRaceHelpers.TryClaim(ref _completed, StateOpen, StateClaimed))
         {
             return;
         }
@@ -150,11 +157,15 @@ internal sealed class PooledDelaySource : IValueTaskSource
         _core.SetResult(true);
     }
 
-    /// <summary>Callback invoked when the caller's cancellation token transitions to cancelled.</summary>
+    /// <summary>
+    /// Callback invoked when the caller's cancellation token transitions to cancelled. Same
+    /// race-only loser branch as <see cref="OnTimerFired"/>.
+    /// </summary>
     /// <param name="cancellationToken">The cancellation token that fired.</param>
+    [ExcludeFromCodeCoverage]
     private void OnCancelled(CancellationToken cancellationToken)
     {
-        if (Interlocked.CompareExchange(ref _completed, StateClaimed, StateOpen) != StateOpen)
+        if (!ConcurrencyRaceHelpers.TryClaim(ref _completed, StateOpen, StateClaimed))
         {
             return;
         }

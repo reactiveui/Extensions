@@ -4,6 +4,7 @@
 
 using System.Diagnostics;
 using ReactiveUI.Extensions.Async.Disposables;
+using ReactiveUI.Extensions.Internal;
 
 namespace ReactiveUI.Extensions.Async;
 
@@ -417,15 +418,10 @@ public abstract class ObserverAsync<T> : IObserverAsync<T>
 
         // Two callers can both pass the IsCancellationRequested guard above (the guard is read
         // in the lock but the actual cancellation happens outside, so the window between
-        // guard-passed and cancel-applied is non-zero). Catching ObjectDisposedException
-        // accommodates the loser of that race, where the winner has already cancelled-and-
-        // disposed the CTS by the time the loser tries to cancel. The loser then returns without
-        // re-running the rest of the disposal body.
-        try
-        {
-            await _disposeCts.CancelAsync().ConfigureAwait(false);
-        }
-        catch (ObjectDisposedException)
+        // guard-passed and cancel-applied is non-zero). TryCancelAsync handles the loser of
+        // that race — when the winner has already cancelled-and-disposed the CTS — by returning
+        // false instead of letting ObjectDisposedException propagate.
+        if (!await ConcurrencyRaceHelpers.TryCancelAsync(_disposeCts).ConfigureAwait(false))
         {
             return;
         }
