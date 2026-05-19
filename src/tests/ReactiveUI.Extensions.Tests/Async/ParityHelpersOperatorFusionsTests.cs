@@ -3,6 +3,7 @@
 // See the LICENSE file in the project root for full license information.
 
 using ReactiveUI.Extensions.Async;
+using ReactiveUI.Extensions.Async.Disposables;
 using ReactiveUI.Extensions.Async.Subjects;
 
 namespace ReactiveUI.Extensions.Tests.Async;
@@ -597,6 +598,138 @@ public class ParityHelpersOperatorFusionsTests
         }
     }
 
+    /// <summary>Verifies that <c>Partition</c> drops upstream values whose predicate matches a
+    /// branch that has no current subscriber — exercises the
+    /// <c>target?.OnNextAsync(...) ?? default</c> null-target path.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenPartitionEmitsWhileMatchingBranchUnsubscribed_ThenDropped()
+    {
+        var subject = SubjectAsync.Create<int>();
+        var (evens, _) = subject.Values.Partition(static x => x % Two == 0);
+
+        var values = new List<int>();
+        await using var sub = await evens.SubscribeAsync((v, _) =>
+        {
+            values.Add(v);
+            return default;
+        });
+
+        // Odd value: matches the false branch, which has no subscriber.
+        await subject.OnNextAsync(One, CancellationToken.None);
+
+        // Even value: matches the true branch.
+        await subject.OnNextAsync(Two, CancellationToken.None);
+
+        await Assert.That(values).IsCollectionEqualTo([Two]);
+    }
+
+    /// <summary>Verifies that <see cref="ObservableAsync.ThrottleDistinctObservable{T}.ThrottleDistinctObserver.TryClaimEmission"/>
+    /// returns <see langword="false"/> when the id has been superseded by a newer upstream emission.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenThrottleDistinctTryClaimEmissionSuperseded_ThenReturnsFalse()
+    {
+        var observer = new ObservableAsync.ThrottleDistinctObservable<int>.ThrottleDistinctObserver(
+            new NoOpAsyncObserver<int>(),
+            TimeSpan.FromHours(1),
+            TimeProvider.System,
+            CancellationToken.None);
+
+        // Drive _id forward by two emissions; the first pending delay's id (1) is then stale.
+        await observer.OnNextAsync(One, CancellationToken.None);
+        await observer.OnNextAsync(Two, CancellationToken.None);
+
+        var claimed = observer.TryClaimEmission(One, id: 1);
+
+        await Assert.That(claimed).IsFalse();
+    }
+
+    /// <summary>Verifies that <see cref="ObservableAsync.ThrottleDistinctObservable{T}.ThrottleDistinctObserver.TryClaimEmission"/>
+    /// returns <see langword="false"/> when the value is a duplicate of the most-recently-emitted one.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenThrottleDistinctTryClaimEmissionDuplicate_ThenReturnsFalse()
+    {
+        var observer = new ObservableAsync.ThrottleDistinctObservable<int>.ThrottleDistinctObserver(
+            new NoOpAsyncObserver<int>(),
+            TimeSpan.FromHours(1),
+            TimeProvider.System,
+            CancellationToken.None);
+
+        await observer.OnNextAsync(One, CancellationToken.None);
+
+        // First claim latches the downstream-distinct state with value One.
+        var firstClaim = observer.TryClaimEmission(One, id: 1);
+
+        // Drive another upstream so id matches the second claim.
+        await observer.OnNextAsync(Two, CancellationToken.None);
+
+        // Re-claim with the previously-emitted value at the new id — rejected by the
+        // downstream-distinct check.
+        var secondClaim = observer.TryClaimEmission(One, id: 2);
+
+        await Assert.That(firstClaim).IsTrue();
+        await Assert.That(secondClaim).IsFalse();
+    }
+
+    /// <summary>Verifies that <see cref="ObservableAsync.DebounceUntilObservable{T}.DebounceUntilObserver.IsCurrentEmission"/>
+    /// returns <see langword="true"/> for the most-recent id and <see langword="false"/> for
+    /// stale ids.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenDebounceUntilIsCurrentEmission_ThenMatchesIdState()
+    {
+        var observer = new ObservableAsync.DebounceUntilObservable<int>.DebounceUntilObserver(
+            new NoOpAsyncObserver<int>(),
+            TimeSpan.FromHours(1),
+            static _ => false,
+            TimeProvider.System,
+            CancellationToken.None);
+
+        await observer.OnNextAsync(One, CancellationToken.None);
+        await observer.OnNextAsync(Two, CancellationToken.None);
+
+        await Assert.That(observer.IsCurrentEmission(id: 2)).IsTrue();
+        await Assert.That(observer.IsCurrentEmission(id: 1)).IsFalse();
+    }
+
+    /// <summary>Verifies that <see cref="ObservableAsync.PartitionCoordinator{T}.TryAttachSourceSubscription"/>
+    /// returns <see langword="false"/> when both branches have already been disposed by the time
+    /// the source subscription returns — the disposeNow race fast-path that is otherwise only
+    /// reachable through a real concurrency race.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenPartitionTryAttachSourceSubscriptionAndBothBranchesGone_ThenReturnsFalse()
+    {
+        var subject = SubjectAsync.Create<int>();
+        var coordinator = new ObservableAsync.PartitionCoordinator<int>(subject.Values, static x => x % Two == 0);
+
+        // Subscribe then immediately dispose so both branch slots are null.
+        var sub = await coordinator.TrueBranch.SubscribeAsync(static (_, _) => default);
+        await sub.DisposeAsync();
+
+        var attached = coordinator.TryAttachSourceSubscription(DisposableAsync.Empty);
+
+        await Assert.That(attached).IsFalse();
+    }
+
+    /// <summary>Verifies that <see cref="ObservableAsync.PartitionCoordinator{T}.TryAttachSourceSubscription"/>
+    /// returns <see langword="true"/> when at least one branch is still alive.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenPartitionTryAttachSourceSubscriptionAndBranchAlive_ThenReturnsTrue()
+    {
+        var subject = SubjectAsync.Create<int>();
+        var coordinator = new ObservableAsync.PartitionCoordinator<int>(subject.Values, static x => x % Two == 0);
+
+        await using var sub = await coordinator.TrueBranch.SubscribeAsync(static (_, _) => default);
+
+        var attached = coordinator.TryAttachSourceSubscription(DisposableAsync.Empty);
+
+        await Assert.That(attached).IsTrue();
+    }
+
     /// <summary>Yields values as a generic <see cref="IEnumerable{T}"/> (neither array nor list)
     /// to drive the slow-path branch of <c>ForEach</c>.</summary>
     /// <param name="values">Values to yield.</param>
@@ -625,6 +758,24 @@ public class ParityHelpersOperatorFusionsTests
         /// <inheritdoc/>
         public ValueTask OnErrorResumeAsync(Exception err, CancellationToken cancellationToken) =>
             default;
+
+        /// <inheritdoc/>
+        public ValueTask OnCompletedAsync(Result result) => default;
+
+        /// <inheritdoc/>
+        public ValueTask DisposeAsync() => default;
+    }
+
+    /// <summary>No-op async observer used as a downstream stand-in for direct unit tests of
+    /// observer-internal decision methods.</summary>
+    /// <typeparam name="T">The element type.</typeparam>
+    private sealed class NoOpAsyncObserver<T> : IObserverAsync<T>
+    {
+        /// <inheritdoc/>
+        public ValueTask OnNextAsync(T value, CancellationToken cancellationToken) => default;
+
+        /// <inheritdoc/>
+        public ValueTask OnErrorResumeAsync(Exception error, CancellationToken cancellationToken) => default;
 
         /// <inheritdoc/>
         public ValueTask OnCompletedAsync(Result result) => default;

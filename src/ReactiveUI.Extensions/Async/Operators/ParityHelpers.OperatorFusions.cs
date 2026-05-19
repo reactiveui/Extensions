@@ -229,6 +229,35 @@ public static partial class ObservableAsync
             /// <summary>Monotonically increasing identifier used to detect supersession.</summary>
             private long _id;
 
+            /// <summary>Post-delay decision: latches the emission if the id is still current and
+            /// the value differs from the most-recently-emitted one. Extracted as an
+            /// <see langword="internal"/> method so the decision is unit-testable directly
+            /// without racing the delay timer in tests.</summary>
+            /// <param name="value">The candidate value.</param>
+            /// <param name="id">The id stamped when this delay was started.</param>
+            /// <returns><see langword="true"/> if the caller should forward the value
+            /// downstream; <see langword="false"/> if the emission was superseded or is a
+            /// duplicate of the most-recently-forwarded value.</returns>
+            internal bool TryClaimEmission(T value, long id)
+            {
+                lock (_gate)
+                {
+                    if (_id != id)
+                    {
+                        return false;
+                    }
+
+                    if (_hasEmitted && Comparer.Equals(value, _lastEmitted))
+                    {
+                        return false;
+                    }
+
+                    _lastEmitted = value;
+                    _hasEmitted = true;
+                    return true;
+                }
+            }
+
             /// <inheritdoc/>
             protected override ValueTask OnNextAsyncCore(T value, CancellationToken cancellationToken)
             {
@@ -282,7 +311,8 @@ public static partial class ObservableAsync
                 return base.DisposeAsyncCore();
             }
 
-            /// <summary>Waits the debounce window, then forwards the value if not superseded and distinct from the last emission.</summary>
+            /// <summary>Waits the debounce window, then forwards the value if
+            /// <see cref="TryClaimEmission"/> approves it.</summary>
             /// <param name="value">The candidate value.</param>
             /// <param name="id">The id stamped when this delay was started.</param>
             /// <param name="cancellationToken">The cancellation token.</param>
@@ -293,20 +323,9 @@ public static partial class ObservableAsync
                 {
                     await DelayAsync(dueTime, timeProvider, cancellationToken).ConfigureAwait(false);
 
-                    lock (_gate)
+                    if (!TryClaimEmission(value, id))
                     {
-                        if (_id != id)
-                        {
-                            return;
-                        }
-
-                        if (_hasEmitted && Comparer.Equals(value, _lastEmitted))
-                        {
-                            return;
-                        }
-
-                        _lastEmitted = value;
-                        _hasEmitted = true;
+                        return;
                     }
 
                     await downstream.OnNextAsync(value, cancellationToken).ConfigureAwait(false);
@@ -536,26 +555,35 @@ public static partial class ObservableAsync
                     OnSourceCompletedAsync,
                     cancellationToken).ConfigureAwait(false);
 
-                bool disposeNow = false;
-                lock (_gate)
-                {
-                    if (_trueObserver is null && _falseObserver is null)
-                    {
-                        disposeNow = true;
-                    }
-                    else
-                    {
-                        _sourceSubscription = subscription;
-                    }
-                }
-
-                if (disposeNow)
+                if (!TryAttachSourceSubscription(subscription))
                 {
                     await subscription.DisposeAsync().ConfigureAwait(false);
                 }
             }
 
             return new BranchSubscription(this, isTrueBranch);
+        }
+
+        /// <summary>Attempts to attach an in-flight upstream subscription to the coordinator.
+        /// Extracted as an <see langword="internal"/> method so the both-branches-gone race
+        /// (the subscribe completes after every branch has already disposed) can be tested
+        /// directly without racing the subscription pipeline.</summary>
+        /// <param name="subscription">The freshly-created upstream subscription.</param>
+        /// <returns><see langword="true"/> if the subscription was attached and the caller
+        /// should leave it running; <see langword="false"/> if both branches are gone and the
+        /// caller should dispose the subscription.</returns>
+        internal bool TryAttachSourceSubscription(IAsyncDisposable subscription)
+        {
+            lock (_gate)
+            {
+                if (_trueObserver is null && _falseObserver is null)
+                {
+                    return false;
+                }
+
+                _sourceSubscription = subscription;
+                return true;
+            }
         }
 
         /// <summary>Forwards an upstream value to the branch whose predicate result matches.</summary>
@@ -746,6 +774,21 @@ public static partial class ObservableAsync
             /// <summary>Monotonically increasing identifier used to detect supersession of pending delays.</summary>
             private long _id;
 
+            /// <summary>Post-delay supersession check. Extracted as an <see langword="internal"/>
+            /// method so tests can verify the supersession decision directly without racing the
+            /// delay timer.</summary>
+            /// <param name="id">The id stamped when this delay was started.</param>
+            /// <returns><see langword="true"/> if the caller should forward the value
+            /// downstream; <see langword="false"/> if the emission was superseded by a newer
+            /// upstream value.</returns>
+            internal bool IsCurrentEmission(long id)
+            {
+                lock (_gate)
+                {
+                    return _id == id;
+                }
+            }
+
             /// <inheritdoc/>
             protected override ValueTask OnNextAsyncCore(T value, CancellationToken cancellationToken)
             {
@@ -803,7 +846,8 @@ public static partial class ObservableAsync
                 return base.DisposeAsyncCore();
             }
 
-            /// <summary>Waits the debounce window, then forwards the value if not superseded by a newer upstream emission.</summary>
+            /// <summary>Waits the debounce window, then forwards the value if
+            /// <see cref="IsCurrentEmission"/> confirms the emission was not superseded.</summary>
             /// <param name="value">The candidate value.</param>
             /// <param name="id">The id stamped when this delay was started.</param>
             /// <param name="cancellationToken">The cancellation token.</param>
@@ -814,12 +858,9 @@ public static partial class ObservableAsync
                 {
                     await DelayAsync(debounce, timeProvider, cancellationToken).ConfigureAwait(false);
 
-                    lock (_gate)
+                    if (!IsCurrentEmission(id))
                     {
-                        if (_id != id)
-                        {
-                            return;
-                        }
+                        return;
                     }
 
                     await downstream.OnNextAsync(value, cancellationToken).ConfigureAwait(false);
