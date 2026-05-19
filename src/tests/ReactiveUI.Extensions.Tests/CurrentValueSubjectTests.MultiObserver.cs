@@ -227,8 +227,11 @@ public partial class CurrentValueSubjectTests
     }
 
     /// <summary>Verifies the multi-observer Unsubscribe path tolerates a stale dispose —
-    /// after a middle observer is detached from a 3-observer array, disposing its returned
-    /// subscription a second time hits the <c>Array.IndexOf</c> not-found early-return.</summary>
+    /// after a middle observer is detached from a 4-observer array, disposing its returned
+    /// subscription a second time hits the <c>Array.IndexOf</c> not-found early-return.
+    /// The 4-observer setup keeps <c>_observers</c> non-null after the first dispose (the
+    /// 2-observer setup collapses back to the single-observer fast path, which hits a
+    /// different short-circuit instead of the IndexOf path).</summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
     public async Task WhenMultiObserverDisposedTwice_ThenSecondDisposeIsNoOp()
@@ -238,10 +241,12 @@ public partial class CurrentValueSubjectTests
         var a = new List<int>();
         var b = new List<int>();
         var c = new List<int>();
+        var d = new List<int>();
 
         using var subA = subject.Subscribe(a.Add);
         var subB = subject.Subscribe(b.Add);
         using var subC = subject.Subscribe(c.Add);
+        using var subD = subject.Subscribe(d.Add);
 
         subB.Dispose();
         subB.Dispose();
@@ -251,5 +256,6 @@ public partial class CurrentValueSubjectTests
         await Assert.That(a).IsCollectionEqualTo([MultiInitialValue, Update]);
         await Assert.That(b).IsCollectionEqualTo([MultiInitialValue]);
         await Assert.That(c).IsCollectionEqualTo([MultiInitialValue, Update]);
+        await Assert.That(d).IsCollectionEqualTo([MultiInitialValue, Update]);
     }
 }

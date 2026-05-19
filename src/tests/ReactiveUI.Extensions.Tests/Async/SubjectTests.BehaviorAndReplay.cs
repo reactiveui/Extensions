@@ -742,4 +742,36 @@ public partial class SubjectTests
         var received = await tcs.Task.WaitAsync(TimeSpan.FromSeconds(5));
         await Assert.That(received).IsSameReferenceAs(expected);
     }
+
+    /// <summary>Exercises the <c>_isDisposed</c> idempotency guard on
+    /// <c>BaseReplayLatestSubjectAsync.DisposeAsync</c> — a second dispose is a no-op.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenReplayLatestSubjectDisposedTwice_ThenIdempotent()
+    {
+        var subject = SubjectAsync.CreateReplayLatest<int>();
+
+        await subject.DisposeAsync();
+        await subject.DisposeAsync();
+
+        await Assert.That(subject).IsNotNull();
+    }
+
+    /// <summary>Exercises the <c>_isDisposed</c> idempotency guard on
+    /// <c>BaseStatelessReplayLastSubjectAsync.DisposeAsync</c>.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenStatelessReplayLastSubjectDisposedTwice_ThenIdempotent()
+    {
+        var subject = SubjectAsync.CreateReplayLatest<int>(new ReplayLatestSubjectCreationOptions
+        {
+            PublishingOption = PublishingOption.Serial,
+            IsStateless = true,
+        });
+
+        await subject.DisposeAsync();
+        await subject.DisposeAsync();
+
+        await Assert.That(subject).IsNotNull();
+    }
 }

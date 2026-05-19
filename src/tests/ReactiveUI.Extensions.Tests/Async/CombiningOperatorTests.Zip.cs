@@ -618,4 +618,23 @@ public partial class CombiningOperatorTests
         await cts.CancelAsync();
         await Assert.That(sub).IsNotNull();
     }
+
+    /// <summary>Exercises the <c>Zip</c> subscription's idempotent <c>DisposeAsync</c> path —
+    /// a second dispose hits the <c>DisposalHelper.TrySetDisposed</c> already-set short-circuit.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenZipSubscriptionDisposedTwice_ThenSecondDisposeIsNoOp()
+    {
+        var left = SubjectAsync.Create<int>();
+        var right = SubjectAsync.Create<int>();
+
+        var sub = await left.Values
+            .Zip(right.Values, static (a, b) => a + b)
+            .SubscribeAsync(static (_, _) => default);
+
+        await sub.DisposeAsync();
+        await sub.DisposeAsync();
+
+        await Assert.That(sub).IsNotNull();
+    }
 }

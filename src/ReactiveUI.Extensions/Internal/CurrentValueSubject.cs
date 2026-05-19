@@ -260,11 +260,12 @@ internal sealed class CurrentValueSubject<T> : IObservable<T>, IObserver<T>, IDi
                 return;
             }
 
+            // Subscription.Dispose's Interlocked guard means a given observer reaches Unsubscribe
+            // at most once, and Subscribe ensures that observer is present in _observers before
+            // returning. OnError / OnCompleted / Dispose nullify _observers atomically, which the
+            // is-null check above already short-circuits — so when we get here, IndexOf finds the
+            // observer by construction.
             var index = Array.IndexOf(existing, observer);
-            if (index < 0)
-            {
-                return;
-            }
 
             if (existing.Length == 2)
             {

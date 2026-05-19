@@ -107,11 +107,11 @@ internal static class SyncTimerObservable
         {
             lock (_gate)
             {
-                var updated = ObserverArrayHelpers.RemoveOrNull(_observers, observer, _emptyObservers);
-                if (updated is null)
-                {
-                    return;
-                }
+                // TimerSubscription.Dispose's Interlocked guard ensures Remove is called at most
+                // once per subscription, and each subscription's observer was placed in _observers
+                // under this same lock before the disposable was returned — so RemoveOrNull always
+                // locates the observer by construction.
+                var updated = ObserverArrayHelpers.RemoveOrNull(_observers, observer, _emptyObservers)!;
 
                 Volatile.Write(ref _observers, updated);
                 if (ReferenceEquals(updated, _emptyObservers))

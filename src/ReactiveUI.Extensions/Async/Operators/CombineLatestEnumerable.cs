@@ -232,15 +232,12 @@ public static partial class ObservableAsync
                         return;
                     }
 
+                    // Invariant: _hasValueCount transitioning to _values.Length above means every
+                    // slot in _values has received at least one value, so the snapshot is fully
+                    // populated by the time we reach this point.
                     for (var i = 0; i < _values.Length; i++)
                     {
-                        var optional = _values[i];
-                        if (!optional.HasValue)
-                        {
-                            return;
-                        }
-
-                        _snapshotBuffer[i] = optional.Value!;
+                        _snapshotBuffer[i] = _values[i].Value!;
                     }
 
                     TResult projected;

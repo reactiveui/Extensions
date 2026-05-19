@@ -148,6 +148,31 @@ public class RunAllObservableTests
         await Assert.That(caught).IsNull();
     }
 
+    /// <summary>Exercises <c>RunAll.RunNext</c>'s post-loop <c>_done</c> guard — a source
+    /// that synchronously errors during <c>Subscribe</c> sets <c>_done = true</c> inline,
+    /// the <c>while (!_done ...)</c> loop bails, and the post-loop check returns without
+    /// emitting <c>Unit.Default</c>.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenRunAllSourceSyncErrors_ThenPostLoopDoneGuardSuppressesFinalEmit()
+    {
+        IObservable<Unit>[] sources =
+        [
+            new SyncErroringObservable<Unit>(new InvalidOperationException(SourceErrorMessage)),
+        ];
+        Exception? caught = null;
+        var emitted = 0;
+        var completed = false;
+
+        using var sub = ((IReadOnlyList<IObservable<Unit>>)sources).RunAll()
+            .Subscribe(_ => emitted++, ex => caught = ex, () => completed = true);
+
+        await Assert.That(caught).IsNotNull();
+        await Assert.That(caught!.Message).IsEqualTo(SourceErrorMessage);
+        await Assert.That(emitted).IsEqualTo(0);
+        await Assert.That(completed).IsFalse();
+    }
+
     /// <summary>Builds a zero-based index sequence of the given length.</summary>
     /// <param name="count">The exclusive upper bound.</param>
     /// <returns>A new array of zero-based indices.</returns>
@@ -160,5 +185,18 @@ public class RunAllObservableTests
         }
 
         return output;
+    }
+
+    /// <summary>Synchronously-erroring observable used to drive the sync-error path of
+    /// <c>RunAll.RunNext</c>.</summary>
+    /// <typeparam name="T">The element type.</typeparam>
+    private sealed class SyncErroringObservable<T>(Exception error) : IObservable<T>
+    {
+        /// <inheritdoc/>
+        public IDisposable Subscribe(IObserver<T> observer)
+        {
+            observer.OnError(error);
+            return System.Reactive.Disposables.Disposable.Empty;
+        }
     }
 }

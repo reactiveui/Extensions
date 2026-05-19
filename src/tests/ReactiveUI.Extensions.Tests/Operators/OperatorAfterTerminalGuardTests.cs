@@ -27,7 +27,8 @@ public class OperatorAfterTerminalGuardTests
     private const int SecondValue = 2;
 
     /// <summary>Verifies <c>OnErrorRetry</c>'s sink silently drops events after a downstream
-    /// completion has set the <c>_disposed</c> latch.</summary>
+    /// completion has set the <c>_disposed</c> latch — and that a second dispose hits the
+    /// <c>Interlocked.Exchange != 0</c> idempotency guard in <see cref="IDisposable.Dispose"/>.</summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
     public async Task WhenRetryForeverEventsAfterDispose_ThenDropped()
@@ -39,8 +40,12 @@ public class OperatorAfterTerminalGuardTests
         var sub = source.OnErrorRetry().Subscribe(values.Add, () => completed = true);
         source.Observer.OnCompleted();
 
-        // Dispose latches _disposed in the retry sink.
+        // First dispose latches _disposed in the retry sink.
         sub.Dispose();
+
+        // Second dispose exercises the Interlocked.Exchange idempotency guard.
+        sub.Dispose();
+
         source.Observer.OnNext(1);
         source.Observer.OnError(new InvalidOperationException("late"));
 
@@ -178,6 +183,79 @@ public class OperatorAfterTerminalGuardTests
         await Assert.That(values).IsEmpty();
     }
 
+    /// <summary>Exercises <c>WhileObservable.Iterate</c>'s <c>_disposed</c> guard — when the
+    /// downstream consumer's <c>OnNext</c> callback disposes the subscription captured via
+    /// a single-assignment slot, the post-action call back to <c>Iterate</c> sees
+    /// <c>_disposed == 1</c> and returns at the guard rather than re-entering RunActionAndContinue.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenWhileDownstreamDisposesInsideOnNext_ThenIterateGuardSkipsNextPredicate()
+    {
+        // The scheduler indirection lets us defer the first iteration to after Subscribe has
+        // returned (so the SingleAssignmentDisposable can capture the subscription), then run
+        // the inner iterations synchronously enough that the OnNext-side dispose hits before
+        // the second Iterate evaluates the predicate.
+        var scheduler = new TestScheduler();
+        var actionCalls = 0;
+        var sub = new System.Reactive.Disposables.SingleAssignmentDisposable();
+
+        sub.Disposable = ReactiveExtensions.While(
+                () => true,
+                () => actionCalls++,
+                scheduler)
+            .Subscribe(_ => sub.Dispose());
+
+        scheduler.AdvanceBy(1);
+
+        await Assert.That(actionCalls).IsEqualTo(1);
+    }
+
+    /// <summary>Exercises <c>ThrottleDistinct</c>'s scheduled-emit done guard — when the source
+    /// completes between a value being received and the throttle window elapsing, the
+    /// scheduled <c>Emit</c> callback sees <c>_state.Done == true</c> and returns without
+    /// forwarding the buffered value.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenThrottleDistinctSourceCompletesBeforeEmitWindow_ThenScheduledEmitDropped()
+    {
+        var scheduler = new TestScheduler();
+        var source = new SyncDirectSource<int>();
+        var values = new List<int>();
+        var completedCount = 0;
+
+        using var sub = source.ThrottleDistinct(TimeSpan.FromTicks(TickWindow), scheduler)
+            .Subscribe(values.Add, () => completedCount++);
+
+        source.Observer.OnNext(1);
+        source.Observer.OnCompleted();
+        scheduler.AdvanceBy(TickWindow * SettleMultiplier);
+
+        await Assert.That(completedCount).IsEqualTo(1);
+        await Assert.That(values).IsEmpty();
+    }
+
+    /// <summary>Exercises the <c>SampleLatest</c> trigger-error post-terminal guard — when the
+    /// source has already errored (setting <c>_done = true</c>), a subsequent error on the
+    /// trigger observer hits the <c>if (_done) return;</c> guard inside the trigger's
+    /// OnError delegate.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenSampleLatestTriggerErrorsAfterSourceErrored_ThenDroppedByDoneGuard()
+    {
+        var source = new Subject<int>();
+        var trigger = new Subject<object>();
+        Exception? caught = null;
+        var sourceError = new InvalidOperationException("source");
+
+        using var sub = source.SampleLatest(trigger)
+            .Subscribe(static _ => { }, ex => caught = ex);
+
+        source.OnError(sourceError);
+        trigger.OnError(new InvalidOperationException("trigger"));
+
+        await Assert.That(caught).IsSameReferenceAs(sourceError);
+    }
+
     /// <summary>Verifies <c>SampleLatest</c>'s post-completion <c>Sample</c> guard.</summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
@@ -212,6 +290,25 @@ public class OperatorAfterTerminalGuardTests
 
         source.Observer.OnCompleted();
         source.Observer.OnNext(1);
+        scheduler.AdvanceBy(TickWindow * SettleMultiplier);
+
+        await Assert.That(completedCount).IsEqualTo(1);
+    }
+
+    /// <summary>Exercises <c>Heartbeat</c>'s <c>ScheduleHeartbeats</c> <c>_done</c> guard —
+    /// when the source completes synchronously during <c>source.Subscribe(sink)</c>, the sink
+    /// is marked done before <c>sink.Initialize()</c> runs, so the post-Initialize call to
+    /// <c>ScheduleHeartbeats</c> returns at the <c>_done</c> check without arming the timer.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenHeartbeatSourceCompletesDuringSubscribe_ThenInitializeShortCircuits()
+    {
+        var scheduler = new TestScheduler();
+        var completedCount = 0;
+
+        using var sub = Observable.Empty<int>().Heartbeat(TimeSpan.FromTicks(TickWindow), scheduler)
+            .Subscribe(static _ => { }, () => completedCount++);
+
         scheduler.AdvanceBy(TickWindow * SettleMultiplier);
 
         await Assert.That(completedCount).IsEqualTo(1);

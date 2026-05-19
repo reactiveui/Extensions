@@ -100,6 +100,55 @@ public class PropertyChangedObservableTests
         await Assert.That(caught).IsTypeOf<InvalidOperationException>();
     }
 
+    /// <summary>Exercises the <c>OnPropertyChanged</c> <c>_disposed</c> guard — fires a
+    /// PropertyChanged event for the subscribed property after the subscription has been
+    /// disposed but using an owner whose remove-handler is a no-op so the event delivery
+    /// reaches the still-bound handler, which then sees <c>_disposed != 0</c> and returns.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenPropertyEventFiresAfterDispose_ThenHandlerGuardSkipsForward()
+    {
+        var owner = new RetainingObservableOwner();
+        var results = new List<int>();
+
+        var sub = owner.ToPropertyObservable(x => x.Value).Subscribe(results.Add);
+
+        sub.Dispose();
+
+        // Even after Dispose, the retaining owner still references the handler — invoking the
+        // event delivers to it, but the handler observes _disposed != 0 and returns early.
+        owner.Raise();
+
+        await Assert.That(results).IsCollectionEqualTo([0]);
+    }
+
+    /// <summary>INPC owner that retains every handler ever attached and exposes a manual
+    /// <c>Raise</c> so a test can fire the PropertyChanged event after the subscription that
+    /// added the handler has already been disposed.</summary>
+    private sealed class RetainingObservableOwner : INotifyPropertyChanged
+    {
+        /// <summary>The retained handler list.</summary>
+        private PropertyChangedEventHandler? _retained;
+
+        /// <inheritdoc/>
+        public event PropertyChangedEventHandler? PropertyChanged
+        {
+            add => _retained += value;
+            remove
+            {
+                // Intentionally a no-op so disposed subscriptions stay reachable for Raise().
+            }
+        }
+
+        /// <summary>Gets the observed property — never mutated.</summary>
+#pragma warning disable CA1822 // Mark members as static — the property must be instance-bound for INPC pattern.
+        public int Value => 0;
+#pragma warning restore CA1822
+
+        /// <summary>Invokes the retained handler with a <c>PropertyChanged</c> event for <see cref="Value"/>.</summary>
+        public void Raise() => _retained?.Invoke(this, new PropertyChangedEventArgs(nameof(Value)));
+    }
+
     /// <summary>Test owner that fires <see cref="INotifyPropertyChanged"/> on property writes.</summary>
     private sealed class ObservableOwner : INotifyPropertyChanged
     {

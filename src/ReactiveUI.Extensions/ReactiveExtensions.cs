@@ -813,10 +813,7 @@ public static class ReactiveExtensions
         IScheduler delayScheduler)
         where TException : Exception
     {
-        if (source == null)
-        {
-            throw new ArgumentNullException(nameof(source));
-        }
+        ArgumentExceptionHelper.ThrowIfNull(source);
 
         return new RetryWithBackoffObservable<TSource>(
             source,

@@ -13,6 +13,18 @@ public class FirstMatchFromCandidatesAsyncPathTests
     /// <summary>Fallback value emitted when no candidate matches.</summary>
     private const string Fallback = "fallback";
 
+    /// <summary>Candidate key whose projection is an async (never-sync-completing) subject.</summary>
+    private const string AsyncKey = "async";
+
+    /// <summary>Candidate key whose projection is a synchronously-erroring observable.</summary>
+    private const string SyncErrorKey = "sync-error";
+
+    /// <summary>Candidate key whose projection is a synchronously-completing empty observable.</summary>
+    private const string SyncCompleteKey = "sync-complete";
+
+    /// <summary>Candidate key whose projection emits the match value.</summary>
+    private const string HitKey = "hit";
+
     /// <summary>Verifies that an empty candidate list emits the fallback and completes.</summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
@@ -39,25 +51,25 @@ public class FirstMatchFromCandidatesAsyncPathTests
     [Test]
     public async Task WhenAsyncProjectionMatches_ThenEmitsMatch()
     {
-        string[] keys = ["miss", "hit"];
+        string[] keys = ["miss", HitKey];
         var emissionGate = new Subject<string>();
         var results = new List<string>();
         var completed = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 
         using var sub = ((IReadOnlyList<string>)keys)
             .FirstMatchFromCandidates<string, string, string>(
-                key => key == "hit" ? emissionGate : Observable.Empty<string>(),
+                key => key == HitKey ? emissionGate : Observable.Empty<string>(),
                 static raw => raw,
-                static value => value == "hit",
+                static value => value == HitKey,
                 Fallback)
             .Subscribe(results.Add, () => completed.TrySetResult(true));
 
-        emissionGate.OnNext("hit");
+        emissionGate.OnNext(HitKey);
         emissionGate.OnCompleted();
 
         var done = await completed.Task.WaitAsync(TimeSpan.FromSeconds(5));
         await Assert.That(done).IsTrue();
-        await Assert.That(results).IsCollectionEqualTo(["hit"]);
+        await Assert.That(results).IsCollectionEqualTo([HitKey]);
     }
 
     /// <summary>Verifies that an async projection that never matches falls through to the
@@ -146,7 +158,7 @@ public class FirstMatchFromCandidatesAsyncPathTests
     [Test]
     public async Task WhenSyncTransformThrows_ThenContinuesToNextCandidate()
     {
-        string[] keys = ["throw", "hit"];
+        string[] keys = ["throw", HitKey];
         var results = new List<string>();
         var completed = false;
 
@@ -156,11 +168,11 @@ public class FirstMatchFromCandidatesAsyncPathTests
                 static raw => raw == "throw"
                     ? throw new InvalidOperationException("transform-throws")
                     : raw,
-                static value => value == "hit",
+                static value => value == HitKey,
                 Fallback)
             .Subscribe(results.Add, () => completed = true);
 
-        await Assert.That(results).IsCollectionEqualTo(["hit"]);
+        await Assert.That(results).IsCollectionEqualTo([HitKey]);
         await Assert.That(completed).IsTrue();
     }
 
@@ -172,21 +184,21 @@ public class FirstMatchFromCandidatesAsyncPathTests
     [Test]
     public async Task WhenAsyncCandidateProjectionSyncErrors_ThenLoopingGuardSkipsToNextCandidate()
     {
-        string[] keys = ["sync-error", "hit"];
+        string[] keys = [SyncErrorKey, HitKey];
         var results = new List<string>();
         var completed = false;
 
         using var sub = ((IReadOnlyList<string>)keys)
             .FirstMatchFromCandidates<string, string, string>(
-                key => key == "sync-error"
-                    ? new SyncErroringObservable<string>(new InvalidOperationException("sync-error"))
+                key => key == SyncErrorKey
+                    ? new SyncErroringObservable<string>(new InvalidOperationException(SyncErrorKey))
                     : Observable.Return(key),
                 static raw => raw,
-                static value => value == "hit",
+                static value => value == HitKey,
                 Fallback)
             .Subscribe(results.Add, () => completed = true);
 
-        await Assert.That(results).IsCollectionEqualTo(["hit"]);
+        await Assert.That(results).IsCollectionEqualTo([HitKey]);
         await Assert.That(completed).IsTrue();
     }
 
@@ -198,21 +210,21 @@ public class FirstMatchFromCandidatesAsyncPathTests
     [Test]
     public async Task WhenAsyncCandidateProjectionSyncCompletes_ThenLoopingGuardSkipsToNextCandidate()
     {
-        string[] keys = ["sync-complete", "hit"];
+        string[] keys = [SyncCompleteKey, HitKey];
         var results = new List<string>();
         var completed = false;
 
         using var sub = ((IReadOnlyList<string>)keys)
             .FirstMatchFromCandidates<string, string, string>(
-                key => key == "sync-complete"
+                key => key == SyncCompleteKey
                     ? new SyncCompletingObservable<string>()
                     : Observable.Return(key),
                 static raw => raw,
-                static value => value == "hit",
+                static value => value == HitKey,
                 Fallback)
             .Subscribe(results.Add, () => completed = true);
 
-        await Assert.That(results).IsCollectionEqualTo(["hit"]);
+        await Assert.That(results).IsCollectionEqualTo([HitKey]);
         await Assert.That(completed).IsTrue();
     }
 
@@ -222,7 +234,7 @@ public class FirstMatchFromCandidatesAsyncPathTests
     [Test]
     public async Task WhenAsyncCandidateEmitsAfterMatch_ThenDroppedByDoneGuard()
     {
-        string[] keys = ["hit"];
+        string[] keys = [HitKey];
         var subject = new Subject<string>();
         var results = new List<string>();
         var completed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -231,18 +243,88 @@ public class FirstMatchFromCandidatesAsyncPathTests
             .FirstMatchFromCandidates<string, string, string>(
                 _ => subject,
                 static raw => raw,
-                static value => value == "hit",
+                static value => value == HitKey,
                 Fallback)
             .Subscribe(results.Add, () => completed.TrySetResult());
 
-        subject.OnNext("hit");
+        subject.OnNext(HitKey);
         await completed.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
         subject.OnNext("ignored-late");
         subject.OnError(new InvalidOperationException("ignored-late"));
         subject.OnCompleted();
 
-        await Assert.That(results).IsCollectionEqualTo(["hit"]);
+        await Assert.That(results).IsCollectionEqualTo([HitKey]);
+    }
+
+    /// <summary>Drives <c>AsyncSink.TryNext</c> through a candidate whose projection
+    /// synchronously errors — that path enters <c>AsyncSink.OnError</c> while <c>_looping == true</c>
+    /// (inside <c>TryNext</c>), exercising the <c>if (_looping) return;</c> guard.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenAsyncSinkWalkHitsSyncErroringCandidate_ThenLoopingGuardSkipsAhead()
+    {
+        // First candidate's projection is async (never completes during Subscribe), forcing
+        // TrySyncLoop to hand off to AsyncSink. Second candidate's projection synchronously
+        // errors during AsyncSink.TryNext's loop iteration, hitting AsyncSink.OnError with
+        // _looping == true.
+        string[] keys = [AsyncKey, SyncErrorKey, HitKey];
+        var asyncSubject = new Subject<string>();
+        var results = new List<string>();
+        var completed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        using var sub = ((IReadOnlyList<string>)keys)
+            .FirstMatchFromCandidates<string, string, string>(
+                key => key switch
+                {
+                    AsyncKey => asyncSubject,
+                    SyncErrorKey => new SyncErroringObservable<string>(new InvalidOperationException("sync")),
+                    _ => Observable.Return(key),
+                },
+                static raw => raw,
+                static value => value == HitKey,
+                Fallback)
+            .Subscribe(results.Add, () => completed.TrySetResult());
+
+        // Complete the async subject — AsyncSink.OnCompleted runs (outside TryNext, so _looping
+        // is false), which invokes TryNext. The next iteration projects SyncErrorKey whose
+        // SyncErroringObservable.Subscribe calls observer.OnError synchronously, re-entering
+        // AsyncSink.OnError while _looping is still true — hitting the looping-guard return.
+        asyncSubject.OnCompleted();
+
+        await completed.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await Assert.That(results).IsCollectionEqualTo([HitKey]);
+    }
+
+    /// <summary>Same shape as the looping-error case but the intermediate candidate
+    /// synchronously completes instead of erroring, exercising
+    /// <c>AsyncSink.OnCompleted</c>'s <c>_looping</c> guard.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenAsyncSinkWalkHitsSyncCompletingCandidate_ThenLoopingGuardSkipsAhead()
+    {
+        string[] keys = [AsyncKey, SyncCompleteKey, HitKey];
+        var asyncSubject = new Subject<string>();
+        var results = new List<string>();
+        var completed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        using var sub = ((IReadOnlyList<string>)keys)
+            .FirstMatchFromCandidates<string, string, string>(
+                key => key switch
+                {
+                    AsyncKey => asyncSubject,
+                    SyncCompleteKey => new SyncCompletingObservable<string>(),
+                    _ => Observable.Return(key),
+                },
+                static raw => raw,
+                static value => value == HitKey,
+                Fallback)
+            .Subscribe(results.Add, () => completed.TrySetResult());
+
+        asyncSubject.OnCompleted();
+
+        await completed.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await Assert.That(results).IsCollectionEqualTo([HitKey]);
     }
 
     /// <summary>Observable that synchronously calls <c>OnError</c> on the subscriber from inside

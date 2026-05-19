@@ -3,6 +3,7 @@
 // See the LICENSE file in the project root for full license information.
 
 using ReactiveUI.Extensions.Async;
+using ReactiveUI.Extensions.Async.Subjects;
 
 namespace ReactiveUI.Extensions.Tests.Async;
 
@@ -116,6 +117,35 @@ public class ObserveOnAsyncObservableTests
             .ToListAsync();
 
         await Assert.That(result).IsEmpty();
+    }
+
+    /// <summary>Exercises <c>ObserveOnObserver.OnErrorResumeAsyncCore</c>'s slow-path branch —
+    /// when <c>forceYielding == true</c>, the resumable-error path returns
+    /// <c>SwitchThenErrorAsync(...)</c> rather than the fast-path direct forward.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenForceYieldingSourceEmitsResumableError_ThenSlowPathForwards()
+    {
+        var subject = SubjectAsync.Create<int>();
+        Exception? caught = null;
+        var errorTcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        await using var sub = await subject.Values
+            .ObserveOn(AsyncContext.Default, forceYielding: true)
+            .SubscribeAsync(
+                static (_, _) => default,
+                (ex, _) =>
+                {
+                    caught = ex;
+                    errorTcs.TrySetResult();
+                    return default;
+                });
+
+        var expected = new InvalidOperationException("observeon-resume");
+        await subject.OnErrorResumeAsync(expected, CancellationToken.None);
+
+        await errorTcs.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await Assert.That(caught).IsSameReferenceAs(expected);
     }
 
     /// <summary>Verifies <c>ObserveOnObserver.SwitchThenForwardAsync</c> by calling it directly

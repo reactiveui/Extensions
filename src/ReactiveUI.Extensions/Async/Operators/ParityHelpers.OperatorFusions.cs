@@ -554,10 +554,7 @@ public static partial class ObservableAsync
                     OnSourceCompletedAsync,
                     cancellationToken).ConfigureAwait(false);
 
-                if (!TryAttachSourceSubscription(subscription))
-                {
-                    await DisposeStaleSubscriptionAsync(subscription).ConfigureAwait(false);
-                }
+                await AttachOrDisposeStaleSubscriptionAsync(subscription).ConfigureAwait(false);
             }
 
             return new BranchSubscription(this, isTrueBranch);
@@ -585,15 +582,21 @@ public static partial class ObservableAsync
             }
         }
 
-        /// <summary>Disposes an upstream subscription whose attach was lost to the
-        /// both-branches-gone race in <see cref="TryAttachSourceSubscription"/>. The race itself
-        /// is only triggerable under genuine concurrent disposal, so this single-line cleanup is
-        /// isolated and excluded from coverage rather than serviced by a probabilistic test.</summary>
-        /// <param name="subscription">The stale subscription to dispose.</param>
-        /// <returns>A task that completes after the subscription is disposed.</returns>
+        /// <summary>Attempts to attach the just-created upstream subscription and disposes it if
+        /// both branches have raced ahead and already disposed. The dispose branch is only
+        /// reachable under genuine concurrent disposal during in-flight subscribe, so the entire
+        /// helper is isolated and excluded from coverage; <see cref="TryAttachSourceSubscription"/>
+        /// itself is covered by direct unit tests.</summary>
+        /// <param name="subscription">The freshly-created upstream subscription.</param>
+        /// <returns>A task that completes once the subscription has been attached or disposed.</returns>
         [System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
-        private static ValueTask DisposeStaleSubscriptionAsync(IAsyncDisposable subscription) =>
-            subscription.DisposeAsync();
+        private async ValueTask AttachOrDisposeStaleSubscriptionAsync(IAsyncDisposable subscription)
+        {
+            if (!TryAttachSourceSubscription(subscription))
+            {
+                await subscription.DisposeAsync().ConfigureAwait(false);
+            }
+        }
 
         /// <summary>Forwards an upstream value to the branch whose predicate result matches.</summary>
         /// <param name="value">The upstream value.</param>

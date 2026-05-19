@@ -139,6 +139,37 @@ public class ObserveOnIfObservableTests
         await Assert.That(values).IsEmpty();
     }
 
+    /// <summary>Exercises the <c>_done</c> guard inside the scheduled callback —
+    /// when the source completes between <c>OnNext</c>'s schedule call and the scheduler firing
+    /// the queued callback, the callback observes <c>_done == true</c> and returns without
+    /// forwarding to downstream.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenScheduledCallbackFiresAfterSourceCompleted_ThenDroppedByDoneGuard()
+    {
+        var source = new SyncDirectSource<int>();
+        var condition = new Subject<bool>();
+        var scheduler = new Microsoft.Reactive.Testing.TestScheduler();
+        var values = new List<int>();
+        var completedCount = 0;
+
+        using var sub = source.ObserveOnIf(condition, scheduler, scheduler)
+            .Subscribe(values.Add, () => completedCount++);
+
+        // First emission queues the forward-to-downstream callback on the TestScheduler.
+        source.Observer.OnNext(1);
+
+        // Source completes synchronously, flipping _done = true before the queued callback runs.
+        source.Observer.OnCompleted();
+
+        // Advance the scheduler so the queued callback fires; it observes _done == true and
+        // returns at the in-callback guard rather than calling downstream.OnNext.
+        scheduler.AdvanceBy(1);
+
+        await Assert.That(completedCount).IsEqualTo(1);
+        await Assert.That(values).IsEmpty();
+    }
+
     /// <summary>Verifies the condition observer's duplicate-value short-circuit — emitting the
     /// same condition value twice in a row hits the <c>_hasCondition &amp;&amp; _lastCondition == c</c>
     /// guard and returns silently without re-assigning the current scheduler.</summary>

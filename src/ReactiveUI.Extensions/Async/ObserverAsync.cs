@@ -418,33 +418,12 @@ public abstract class ObserverAsync<T> : IObserverAsync<T>
 
         // Two callers can both pass the IsCancellationRequested guard above (the guard is read
         // in the lock but the actual cancellation happens outside, so the window between
-        // guard-passed and cancel-applied is non-zero). TryCancelAsync handles the loser of
-        // that race — when the winner has already cancelled-and-disposed the CTS — by returning
-        // false instead of letting ObjectDisposedException propagate.
-        if (!await ConcurrencyRaceHelpers.TryCancelAsync(_disposeCts).ConfigureAwait(false))
+        // guard-passed and cancel-applied is non-zero). TryCancelAsync returns false for the
+        // race-loser — the winner already cancelled-and-disposed the CTS — and the loser then
+        // skips the rest of the teardown by not entering the branch.
+        if (await ConcurrencyRaceHelpers.TryCancelAsync(_disposeCts).ConfigureAwait(false))
         {
-            return;
-        }
-
-        if (allOnSomethingCallsCompleted is not null)
-        {
-            await allOnSomethingCallsCompleted.ConfigureAwait(false);
-        }
-
-#if NETCOREAPP3_0_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-        await _externalLinkRegistration.DisposeAsync().ConfigureAwait(false);
-#else
-        _externalLinkRegistration.Dispose();
-#endif
-        _disposeCts.Dispose();
-
-        try
-        {
-            await SingleAssignmentDisposableAsync.DisposeAsync(ref _sourceSubscription).ConfigureAwait(false);
-        }
-        catch (Exception e)
-        {
-            UnhandledExceptionHandler.OnUnhandledException(e);
+            await CompleteDisposeAfterCancelAsync(allOnSomethingCallsCompleted).ConfigureAwait(false);
         }
     }
 
@@ -466,6 +445,37 @@ public abstract class ObserverAsync<T> : IObserverAsync<T>
     /// <param name="cancellationToken">A cancellation token that can be used to cancel the asynchronous operation.</param>
     /// <returns>A ValueTask that represents the asynchronous operation.</returns>
     protected abstract ValueTask OnNextAsyncCore(T value, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Finishes the teardown after this caller won the cancellation race. Separated from
+    /// <see cref="DisposeAsyncCore"/> so the race-loser branch is just the absence of this
+    /// call, with no <c>return;</c> sequence point to mark uncovered.
+    /// </summary>
+    /// <param name="allOnSomethingCallsCompleted">Optional gate awaited for in-flight On* calls.</param>
+    /// <returns>A task representing the asynchronous teardown.</returns>
+    private async ValueTask CompleteDisposeAfterCancelAsync(Task? allOnSomethingCallsCompleted)
+    {
+        if (allOnSomethingCallsCompleted is not null)
+        {
+            await allOnSomethingCallsCompleted.ConfigureAwait(false);
+        }
+
+#if NETCOREAPP3_0_OR_GREATER || NETSTANDARD2_1_OR_GREATER
+        await _externalLinkRegistration.DisposeAsync().ConfigureAwait(false);
+#else
+        _externalLinkRegistration.Dispose();
+#endif
+        _disposeCts.Dispose();
+
+        try
+        {
+            await SingleAssignmentDisposableAsync.DisposeAsync(ref _sourceSubscription).ConfigureAwait(false);
+        }
+        catch (Exception e)
+        {
+            UnhandledExceptionHandler.OnUnhandledException(e);
+        }
+    }
 
     /// <summary>
     /// Async continuation for <see cref="OnNextAsync"/> when <see cref="OnNextAsyncCore"/> returned an
