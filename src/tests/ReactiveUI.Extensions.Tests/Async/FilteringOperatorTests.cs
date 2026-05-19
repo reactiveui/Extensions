@@ -631,6 +631,115 @@ public class FilteringOperatorTests
         await Assert.That(caught).IsSameReferenceAs(expected);
     }
 
+    /// <summary>Exercises the <c>SkipObserver.OnErrorResumeAsyncCore</c> forwarding —
+    /// upstream resumable errors propagate verbatim through the Skip observer.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenSkipSourceErrorResume_ThenForwarded()
+    {
+        var subject = SubjectAsync.Create<int>();
+        Exception? caught = null;
+        var errorTcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        await using var sub = await subject.Values
+            .Skip(1)
+            .SubscribeAsync(
+                static (_, _) => default,
+                (ex, _) =>
+                {
+                    caught = ex;
+                    errorTcs.TrySetResult();
+                    return default;
+                });
+
+        var expected = new InvalidOperationException("skip-error");
+        await subject.OnErrorResumeAsync(expected, CancellationToken.None);
+
+        await errorTcs.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await Assert.That(caught).IsSameReferenceAs(expected);
+    }
+
+    /// <summary>Exercises the <c>TakeObserver.OnErrorResumeAsyncCore</c> forwarding.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenTakeSourceErrorResume_ThenForwarded()
+    {
+        var subject = SubjectAsync.Create<int>();
+        Exception? caught = null;
+        var errorTcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        await using var sub = await subject.Values
+            .Take(10)
+            .SubscribeAsync(
+                static (_, _) => default,
+                (ex, _) =>
+                {
+                    caught = ex;
+                    errorTcs.TrySetResult();
+                    return default;
+                });
+
+        var expected = new InvalidOperationException("take-error");
+        await subject.OnErrorResumeAsync(expected, CancellationToken.None);
+
+        await errorTcs.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await Assert.That(caught).IsSameReferenceAs(expected);
+    }
+
+    /// <summary>Exercises the <c>CastObserver.OnErrorResumeAsyncCore</c> forwarding.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenCastSourceErrorResume_ThenForwarded()
+    {
+        var subject = SubjectAsync.Create<object>();
+        Exception? caught = null;
+        var errorTcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        await using var sub = await subject.Values
+            .Cast<object, int>()
+            .SubscribeAsync(
+                static (_, _) => default,
+                (ex, _) =>
+                {
+                    caught = ex;
+                    errorTcs.TrySetResult();
+                    return default;
+                });
+
+        var expected = new InvalidOperationException("cast-error");
+        await subject.OnErrorResumeAsync(expected, CancellationToken.None);
+
+        await errorTcs.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await Assert.That(caught).IsSameReferenceAs(expected);
+    }
+
+    /// <summary>Exercises the <c>OfTypeObserver.OnErrorResumeAsyncCore</c> forwarding.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenOfTypeSourceErrorResume_ThenForwarded()
+    {
+        var subject = SubjectAsync.Create<object>();
+        Exception? caught = null;
+        var errorTcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        await using var sub = await subject.Values
+            .OfType<object, string>()
+            .SubscribeAsync(
+                static (_, _) => default,
+                (ex, _) =>
+                {
+                    caught = ex;
+                    errorTcs.TrySetResult();
+                    return default;
+                });
+
+        var expected = new InvalidOperationException("of-type-error");
+        await subject.OnErrorResumeAsync(expected, CancellationToken.None);
+
+        await errorTcs.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await Assert.That(caught).IsSameReferenceAs(expected);
+    }
+
     /// <summary>Exercises the <c>SelectSyncObserver.OnErrorResumeAsyncCore</c> forwarding —
     /// upstream resumable errors propagate verbatim through the synchronous Select observer.</summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
