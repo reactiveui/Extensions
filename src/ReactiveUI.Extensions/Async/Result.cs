@@ -69,6 +69,9 @@ public readonly record struct Result
     /// </summary>
     /// <remarks>This method allows callers to propagate the stored exception when a failure has occurred. If
     /// the state does not represent a failure, no action is taken and no exception is thrown.</remarks>
+    // Closing brace after ExceptionDispatchInfo.Capture(...).Throw() is an unreachable
+    // sequence point that cobertura cannot credit, so the whole method is excluded.
+    [ExcludeFromCodeCoverage]
     public void TryThrow()
     {
         if (!IsFailure)

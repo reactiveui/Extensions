@@ -93,7 +93,7 @@ Code coverage uses **Microsoft.Testing.Extensions.CodeCoverage** configured in `
 **Note:** If a code coverage MCP server is available, prefer using it over manual report generation — it is far more efficient.
 
 ```powershell
-# Run tests with code coverage (from src/ folder)
+# Run tests with code coverage (from src/ folder).
 dotnet test --solution ReactiveUI.Extensions.slnx -c Release -- --coverage --coverage-output-format cobertura
 
 # Generate HTML report using ReportGenerator (install if needed: dotnet tool install -g dotnet-reportgenerator-globaltool)
@@ -111,9 +111,16 @@ open /tmp/code_coverage/index.html        # macOS
 ```
 
 **Key configuration** (`src/testconfig.json`):
-- `modulePaths.include`: `Extensions\\..*` — covers all production assemblies
-- `modulePaths.exclude`: `.*Tests.*`, `.*TestRunner.*` — excludes test/runner assemblies
-- `skipAutoProperties: true` — auto-properties excluded from coverage metrics
+- `Format: "cobertura"` — cobertura output for ReportGenerator
+- `CodeCoverage.SkipAutoProperties: true` — auto-properties excluded from coverage metrics
+- `CodeCoverage.ModulePaths.Exclude`: `.*Tests\\.dll$`, `.*TestRunner.*` — excludes test/runner assemblies
+- `CodeCoverage.Functions.Exclude`: `.*__.*` — single generic pattern excluding compiler-
+  generated names (async state machines `<X>d__N`, lambda methods `<X>b__N_M`, local-function
+  state machines `<<X>g__Helper|N_M>d`, and closure types `<>c__DisplayClass*`). None of our
+  user code uses double underscores, so the pattern is unambiguous.
+- Race-only methods (Throttle.Emit, ThrottleDistinct.Emit, Result.TryThrow's post-Throw
+  closing brace) are marked `[ExcludeFromCodeCoverage]` in source — the default
+  Attributes.Exclude honors that attribute.
 
 **Tips:**
 - Always clean `bin/` and `obj/` folders before coverage runs to avoid stale results

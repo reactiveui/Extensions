@@ -151,16 +151,18 @@ public static partial class ObservableAsync
             /// <inheritdoc/>
             public async ValueTask DisposeAsync()
             {
-                if (!DisposalHelper.TrySetDisposed(ref _disposed))
+                if (DisposalHelper.TrySetDisposed(ref _disposed))
                 {
-                    await _disposeCts.CancelAsync().ConfigureAwait(false);
-#if NETCOREAPP3_0_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-                    await _externalLinkRegistration.DisposeAsync().ConfigureAwait(false);
-#else
-                    _externalLinkRegistration.Dispose();
-#endif
-                    _disposeCts.Dispose();
+                    return;
                 }
+
+                await _disposeCts.CancelAsync().ConfigureAwait(false);
+#if NETCOREAPP3_0_OR_GREATER || NETSTANDARD2_1_OR_GREATER
+                await _externalLinkRegistration.DisposeAsync().ConfigureAwait(false);
+#else
+                _externalLinkRegistration.Dispose();
+#endif
+                _disposeCts.Dispose();
             }
 
             /// <summary>

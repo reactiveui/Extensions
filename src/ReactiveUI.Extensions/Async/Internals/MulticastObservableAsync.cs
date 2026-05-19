@@ -87,13 +87,15 @@ internal class MulticastObservableAsync<T>(IObservableAsync<T> observable, ISubj
                 {
                     using (await _gate.LockAsync(DisposedCancellationToken).ConfigureAwait(false))
                     {
-                        if (connection is not null)
+                        if (connection is null)
                         {
-                            var localConn = connection;
-                            connection = null;
-                            _connection = null;
-                            await localConn.DisposeAsync().ConfigureAwait(false);
+                            return;
                         }
+
+                        var localConn = connection;
+                        connection = null;
+                        _connection = null;
+                        await localConn.DisposeAsync().ConfigureAwait(false);
                     }
                 });
             }
