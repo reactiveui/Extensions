@@ -312,7 +312,10 @@ public static partial class ObservableAsync
             }
 
             /// <summary>Waits the debounce window, then forwards the value if
-            /// <see cref="TryClaimEmission"/> approves it.</summary>
+            /// <see cref="TryClaimEmission"/> approves it. The single catch routes everything
+            /// through <see cref="UnhandledExceptionHandler.OnUnhandledException"/>, which
+            /// already filters out <see cref="OperationCanceledException"/> internally —
+            /// so a separate OCE-only catch would just duplicate the same silent-drop behavior.</summary>
             /// <param name="value">The candidate value.</param>
             /// <param name="id">The id stamped when this delay was started.</param>
             /// <param name="cancellationToken">The cancellation token.</param>
@@ -329,10 +332,6 @@ public static partial class ObservableAsync
                     }
 
                     await downstream.OnNextAsync(value, cancellationToken).ConfigureAwait(false);
-                }
-                catch (OperationCanceledException)
-                {
-                    // Observer disposed or token cancelled.
                 }
                 catch (Exception e)
                 {
@@ -847,7 +846,10 @@ public static partial class ObservableAsync
             }
 
             /// <summary>Waits the debounce window, then forwards the value if
-            /// <see cref="IsCurrentEmission"/> confirms the emission was not superseded.</summary>
+            /// <see cref="IsCurrentEmission"/> confirms the emission was not superseded.
+            /// The single catch routes everything through
+            /// <see cref="UnhandledExceptionHandler.OnUnhandledException"/>, which already
+            /// filters out <see cref="OperationCanceledException"/> internally.</summary>
             /// <param name="value">The candidate value.</param>
             /// <param name="id">The id stamped when this delay was started.</param>
             /// <param name="cancellationToken">The cancellation token.</param>
@@ -864,10 +866,6 @@ public static partial class ObservableAsync
                     }
 
                     await downstream.OnNextAsync(value, cancellationToken).ConfigureAwait(false);
-                }
-                catch (OperationCanceledException)
-                {
-                    // Observer disposed or token cancelled.
                 }
                 catch (Exception e)
                 {

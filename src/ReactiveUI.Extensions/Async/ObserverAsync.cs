@@ -157,18 +157,11 @@ public abstract class ObserverAsync<T> : IObserverAsync<T>
             return default;
         }
 
-        ValueTask core;
-        try
-        {
-            core = OnErrorResumeAsync_Private(error, scope.Token);
-        }
-        catch (Exception e)
-        {
-            UnhandledExceptionHandler.OnUnhandledException(e);
-            scope.Dispose();
-            ExitOnSomethingCall();
-            return default;
-        }
+        // OnErrorResumeAsync_Private is an async ValueTask method — any sync or async exception
+        // it raises is captured into the returned ValueTask and surfaces through the await in
+        // OnErrorResumeAsyncSlow. A try/catch around the invocation expression itself would be
+        // dead code in modern C# async semantics.
+        var core = OnErrorResumeAsync_Private(error, scope.Token);
 
         if (core.IsCompletedSuccessfully)
         {
