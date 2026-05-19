@@ -3,6 +3,7 @@
 // See the LICENSE file in the project root for full license information.
 
 using ReactiveUI.Extensions.Async;
+using ReactiveUI.Extensions.Async.Subjects;
 
 namespace ReactiveUI.Extensions.Tests.Async;
 
@@ -173,6 +174,246 @@ public class ParityHelpersOperatorFusionsTests
             .ToListAsync();
 
         await Assert.That(result).IsCollectionEqualTo(ExpectedListFlat);
+    }
+
+    /// <summary>Verifies that <c>Partition</c> broadcasts an upstream non-terminal error to both
+    /// subscribed branches via the <c>OnErrorResume</c> path.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenPartitionSourceErrorResume_ThenBothBranchesReceiveError()
+    {
+        var subject = SubjectAsync.Create<int>();
+        var (evens, odds) = subject.Values.Partition(static x => x % Two == 0);
+
+        Exception? evenError = null;
+        Exception? oddError = null;
+        var evenTcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var oddTcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        await using var evenSub = await evens.SubscribeAsync(
+            static (_, _) => default,
+            (ex, _) =>
+            {
+                evenError = ex;
+                evenTcs.TrySetResult();
+                return default;
+            });
+        await using var oddSub = await odds.SubscribeAsync(
+            static (_, _) => default,
+            (ex, _) =>
+            {
+                oddError = ex;
+                oddTcs.TrySetResult();
+                return default;
+            });
+
+        var expected = new InvalidOperationException("partition-error");
+        await subject.OnErrorResumeAsync(expected, CancellationToken.None);
+
+        await Task.WhenAll(evenTcs.Task, oddTcs.Task).WaitAsync(TimeSpan.FromSeconds(5));
+        await Assert.That(evenError).IsSameReferenceAs(expected);
+        await Assert.That(oddError).IsSameReferenceAs(expected);
+    }
+
+    /// <summary>Verifies that a branch subscriber attaching after the source has already
+    /// completed gets the cached terminal forwarded immediately.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenPartitionLateBranchSubscribesAfterCompletion_ThenCachedTerminalForwarded()
+    {
+        var subject = SubjectAsync.Create<int>();
+        var (evens, odds) = subject.Values.Partition(static x => x % Two == 0);
+
+        var firstTask = evens.ToListAsync().AsTask();
+        await subject.OnNextAsync(Two, CancellationToken.None);
+        await subject.OnCompletedAsync(Result.Success);
+        await firstTask;
+
+        var lateValues = new List<int>();
+        var lateCompleted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        await using var lateSub = await odds.SubscribeAsync(
+            (v, _) =>
+            {
+                lateValues.Add(v);
+                return default;
+            },
+            (_, _) => default,
+            result =>
+            {
+                lateCompleted.TrySetResult();
+                return default;
+            });
+
+        await lateCompleted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await Assert.That(lateValues).IsEmpty();
+    }
+
+    /// <summary>Verifies that <c>DropIfBusy</c> resets the busy flag and re-throws when the
+    /// async action throws synchronously (rather than returning a faulted task).</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenDropIfBusyActionThrowsSynchronously_ThenBusyFlagResetAndErrorObserved()
+    {
+        var failure = new InvalidOperationException("sync-throw");
+        InvalidOperationException? observed = null;
+
+        try
+        {
+            await new[] { One }.ToObservableAsync()
+                .DropIfBusy(static (_, _) => throw new InvalidOperationException("sync-throw"))
+                .ToListAsync();
+        }
+        catch (InvalidOperationException ex)
+        {
+            observed = ex;
+        }
+
+        await Assert.That(observed).IsNotNull();
+        await Assert.That(observed!.Message).IsEqualTo(failure.Message);
+    }
+
+    /// <summary>Verifies that <c>ScanWithInitial</c> forwards a non-terminal upstream error
+    /// downstream while still emitting the seed.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenScanWithInitialSourceErrorResumes_ThenForwardsDownstream()
+    {
+        var subject = SubjectAsync.Create<int>();
+        var values = new List<int>();
+        Exception? caught = null;
+        var errorTcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        await using var sub = await subject.Values
+            .ScanWithInitial(ScanSeed, static (acc, x) => acc + x)
+            .SubscribeAsync(
+                (v, _) =>
+                {
+                    values.Add(v);
+                    return default;
+                },
+                (ex, _) =>
+                {
+                    caught = ex;
+                    errorTcs.TrySetResult();
+                    return default;
+                });
+
+        var expected = new InvalidOperationException("scan-error");
+        await subject.OnErrorResumeAsync(expected, CancellationToken.None);
+
+        await errorTcs.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await Assert.That(caught).IsSameReferenceAs(expected);
+        await Assert.That(values).IsCollectionEqualTo([ScanSeed]);
+    }
+
+    /// <summary>Verifies that <c>ThrottleDistinct</c> forwards a non-terminal upstream error
+    /// downstream.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenThrottleDistinctSourceErrorResumes_ThenForwardsDownstream()
+    {
+        var subject = SubjectAsync.Create<int>();
+        Exception? caught = null;
+        var errorTcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        await using var sub = await subject.Values
+            .ThrottleDistinct(TimeSpan.FromMilliseconds(ThrottleWindowMilliseconds))
+            .SubscribeAsync(
+                static (_, _) => default,
+                (ex, _) =>
+                {
+                    caught = ex;
+                    errorTcs.TrySetResult();
+                    return default;
+                });
+
+        var expected = new InvalidOperationException("throttle-error");
+        await subject.OnErrorResumeAsync(expected, CancellationToken.None);
+
+        await errorTcs.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await Assert.That(caught).IsSameReferenceAs(expected);
+    }
+
+    /// <summary>Verifies that <c>DebounceUntil</c> forwards a non-terminal upstream error
+    /// downstream.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenDebounceUntilSourceErrorResumes_ThenForwardsDownstream()
+    {
+        var subject = SubjectAsync.Create<int>();
+        Exception? caught = null;
+        var errorTcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        await using var sub = await subject.Values
+            .DebounceUntil(TimeSpan.FromSeconds(5), static _ => false)
+            .SubscribeAsync(
+                static (_, _) => default,
+                (ex, _) =>
+                {
+                    caught = ex;
+                    errorTcs.TrySetResult();
+                    return default;
+                });
+
+        var expected = new InvalidOperationException("debounce-error");
+        await subject.OnErrorResumeAsync(expected, CancellationToken.None);
+
+        await errorTcs.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await Assert.That(caught).IsSameReferenceAs(expected);
+    }
+
+    /// <summary>Verifies that <c>ForEach</c> forwards a non-terminal upstream error downstream.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenForEachSourceErrorResumes_ThenForwardsDownstream()
+    {
+        var subject = SubjectAsync.Create<IEnumerable<int>>();
+        Exception? caught = null;
+        var errorTcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        await using var sub = await subject.Values
+            .ForEach()
+            .SubscribeAsync(
+                static (_, _) => default,
+                (ex, _) =>
+                {
+                    caught = ex;
+                    errorTcs.TrySetResult();
+                    return default;
+                });
+
+        var expected = new InvalidOperationException("foreach-error");
+        await subject.OnErrorResumeAsync(expected, CancellationToken.None);
+
+        await errorTcs.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await Assert.That(caught).IsSameReferenceAs(expected);
+    }
+
+    /// <summary>Verifies that <c>DropIfBusy</c> forwards a non-terminal upstream error downstream.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenDropIfBusySourceErrorResumes_ThenForwardsDownstream()
+    {
+        var subject = SubjectAsync.Create<int>();
+        Exception? caught = null;
+        var errorTcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        await using var sub = await subject.Values
+            .DropIfBusy(static (_, _) => default)
+            .SubscribeAsync(
+                static (_, _) => default,
+                (ex, _) =>
+                {
+                    caught = ex;
+                    errorTcs.TrySetResult();
+                    return default;
+                });
+
+        var expected = new InvalidOperationException("dropifbusy-error");
+        await subject.OnErrorResumeAsync(expected, CancellationToken.None);
+
+        await errorTcs.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await Assert.That(caught).IsSameReferenceAs(expected);
     }
 
     /// <summary>Yields values as a generic <see cref="IEnumerable{T}"/> (neither array nor list)

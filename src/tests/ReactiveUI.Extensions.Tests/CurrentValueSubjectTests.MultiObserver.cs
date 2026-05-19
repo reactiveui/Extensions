@@ -185,4 +185,44 @@ public partial class CurrentValueSubjectTests
         await Assert.That(errB).IsSameReferenceAs(expected);
         await Assert.That(errC).IsSameReferenceAs(expected);
     }
+
+    /// <summary>Verifies that <c>OnCompleted</c> broadcasts to multiple observers and a
+    /// subsequent <c>OnCompleted</c> is a no-op.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenMultipleObserversAndOnCompleted_ThenAllReceiveCompletionAndSecondIsNoOp()
+    {
+        using var subject = new CurrentValueSubject<int>(MultiInitialValue);
+        var completedA = 0;
+        var completedB = 0;
+        var completedC = 0;
+
+        using var subA = subject.Subscribe(static _ => { }, () => completedA++);
+        using var subB = subject.Subscribe(static _ => { }, () => completedB++);
+        using var subC = subject.Subscribe(static _ => { }, () => completedC++);
+
+        subject.OnCompleted();
+        subject.OnCompleted();
+
+        await Assert.That(completedA).IsEqualTo(1);
+        await Assert.That(completedB).IsEqualTo(1);
+        await Assert.That(completedC).IsEqualTo(1);
+    }
+
+    /// <summary>Verifies that disposing the same subscription twice is idempotent.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenSubscriptionDisposedTwice_ThenIdempotent()
+    {
+        using var subject = new CurrentValueSubject<int>(MultiInitialValue);
+        var values = new List<int>();
+
+        var sub = subject.Subscribe(values.Add);
+        sub.Dispose();
+        sub.Dispose();
+
+        subject.OnNext(MultiInitialValue + 1);
+
+        await Assert.That(values).IsCollectionEqualTo([MultiInitialValue]);
+    }
 }

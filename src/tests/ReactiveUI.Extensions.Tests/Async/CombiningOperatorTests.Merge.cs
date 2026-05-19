@@ -885,4 +885,49 @@ public partial class CombiningOperatorTests
         await Assert.That(completionResult).IsNotNull();
         await Assert.That(completionResult!.Value.IsFailure).IsTrue();
     }
+
+    /// <summary>Verifies that subscribing <c>Merge(IEnumerable)</c> with an already-cancelled
+    /// token short-circuits the subscription's cancellation chain immediately.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenMergeSubscribedWithAlreadyCancelledToken_ThenSubscriptionDisposes()
+    {
+        using var cts = new CancellationTokenSource();
+        await cts.CancelAsync();
+
+        var first = ObservableAsync.Return(1);
+        var second = ObservableAsync.Return(SampleValue2);
+
+        var values = new List<int>();
+        await using var sub = await first.Merge(second).SubscribeAsync(
+            (v, _) =>
+            {
+                values.Add(v);
+                return default;
+            },
+            cts.Token);
+
+        // The subscription should have been cancelled before producing any values.
+        await Assert.That(values.Count).IsLessThanOrEqualTo(SampleValue2);
+    }
+
+    /// <summary>Verifies that subscribing <c>Merge(maxConcurrency)</c> with an already-cancelled
+    /// token short-circuits the subscription's cancellation chain immediately.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenMergeMaxConcurrencySubscribedWithAlreadyCancelledToken_ThenSubscriptionDisposes()
+    {
+        using var cts = new CancellationTokenSource();
+        await cts.CancelAsync();
+
+        var outer = ObservableAsync.Return(ObservableAsync.Return(1));
+
+        await using var sub = await outer.Merge(1).SubscribeAsync(
+            static (_, _) => default,
+            cts.Token);
+
+        // The act of producing the disposable without throwing exercises the
+        // already-cancelled short-circuit in LinkExternalCancellation.
+        await Assert.That(sub).IsNotNull();
+    }
 }

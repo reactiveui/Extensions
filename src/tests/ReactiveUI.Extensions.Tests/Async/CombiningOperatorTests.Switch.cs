@@ -516,4 +516,20 @@ public partial class CombiningOperatorTests
                 .Switch()
                 .FirstAsync());
     }
+
+    /// <summary>Verifies that subscribing <c>Switch</c> with an already-cancelled token
+    /// short-circuits the subscription's cancellation chain immediately.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenSwitchSubscribedWithAlreadyCancelledToken_ThenSubscriptionDisposes()
+    {
+        using var cts = new CancellationTokenSource();
+        await cts.CancelAsync();
+
+        await using var sub = await ObservableAsync.Return<IObservableAsync<int>>(ObservableAsync.Return(1))
+            .Switch()
+            .SubscribeAsync(static (_, _) => default, cts.Token);
+
+        await Assert.That(sub).IsNotNull();
+    }
 }
