@@ -90,4 +90,46 @@ public class MinMaxObservableTests
 
         await Assert.That(caught).IsSameReferenceAs(expected);
     }
+
+    /// <summary>Verifies <c>GetMax</c> with no additional sources still emits the source's own values verbatim.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenGetMaxSingleSource_ThenEmitsSourceValues()
+    {
+        var subject = new Subject<int>();
+        var results = new List<int>();
+        using var sub = subject.GetMax().Subscribe(results.Add);
+
+        subject.OnNext(LowValue);
+        subject.OnNext(MidValue);
+        subject.OnNext(HighValue);
+
+        await Assert.That(results).IsCollectionEqualTo([LowValue, MidValue, HighValue]);
+    }
+
+    /// <summary>Verifies that <see cref="ReactiveUI.Extensions.Operators.MinMaxObservable{T}"/>
+    /// with an empty source list completes immediately without emitting.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenMinMaxObservableNoSources_ThenCompletesImmediately()
+    {
+        var observable = new ReactiveUI.Extensions.Operators.MinMaxObservable<int>([], emitMaximum: true);
+        var completed = false;
+        var emitted = 0;
+
+        using var sub = observable.Subscribe(_ => emitted++, () => completed = true);
+
+        await Assert.That(emitted).IsEqualTo(0);
+        await Assert.That(completed).IsTrue();
+    }
+
+    /// <summary>Verifies that <see cref="ReactiveUI.Extensions.Operators.MinMaxObservable{T}"/>
+    /// throws when subscribed with a null observer.</summary>
+    [Test]
+    public void WhenMinMaxObservableNullObserver_ThenSubscribeThrows()
+    {
+        var observable = new ReactiveUI.Extensions.Operators.MinMaxObservable<int>([new Subject<int>()], emitMaximum: false);
+
+        Assert.Throws<ArgumentNullException>(() => observable.Subscribe(null!));
+    }
 }

@@ -52,4 +52,26 @@ public class FirstAsTaskHelperTests
 
         await Assert.That(await task).IsEqualTo(FirstValue);
     }
+
+    /// <summary>Verifies the helper throws when the source argument is null.</summary>
+    [Test]
+    public void WhenSourceNull_ThenThrowsArgumentNullException() =>
+        Assert.Throws<ArgumentNullException>(static () => FirstAsTaskHelper.FirstAsTask<int>(null!));
+
+    /// <summary>Verifies emissions arriving after the task has already settled are silently ignored.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenSubjectErrorsThenLaterEvents_ThenLaterEventsIgnored()
+    {
+        var subject = new Subject<int>();
+        var task = FirstAsTaskHelper.FirstAsTask(subject);
+        var expected = new InvalidOperationException("first");
+
+        subject.OnError(expected);
+        subject.OnCompleted();
+        subject.OnNext(FirstValue);
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(async () => await task);
+        await Assert.That(ex).IsSameReferenceAs(expected);
+    }
 }
