@@ -4,6 +4,7 @@
 
 using ReactiveUI.Extensions.Async;
 using ReactiveUI.Extensions.Async.Disposables;
+using ReactiveUI.Extensions.Async.Subjects;
 
 namespace ReactiveUI.Extensions.Tests.Async;
 
@@ -172,6 +173,35 @@ public class ErrorHandlingOperatorTests
         var result = await ObservableAsync.Return(7).Retry().ToListAsync();
 
         await Assert.That(result).IsCollectionEqualTo([ExpectedValue]);
+    }
+
+    /// <summary>Exercises <c>CatchObserver.OnErrorResumeAsyncCore</c>'s null-callback branch —
+    /// when <c>Catch(handler)</c> is used without an <c>onErrorResume</c> argument, source
+    /// <c>OnErrorResumeAsync</c> notifications flow through to the downstream verbatim.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenCatchWithoutErrorResumeCallback_ThenForwardsToDownstream()
+    {
+        var subject = SubjectAsync.Create<int>();
+        Exception? caught = null;
+        var errorTcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        await using var sub = await subject.Values
+            .Catch(static _ => ObservableAsync.Return(42))
+            .SubscribeAsync(
+                static (_, _) => default,
+                (ex, _) =>
+                {
+                    caught = ex;
+                    errorTcs.TrySetResult();
+                    return default;
+                });
+
+        var expected = new InvalidOperationException("catch-passthrough");
+        await subject.OnErrorResumeAsync(expected, CancellationToken.None);
+
+        await errorTcs.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await Assert.That(caught).IsSameReferenceAs(expected);
     }
 
     /// <summary>Tests Catch with error resume callback is invoked.</summary>
@@ -356,6 +386,49 @@ public class ErrorHandlingOperatorTests
         await sub.DisposeAsync();
     }
 
+    /// <summary>Exercises the <c>CatchObserver.DisposeAsyncCore</c> catch branch — when the
+    /// handler-produced subscription throws on <see cref="IAsyncDisposable.DisposeAsync"/>, the
+    /// failure is routed through <see cref="UnhandledExceptionHandler"/> rather than re-thrown.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenCatchHandlerDisposeThrows_ThenRoutedToUnhandled()
+    {
+        var previousHandler = UnhandledExceptionHandler.CurrentHandler;
+        try
+        {
+            Exception? unhandled = null;
+            var unhandledTcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            UnhandledExceptionHandler.Register(ex =>
+            {
+                unhandled = ex;
+                unhandledTcs.TrySetResult();
+            });
+
+            var disposeFailure = new InvalidOperationException("handler-dispose-failed");
+            var source = ObservableAsync.Throw<int>(new InvalidOperationException("fail"));
+            var handlerSubscribed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            var handlerObservable = ObservableAsync.Create<int>((_, _) =>
+            {
+                handlerSubscribed.TrySetResult();
+                return new ValueTask<IAsyncDisposable>(new ThrowingDisposable(disposeFailure));
+            });
+
+            var sub = await source.Catch(_ => handlerObservable)
+                .SubscribeAsync(static (_, _) => default, null, static _ => default);
+
+            await handlerSubscribed.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+            await sub.DisposeAsync();
+            await unhandledTcs.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+            await Assert.That(unhandled).IsSameReferenceAs(disposeFailure);
+        }
+        finally
+        {
+            UnhandledExceptionHandler.Register(previousHandler);
+        }
+    }
+
     /// <summary>Tests that CatchAndIgnoreErrorResume invokes the unhandled exception handler for error resumes.</summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
@@ -487,5 +560,13 @@ public class ErrorHandlingOperatorTests
 
         await Assert.That(result).IsCollectionEqualTo([SuccessValue]);
         await Assert.That(attempt).IsEqualTo(ExpectedAttempts);
+    }
+
+    /// <summary>Async disposable that throws on <see cref="IAsyncDisposable.DisposeAsync"/>.
+    /// Used to verify dispose-failure routing in operators that swallow secondary errors.</summary>
+    private sealed class ThrowingDisposable(Exception error) : IAsyncDisposable
+    {
+        /// <inheritdoc/>
+        public ValueTask DisposeAsync() => throw error;
     }
 }

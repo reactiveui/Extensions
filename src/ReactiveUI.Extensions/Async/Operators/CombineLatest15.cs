@@ -420,8 +420,7 @@ public static partial class ObservableAsync
                     11 => _sources.Src12.SubscribeAsync(_obs12, cancellationToken),
                     12 => _sources.Src13.SubscribeAsync(_obs13, cancellationToken),
                     13 => _sources.Src14.SubscribeAsync(_obs14, cancellationToken),
-                    14 => _sources.Src15.SubscribeAsync(_obs15, cancellationToken),
-                    _ => throw new ArgumentOutOfRangeException(nameof(index)),
+                    _ => _sources.Src15.SubscribeAsync(_obs15, cancellationToken),
                 };
 
             /// <summary>

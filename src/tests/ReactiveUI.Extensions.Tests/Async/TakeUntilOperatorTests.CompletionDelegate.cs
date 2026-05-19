@@ -595,4 +595,72 @@ public partial class TakeUntilOperatorTests
         await Assert.That(errorResumed).IsNotNull();
         await Assert.That(errorResumed!.Message).IsEqualTo("task fail");
     }
+
+    /// <summary>Exercises the <c>TakeUntil(CompletionObservableDelegate, CancellationToken)</c>
+    /// overload — the no-options shortcut that forwards to the full overload with null options.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenTakeUntilCompletionDelegateWithCancellationTokenOverload_ThenForwardsValues()
+    {
+        var source = SubjectAsync.Create<int>();
+        var values = new List<int>();
+
+        CompletionObservableDelegate stopSignal = _ => DisposableAsync.Empty;
+
+        await using var sub = await source.Values
+            .TakeUntil(stopSignal, CancellationToken.None)
+            .SubscribeAsync(
+                (x, _) =>
+                {
+                    values.Add(x);
+                    return default;
+                });
+
+        const int Sentinel = 17;
+        await source.OnNextAsync(Sentinel, CancellationToken.None);
+
+        await Assert.That(values).IsCollectionEqualTo([Sentinel]);
+    }
+
+    /// <summary>Exercises the <c>cancellationToken.CanBeCanceled ? ... : ...</c> branch of the
+    /// full <c>TakeUntil</c> overload — supplying a cancellable token routes the result through
+    /// <c>inner.TakeUntil(cancellationToken)</c>, while <see cref="CancellationToken.None"/>
+    /// returns the inner observable unwrapped (already covered by other tests).</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenTakeUntilCompletionDelegateWithCancellableToken_ThenLinkedToTokenCancellation()
+    {
+        using var cts = new CancellationTokenSource();
+        var source = SubjectAsync.Create<int>();
+        var values = new List<int>();
+        Result? completionResult = null;
+
+        CompletionObservableDelegate stopSignal = _ => DisposableAsync.Empty;
+
+        await using var sub = await source.Values
+            .TakeUntil(stopSignal, options: null, cts.Token)
+            .SubscribeAsync(
+                (x, _) =>
+                {
+                    values.Add(x);
+                    return default;
+                },
+                null,
+                result =>
+                {
+                    completionResult = result;
+                    return default;
+                });
+
+        const int Sentinel = 31;
+        await source.OnNextAsync(Sentinel, CancellationToken.None);
+        await cts.CancelAsync();
+
+        await AsyncTestHelpers.WaitForConditionAsync(
+            () => completionResult.HasValue,
+            TimeSpan.FromSeconds(5));
+
+        await Assert.That(values).IsCollectionEqualTo([Sentinel]);
+        await Assert.That(completionResult).IsNotNull();
+    }
 }

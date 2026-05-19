@@ -741,19 +741,7 @@ public partial class CombiningOperatorTests
     public async Task WhenConcatEnumerableSubscribeThrows_ThenDisposesAndRethrows()
     {
         var throwingSource = ObservableAsync.Create<int>((_, _) =>
-        {
-            try
-            {
-                throw new InvalidOperationException("subscribe-failure");
-#pragma warning disable CS0162 // Unreachable code detected
-                return ValueTask.FromResult(DisposableAsync.Empty);
-#pragma warning restore CS0162 // Unreachable code detected
-            }
-            catch (Exception exception)
-            {
-                return ValueTask.FromException<IAsyncDisposable>(exception);
-            }
-        });
+            ValueTask.FromException<IAsyncDisposable>(new InvalidOperationException("subscribe-failure")));
 
         IObservableAsync<int>[] sources = [throwingSource];
 

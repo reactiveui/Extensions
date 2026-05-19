@@ -64,7 +64,7 @@ internal sealed class ConflateObservable<T>(
     /// </summary>
     /// <param name="downstream">The downstream observer to forward notifications to.</param>
     /// <param name="scheduler">The scheduler used to dispatch the drain.</param>
-    private sealed class SchedulerMarshaller(IObserver<T> downstream, IScheduler scheduler)
+    internal sealed class SchedulerMarshaller(IObserver<T> downstream, IScheduler scheduler)
         : IObserver<T>, IDisposable
     {
 #if NET9_0_OR_GREATER
@@ -173,8 +173,11 @@ internal sealed class ConflateObservable<T>(
                         return;
                     }
 
-                    case NotificationKind.Completed:
+                    default:
                     {
+                        // NotificationKind has only three values; the discard arm absorbs
+                        // Completed so the compiler sees an exhaustive switch and coverage
+                        // stops counting a phantom default fall-through.
                         downstream.OnCompleted();
                         return;
                     }
@@ -189,7 +192,7 @@ internal sealed class ConflateObservable<T>(
     /// <param name="downstream">The downstream observer.</param>
     /// <param name="minimumUpdatePeriod">The minimum period between emissions.</param>
     /// <param name="scheduler">The scheduler to run the conflation on.</param>
-    private sealed class ConflateSink(
+    internal sealed class ConflateSink(
         IObserver<T> downstream,
         TimeSpan minimumUpdatePeriod,
         IScheduler scheduler) : IObserver<T>, IDisposable

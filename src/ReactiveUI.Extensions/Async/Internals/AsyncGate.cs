@@ -51,6 +51,11 @@ internal sealed class AsyncGate : IDisposable
     /// </summary>
     private bool _disposedValue;
 
+    /// <summary>Gets the number of awaiters currently parked on the slow path. Exposed for
+    /// deterministic contention tests so they can spin-wait until a contender has entered
+    /// <see cref="WaitForReleaseAsync"/> before tripping the release.</summary>
+    internal int WaitersCount => Volatile.Read(ref _waiters);
+
     /// <summary>
     /// Asynchronously acquires the gate, returning a <see cref="Releaser"/> that releases it on disposal.
     /// </summary>

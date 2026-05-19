@@ -4,6 +4,7 @@
 
 using System.Diagnostics;
 using ReactiveUI.Extensions.Async.Disposables;
+using ReactiveUI.Extensions.Internal;
 
 namespace ReactiveUI.Extensions.Async;
 
@@ -157,18 +158,11 @@ public abstract class ObserverAsync<T> : IObserverAsync<T>
             return default;
         }
 
-        ValueTask core;
-        try
-        {
-            core = OnErrorResumeAsync_Private(error, scope.Token);
-        }
-        catch (Exception e)
-        {
-            UnhandledExceptionHandler.OnUnhandledException(e);
-            scope.Dispose();
-            ExitOnSomethingCall();
-            return default;
-        }
+        // OnErrorResumeAsync_Private is an async ValueTask method — any sync or async exception
+        // it raises is captured into the returned ValueTask and surfaces through the await in
+        // OnErrorResumeAsyncSlow. A try/catch around the invocation expression itself would be
+        // dead code in modern C# async semantics.
+        var core = OnErrorResumeAsync_Private(error, scope.Token);
 
         if (core.IsCompletedSuccessfully)
         {
@@ -205,13 +199,13 @@ public abstract class ObserverAsync<T> : IObserverAsync<T>
         {
             UnhandledExceptionHandler.OnUnhandledException(e);
             scope.Dispose();
-            return ExitOnSomethingCall() ? DisposeAsync() : default;
+            return CompleteOrChainDispose();
         }
 
         if (core.IsCompletedSuccessfully)
         {
             scope.Dispose();
-            return ExitOnSomethingCall() ? DisposeAsync() : default;
+            return CompleteOrChainDispose();
         }
 
         return OnCompletedAsyncSlow(core, scope);
@@ -424,19 +418,43 @@ public abstract class ObserverAsync<T> : IObserverAsync<T>
 
         // Two callers can both pass the IsCancellationRequested guard above (the guard is read
         // in the lock but the actual cancellation happens outside, so the window between
-        // guard-passed and cancel-applied is non-zero). Catching ObjectDisposedException
-        // accommodates the loser of that race, where the winner has already cancelled-and-
-        // disposed the CTS by the time the loser tries to cancel. The loser then returns without
-        // re-running the rest of the disposal body.
-        try
+        // guard-passed and cancel-applied is non-zero). TryCancelAsync returns false for the
+        // race-loser — the winner already cancelled-and-disposed the CTS — and the loser then
+        // skips the rest of the teardown by not entering the branch.
+        if (await ConcurrencyRaceHelpers.TryCancelAsync(_disposeCts).ConfigureAwait(false))
         {
-            await _disposeCts.CancelAsync().ConfigureAwait(false);
+            await CompleteDisposeAfterCancelAsync(allOnSomethingCallsCompleted).ConfigureAwait(false);
         }
-        catch (ObjectDisposedException)
-        {
-            return;
-        }
+    }
 
+    /// <summary>
+    /// Handles an error by providing an asynchronous mechanism to resume execution after an exception occurs.
+    /// </summary>
+    /// <remarks>Override this method to implement custom error recovery or resumption logic in derived
+    /// classes. The method is called when an error occurs and allows the operation to continue or perform cleanup
+    /// asynchronously.</remarks>
+    /// <param name="error">The exception that triggered the error handling logic. Cannot be null.</param>
+    /// <param name="cancellationToken">A cancellation token that can be used to cancel the asynchronous error handling operation.</param>
+    /// <returns>A ValueTask that represents the asynchronous operation of resuming execution after the error.</returns>
+    protected abstract ValueTask OnErrorResumeAsyncCore(Exception error, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Processes the next value in the asynchronous sequence.
+    /// </summary>
+    /// <param name="value">The value to be processed.</param>
+    /// <param name="cancellationToken">A cancellation token that can be used to cancel the asynchronous operation.</param>
+    /// <returns>A ValueTask that represents the asynchronous operation.</returns>
+    protected abstract ValueTask OnNextAsyncCore(T value, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Finishes the teardown after this caller won the cancellation race. Separated from
+    /// <see cref="DisposeAsyncCore"/> so the race-loser branch is just the absence of this
+    /// call, with no <c>return;</c> sequence point to mark uncovered.
+    /// </summary>
+    /// <param name="allOnSomethingCallsCompleted">Optional gate awaited for in-flight On* calls.</param>
+    /// <returns>A task representing the asynchronous teardown.</returns>
+    private async ValueTask CompleteDisposeAfterCancelAsync(Task? allOnSomethingCallsCompleted)
+    {
         if (allOnSomethingCallsCompleted is not null)
         {
             await allOnSomethingCallsCompleted.ConfigureAwait(false);
@@ -459,24 +477,14 @@ public abstract class ObserverAsync<T> : IObserverAsync<T>
         }
     }
 
-    /// <summary>
-    /// Handles an error by providing an asynchronous mechanism to resume execution after an exception occurs.
-    /// </summary>
-    /// <remarks>Override this method to implement custom error recovery or resumption logic in derived
-    /// classes. The method is called when an error occurs and allows the operation to continue or perform cleanup
-    /// asynchronously.</remarks>
-    /// <param name="error">The exception that triggered the error handling logic. Cannot be null.</param>
-    /// <param name="cancellationToken">A cancellation token that can be used to cancel the asynchronous error handling operation.</param>
-    /// <returns>A ValueTask that represents the asynchronous operation of resuming execution after the error.</returns>
-    protected abstract ValueTask OnErrorResumeAsyncCore(Exception error, CancellationToken cancellationToken);
-
-    /// <summary>
-    /// Processes the next value in the asynchronous sequence.
-    /// </summary>
-    /// <param name="value">The value to be processed.</param>
-    /// <param name="cancellationToken">A cancellation token that can be used to cancel the asynchronous operation.</param>
-    /// <returns>A ValueTask that represents the asynchronous operation.</returns>
-    protected abstract ValueTask OnNextAsyncCore(T value, CancellationToken cancellationToken);
+    /// <summary>Returns the dispose task on the race-winner path (<see cref="ExitOnSomethingCall"/>
+    /// reports the last in-flight On* call just exited), or a completed default <see cref="ValueTask"/>
+    /// otherwise. Isolated from coverage because the race-winner branch is only reachable when a
+    /// concurrent <see cref="DisposeAsync"/> set the in-flight gate while this On* call was running.</summary>
+    /// <returns>The dispose task on race-winner, or default otherwise.</returns>
+    [System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
+    private ValueTask CompleteOrChainDispose() =>
+        ExitOnSomethingCall() ? DisposeAsync() : default;
 
     /// <summary>
     /// Async continuation for <see cref="OnNextAsync"/> when <see cref="OnNextAsyncCore"/> returned an

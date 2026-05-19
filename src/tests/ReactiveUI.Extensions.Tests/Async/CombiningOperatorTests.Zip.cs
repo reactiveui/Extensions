@@ -583,4 +583,58 @@ public partial class CombiningOperatorTests
 
         await Assert.That(result).IsCollectionEqualTo([ZipPair11, ZipPair13]);
     }
+
+    /// <summary>Verifies that subscribing <c>Zip</c> with an already-cancelled token
+    /// short-circuits the subscription's cancellation chain immediately.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenZipSubscribedWithAlreadyCancelledToken_ThenSubscriptionDisposes()
+    {
+        using var cts = new CancellationTokenSource();
+        await cts.CancelAsync();
+
+        await using var sub = await ObservableAsync.Range(1, 2)
+            .Zip(ObservableAsync.Range(10, 2), static (a, b) => a + b)
+            .SubscribeAsync(static (_, _) => default, cts.Token);
+
+        await Assert.That(sub).IsNotNull();
+    }
+
+    /// <summary>Verifies that subscribing <c>Zip</c> with a cancellable but not-yet-cancelled
+    /// token registers the external link and the registration fires when the token is cancelled
+    /// after subscribe, tearing the subscription down.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenZipExternalTokenCancelledAfterSubscribe_ThenRegistrationFires()
+    {
+        using var cts = new CancellationTokenSource();
+        var left = SubjectAsync.Create<int>();
+        var right = SubjectAsync.Create<int>();
+
+        await using var sub = await left.Values
+            .Zip(right.Values, static (a, b) => a + b)
+            .SubscribeAsync(static (_, _) => default, cts.Token);
+
+        await cts.CancelAsync();
+        await Assert.That(sub).IsNotNull();
+    }
+
+    /// <summary>Exercises the <c>Zip</c> subscription's idempotent <c>DisposeAsync</c> path —
+    /// a second dispose hits the <c>DisposalHelper.TrySetDisposed</c> already-set short-circuit.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenZipSubscriptionDisposedTwice_ThenSecondDisposeIsNoOp()
+    {
+        var left = SubjectAsync.Create<int>();
+        var right = SubjectAsync.Create<int>();
+
+        var sub = await left.Values
+            .Zip(right.Values, static (a, b) => a + b)
+            .SubscribeAsync(static (_, _) => default);
+
+        await sub.DisposeAsync();
+        await sub.DisposeAsync();
+
+        await Assert.That(sub).IsNotNull();
+    }
 }

@@ -306,14 +306,25 @@ but keep the style and pattern-matching rules.
 
 - **Fix the code, don't silence the rule.** The analyzer set
   (StyleCop, Roslynator, .NET CA, plus the ReactiveUI conventions)
-  catches real perf and correctness issues; suppressing is the last
-  resort.
-- When suppression is genuinely correct, attach a per-symbol
-  `[SuppressMessage("Category", "RuleId", Justification = "...")]`
-  with a real reason. Project-wide `<NoWarn>` is acceptable only for
-  bulk patterns scoped to a project (e.g. across an entire test
-  project) and must carry a comment in the `.csproj` explaining the
-  scope.
+  catches real perf and correctness issues; suppression is the last
+  resort. Almost every analyzer hit has a structural fix — pull a
+  helper out, invert a guard, change a return type, drop a defensive
+  null check, restructure the throw — that's preferable to silencing.
+- **`#pragma warning disable` is banned everywhere** — production,
+  tests, benchmarks, samples. There is no per-line escape hatch. If a
+  rule fires, restructure. The only exception is generated files
+  (`*.g.cs`, `obj/`), which we do not edit.
+- **`[SuppressMessage]` requires consultation.** Do not add a new
+  `[SuppressMessage]` without explicit human approval. When approved,
+  it must carry a per-symbol `Justification` line that names the
+  concrete reason (a past incident, a constraint, a language-version
+  quirk). Treat each occurrence as a small debt — a second hit on the
+  same rule usually means the design is wrong; fix that instead.
+- **Zero `<NoWarn>` policy.** Project-wide `<NoWarn>` entries in
+  `.csproj` / `.props` / `.targets` are not acceptable without
+  explicit human consultation and are unlikely to be approved. There
+  are currently zero `<NoWarn>` entries in this repo; do not add the
+  first one.
 - **SA1201 from `extension<T>` is the one known false positive** that
   we accept globally — it fires on the preview syntax. Do not invent
   new project-wide suppressions on the same rule for other reasons.

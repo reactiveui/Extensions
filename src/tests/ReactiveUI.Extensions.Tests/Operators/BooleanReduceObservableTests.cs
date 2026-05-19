@@ -105,4 +105,48 @@ public class BooleanReduceObservableTests
 
         await Assert.That(caught).IsSameReferenceAs(expected);
     }
+
+    /// <summary>Verifies that when every source completes, the combined sequence completes via
+    /// the per-source <c>OnCompleted</c> path.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenAllSourcesComplete_ThenForwardsCompletion()
+    {
+        var a = new Subject<bool>();
+        var b = new Subject<bool>();
+        var completed = false;
+        IObservable<bool>[] sources = [a, b];
+
+        using var sub = sources.CombineLatestValuesAreAllTrue().Subscribe(static _ => { }, () => completed = true);
+
+        a.OnNext(true);
+        b.OnNext(true);
+        a.OnCompleted();
+        b.OnCompleted();
+
+        await Assert.That(completed).IsTrue();
+    }
+
+    /// <summary>Verifies that an <c>OnNext</c> arriving after the combined sequence has terminated
+    /// is silently dropped via the <c>_state.IsDone</c> guard.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenOnNextAfterTerminated_ThenDropped()
+    {
+        var a = new SyncDirectSource<bool>();
+        var b = new SyncDirectSource<bool>();
+        var results = new List<bool>();
+        Exception? caught = null;
+        var expected = new InvalidOperationException(SourceErrorMessage);
+        IObservable<bool>[] sources = [a, b];
+
+        using var sub = sources.CombineLatestValuesAreAllTrue()
+            .Subscribe(results.Add, ex => caught = ex);
+
+        a.Observer.OnError(expected);
+        b.Observer.OnNext(true);
+
+        await Assert.That(caught).IsSameReferenceAs(expected);
+        await Assert.That(results).IsEmpty();
+    }
 }

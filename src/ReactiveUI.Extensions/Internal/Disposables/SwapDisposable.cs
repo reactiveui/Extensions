@@ -12,55 +12,19 @@ namespace ReactiveUI.Extensions.Internal.Disposables;
 /// </summary>
 internal sealed class SwapDisposable : IDisposable
 {
-    /// <summary>
-    /// Sentinel value indicating the object has been disposed.
-    /// </summary>
-    private const int DisposedSentinel = 1;
-
-    /// <summary>
-    /// The current inner disposable.
-    /// </summary>
+    /// <summary>The current inner disposable.</summary>
     private IDisposable? _current;
 
-    /// <summary>
-    /// Whether the object has been disposed.
-    /// </summary>
+    /// <summary>Indicates whether the object has been disposed (0 = open, 1 = disposed).</summary>
     private int _disposed;
 
-    /// <summary>
-    /// Gets or sets the current inner disposable. Setting disposes the previous value.
-    /// </summary>
+    /// <summary>Gets or sets the current inner disposable. Setting disposes the previous value.</summary>
     public IDisposable? Disposable
     {
         get => Volatile.Read(ref _current);
-        set
-        {
-            if (Volatile.Read(ref _disposed) == DisposedSentinel)
-            {
-                value?.Dispose();
-                return;
-            }
-
-            var previous = Interlocked.Exchange(ref _current, value);
-            previous?.Dispose();
-
-            if (Volatile.Read(ref _disposed) != DisposedSentinel)
-            {
-                return;
-            }
-
-            Interlocked.Exchange(ref _current, null)?.Dispose();
-        }
+        set => DisposableSlotHelper.SwapAndDisposePrevious(ref _current, ref _disposed, value);
     }
 
     /// <inheritdoc/>
-    public void Dispose()
-    {
-        if (Interlocked.Exchange(ref _disposed, DisposedSentinel) == DisposedSentinel)
-        {
-            return;
-        }
-
-        Interlocked.Exchange(ref _current, null)?.Dispose();
-    }
+    public void Dispose() => DisposableSlotHelper.TryDispose(ref _current, ref _disposed);
 }

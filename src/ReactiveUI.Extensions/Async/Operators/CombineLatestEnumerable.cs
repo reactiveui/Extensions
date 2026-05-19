@@ -103,7 +103,7 @@ public static partial class ObservableAsync
         /// </summary>
         /// <param name="parent">The parent subscription.</param>
         /// <param name="index">The source index.</param>
-        private sealed class IndexedObserver(Subscription parent, int index) : IObserverAsync<TSource>
+        internal sealed class IndexedObserver(Subscription parent, int index) : IObserverAsync<TSource>
         {
             /// <inheritdoc/>
             public ValueTask OnNextAsync(TSource value, CancellationToken cancellationToken) =>
@@ -127,7 +127,7 @@ public static partial class ObservableAsync
         /// <param name="sources">The source sequences.</param>
         /// <param name="observer">The observer.</param>
         /// <param name="resultSelector">The result selector.</param>
-        private sealed class Subscription(
+        internal sealed class Subscription(
             IObservableAsync<TSource>[] sources,
             IObserverAsync<TResult> observer,
             Func<IReadOnlyList<TSource>, TResult> resultSelector) : IAsyncDisposable
@@ -232,15 +232,12 @@ public static partial class ObservableAsync
                         return;
                     }
 
+                    // Invariant: _hasValueCount transitioning to _values.Length above means every
+                    // slot in _values has received at least one value, so the snapshot is fully
+                    // populated by the time we reach this point.
                     for (var i = 0; i < _values.Length; i++)
                     {
-                        var optional = _values[i];
-                        if (!optional.HasValue)
-                        {
-                            return;
-                        }
-
-                        _snapshotBuffer[i] = optional.Value!;
+                        _snapshotBuffer[i] = _values[i].Value!;
                     }
 
                     TResult projected;

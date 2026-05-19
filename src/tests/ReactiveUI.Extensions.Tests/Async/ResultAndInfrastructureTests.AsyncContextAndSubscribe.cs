@@ -133,6 +133,31 @@ public partial class ResultAndInfrastructureTests
         await Assert.That(isDefault).IsTrue();
     }
 
+    /// <summary>Exercises <c>IsDefaultContext</c>'s remaining branches — a context whose
+    /// <c>TaskScheduler</c> is set to the actual <see cref="TaskScheduler.Default"/>
+    /// reference still reports as default, while a non-default scheduler reports false.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenAsyncContextWithTaskScheduler_ThenIsDefaultContextReflectsIdentity()
+    {
+        var defaultBacked = AsyncContext.From(TaskScheduler.Default);
+        var nonDefaultBacked = AsyncContext.From(new TestScheduler());
+
+        await Assert.That(defaultBacked.IsDefaultContext).IsTrue();
+        await Assert.That(nonDefaultBacked.IsDefaultContext).IsFalse();
+    }
+
+    /// <summary>Exercises <c>IsDefaultContext</c>'s short-circuit branch when a
+    /// SynchronizationContext is set — the method must return false regardless of TaskScheduler.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenAsyncContextWithSyncContext_ThenIsDefaultContextFalse()
+    {
+        var context = AsyncContext.From(new SynchronizationContext());
+
+        await Assert.That(context.IsDefaultContext).IsFalse();
+    }
+
     /// <summary>
     /// Verifies that From(IScheduler) with a scheduler that is a SynchronizationContext
     /// delegates to From(SynchronizationContext).

@@ -287,6 +287,60 @@ public partial class ResultAndInfrastructureTests
         await Assert.That(disposed).IsTrue();
     }
 
+    /// <summary>Verifies that a synchronous throw from <c>OnErrorResumeAsyncCore</c> is caught
+    /// by <see cref="ObserverAsync{T}.OnErrorResumeAsync"/> and routed to
+    /// <see cref="UnhandledExceptionHandler"/>.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenObserverOnErrorResumeCoreThrowsSync_ThenRoutedToUnhandled()
+    {
+        Exception? unhandled = null;
+        var unhandledTcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        UnhandledExceptionHandler.Register(ex =>
+        {
+            unhandled = ex;
+            unhandledTcs.TrySetResult();
+        });
+
+        var observer = new TestableObserverAsync(
+            onErrorResumeAsyncCore: static (_, _) => throw new InvalidOperationException("sync-throw"));
+
+        await observer.OnErrorResumeAsync(new InvalidOperationException("original"), CancellationToken.None);
+
+        await unhandledTcs.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await Assert.That(unhandled).IsNotNull();
+        await Assert.That(unhandled!.Message).IsEqualTo("sync-throw");
+    }
+
+    /// <summary>Verifies that an asynchronous throw from <c>OnCompletedAsyncCore</c> is caught
+    /// by <see cref="ObserverAsync{T}.OnCompletedAsync"/>'s slow path and routed to
+    /// <see cref="UnhandledExceptionHandler"/>.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenObserverOnCompletedCoreThrowsAsync_ThenRoutedToUnhandled()
+    {
+        Exception? unhandled = null;
+        var unhandledTcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        UnhandledExceptionHandler.Register(ex =>
+        {
+            unhandled = ex;
+            unhandledTcs.TrySetResult();
+        });
+
+        var observer = new TestableObserverAsync(
+            onCompletedAsyncCore: static async _ =>
+            {
+                await Task.Yield();
+                throw new InvalidOperationException("async-throw");
+            });
+
+        await observer.OnCompletedAsync(Result.Success);
+
+        await unhandledTcs.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await Assert.That(unhandled).IsNotNull();
+        await Assert.That(unhandled!.Message).IsEqualTo("async-throw");
+    }
+
     /// <summary>
     /// A concrete <see cref="ObserverAsync{T}"/> implementation for testing, with
     /// configurable behavior for each virtual method.

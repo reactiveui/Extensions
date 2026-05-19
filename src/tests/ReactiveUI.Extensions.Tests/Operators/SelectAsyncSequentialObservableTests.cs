@@ -120,4 +120,28 @@ public class SelectAsyncSequentialObservableTests
         await Assert.That(done).IsTrue();
         await Assert.That(results).IsCollectionEqualTo([Value]);
     }
+
+    /// <summary>Verifies that <c>OnError</c> and a duplicate <c>OnCompleted</c> arriving from
+    /// the source after the sink has marked itself terminated are silently dropped via the
+    /// <c>_done || _disposed</c> guard.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenEventsAfterTerminated_ThenDropped()
+    {
+        var source = new SyncDirectSource<int>();
+        var values = new List<int>();
+        Exception? caught = null;
+        var completedCount = 0;
+
+        using var sub = source.SelectAsyncSequential(static x => Task.FromResult(x))
+            .Subscribe(values.Add, ex => caught = ex, () => completedCount++);
+
+        source.Observer.OnCompleted();
+        source.Observer.OnError(new InvalidOperationException("late"));
+        source.Observer.OnCompleted();
+
+        await Task.Delay(SettleDelayMilliseconds);
+        await Assert.That(completedCount).IsEqualTo(1);
+        await Assert.That(caught).IsNull();
+    }
 }

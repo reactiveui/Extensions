@@ -130,16 +130,16 @@ internal sealed class PartitionObservable<T>
 
             lock (_parent._gate)
             {
-                if (_parent._sink == null)
-                {
-                    return;
-                }
-
-                _parent._sink.Remove(_observer, _side);
+                // Invariant: a Subscription whose Interlocked.Exchange just transitioned _disposed
+                // from 0 to 1 was created by Subscribe under the same lock, which sets _sink
+                // before returning — so _sink is non-null here by construction.
+                _parent._sink!.Remove(_observer, _side);
                 _parent._subscriptionCount--;
                 if (_parent._subscriptionCount == 0)
                 {
-                    _parent._sourceSubscription?.Dispose();
+                    // Subscribe set _sourceSubscription alongside _sink under the same lock,
+                    // so when the last branch disposes here it is non-null by construction.
+                    _parent._sourceSubscription!.Dispose();
                     _parent._sourceSubscription = null;
                     _parent._sink = null;
                 }

@@ -123,16 +123,11 @@ public static partial class ObservableAsync
     /// <typeparam name="T">The type of the elements in the merged sequence.</typeparam>
     internal class MergeSubscription<T> : IAsyncDisposable
     {
-#pragma warning disable SA1401 // Fields should be private
-
-        /// <summary>
-        /// A cancellation token that is canceled when this subscription is disposed.
-        /// </summary>
-        protected readonly CancellationToken DisposedCancellationToken;
-#pragma warning restore SA1401 // Fields should be private
-
         /// <summary>The cancellation token source backing <see cref="DisposedCancellationToken"/>.</summary>
         private readonly CancellationTokenSource _disposeCts = new();
+
+        /// <summary>Gets a cancellation token that is canceled when this subscription is disposed.</summary>
+        protected CancellationToken DisposedCancellationToken => _disposeCts.Token;
 
         /// <summary>Holds the outer subscription so it can be disposed on teardown.</summary>
         private readonly SingleAssignmentDisposableAsync _outerDisposable = new();
@@ -162,11 +157,7 @@ public static partial class ObservableAsync
         /// Initializes a new instance of the <see cref="MergeSubscription{T}"/> class.
         /// </summary>
         /// <param name="observer">The downstream observer to forward merged items to.</param>
-        public MergeSubscription(IObserverAsync<T> observer)
-        {
-            _observer = observer;
-            DisposedCancellationToken = _disposeCts.Token;
-        }
+        public MergeSubscription(IObserverAsync<T> observer) => _observer = observer;
 
         /// <summary>
         /// Subscribes to the outer observable and begins merging inner observable sequences.
@@ -229,6 +220,40 @@ public static partial class ObservableAsync
         }
 
         /// <summary>
+        /// Re-checks the disposed flag inside the serialization gate and forwards the value to
+        /// downstream if still alive. Extracted as an <see langword="internal"/> method so the
+        /// inside-gate after-dispose decision is directly unit-testable without racing the gate.
+        /// </summary>
+        /// <param name="value">The value to forward.</param>
+        /// <returns>A task representing the asynchronous forward operation.</returns>
+        internal ValueTask ForwardOnNextLocked(T value)
+        {
+            if (DisposalHelper.IsDisposed(_disposed))
+            {
+                return default;
+            }
+
+            return _observer.OnNextAsync(value, DisposedCancellationToken);
+        }
+
+        /// <summary>
+        /// Re-checks the disposed flag inside the serialization gate and forwards the error to
+        /// downstream if still alive. Extracted as an <see langword="internal"/> method for
+        /// direct unit testing.
+        /// </summary>
+        /// <param name="exception">The error to forward.</param>
+        /// <returns>A task representing the asynchronous forward operation.</returns>
+        internal ValueTask ForwardOnErrorResumeLocked(Exception exception)
+        {
+            if (DisposalHelper.IsDisposed(_disposed))
+            {
+                return default;
+            }
+
+            return _observer.OnErrorResumeAsync(exception, DisposedCancellationToken);
+        }
+
+        /// <summary>
         /// Forwards a value to the downstream observer under the serialization gate.
         /// </summary>
         /// <param name="value">The value to forward.</param>
@@ -244,12 +269,7 @@ public static partial class ObservableAsync
 
             using (await _onSomethingGate.LockAsync(DisposedCancellationToken).ConfigureAwait(false))
             {
-                if (DisposalHelper.IsDisposed(_disposed))
-                {
-                    return;
-                }
-
-                await _observer.OnNextAsync(value, DisposedCancellationToken).ConfigureAwait(false);
+                await ForwardOnNextLocked(value).ConfigureAwait(false);
             }
         }
 
@@ -271,12 +291,7 @@ public static partial class ObservableAsync
 
             using (await _onSomethingGate.LockAsync(DisposedCancellationToken).ConfigureAwait(false))
             {
-                if (DisposalHelper.IsDisposed(_disposed))
-                {
-                    return;
-                }
-
-                await _observer.OnErrorResumeAsync(exception, DisposedCancellationToken).ConfigureAwait(false);
+                await ForwardOnErrorResumeLocked(exception).ConfigureAwait(false);
             }
         }
 
@@ -649,13 +664,25 @@ public static partial class ObservableAsync
 
                 using (await _onSomethingGate.LockAsync(_disposedCancellationToken).ConfigureAwait(false))
                 {
-                    if (DisposalHelper.IsDisposed(_disposed))
-                    {
-                        return;
-                    }
-
-                    await _observer.OnNextAsync(value, _disposedCancellationToken).ConfigureAwait(false);
+                    await OnNextAsyncLocked(value).ConfigureAwait(false);
                 }
+            }
+
+            /// <summary>
+            /// Re-checks the disposed flag inside the serialization gate and forwards the value
+            /// to downstream if still alive. Extracted as an <see langword="internal"/> method for
+            /// direct unit testing of the inside-gate after-dispose decision.
+            /// </summary>
+            /// <param name="value">The value to forward.</param>
+            /// <returns>A task representing the asynchronous forward operation.</returns>
+            internal ValueTask OnNextAsyncLocked(T value)
+            {
+                if (DisposalHelper.IsDisposed(_disposed))
+                {
+                    return default;
+                }
+
+                return _observer.OnNextAsync(value, _disposedCancellationToken);
             }
 
             /// <summary>
@@ -674,13 +701,25 @@ public static partial class ObservableAsync
 
                 using (await _onSomethingGate.LockAsync(_disposedCancellationToken).ConfigureAwait(false))
                 {
-                    if (DisposalHelper.IsDisposed(_disposed))
-                    {
-                        return;
-                    }
-
-                    await _observer.OnErrorResumeAsync(ex, _disposedCancellationToken).ConfigureAwait(false);
+                    await OnErrorResumeAsyncLocked(ex).ConfigureAwait(false);
                 }
+            }
+
+            /// <summary>
+            /// Re-checks the disposed flag inside the serialization gate and forwards the error
+            /// to downstream if still alive. Extracted as an <see langword="internal"/> method
+            /// for direct unit testing of the inside-gate after-dispose decision.
+            /// </summary>
+            /// <param name="ex">The error to forward.</param>
+            /// <returns>A task representing the asynchronous forward operation.</returns>
+            internal ValueTask OnErrorResumeAsyncLocked(Exception ex)
+            {
+                if (DisposalHelper.IsDisposed(_disposed))
+                {
+                    return default;
+                }
+
+                return _observer.OnErrorResumeAsync(ex, _disposedCancellationToken);
             }
 
             /// <summary>

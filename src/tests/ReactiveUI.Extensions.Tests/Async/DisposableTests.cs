@@ -435,6 +435,39 @@ public class DisposableTests
         await Assert.That(composite.IsDisposed).IsTrue();
     }
 
+    /// <summary>Exercises the <c>arrayIndex &gt;= array.Length</c> branch of the
+    /// <c>CompositeDisposableAsync.CopyTo</c> bounds check.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenCompositeCopyToIndexAtArrayLength_ThenThrowsArgumentOutOfRange()
+    {
+        const int ArrayLength = 2;
+        var composite = new CompositeDisposableAsync();
+        var array = new IAsyncDisposable[ArrayLength];
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => composite.CopyTo(array, ArrayLength));
+
+        await composite.DisposeAsync();
+        await Assert.That(composite.IsDisposed).IsTrue();
+    }
+
+    /// <summary>Exercises the <c>array is null</c> branch of <c>CompositeDisposableAsync.CopyTo</c>
+    /// — both bounds-check guards use <c>array?.Length</c>, so a null array lets control fall
+    /// through to the body where the per-item-assignment <c>array is not null</c> guard
+    /// short-circuits.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenCompositeCopyToNullArray_ThenBoundsChecksFallThrough()
+    {
+        var d1 = DisposableAsync.Create(static () => default);
+        var composite = new CompositeDisposableAsync(d1);
+
+        composite.CopyTo(null, 0);
+
+        await composite.DisposeAsync();
+        await Assert.That(composite.IsDisposed).IsTrue();
+    }
+
     /// <summary>
     /// Verifies that setting a null disposable after disposing SerialDisposableAsync
     /// completes without error (hits the null check on the disposed path).

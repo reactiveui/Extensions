@@ -132,4 +132,32 @@ public class SampleLatestObservableTests
         await Assert.That(completed).IsFalse();
         await Assert.That(results).IsEmpty();
     }
+
+    /// <summary>Verifies that <c>OnNext</c>, <c>OnError</c> and a duplicate <c>OnCompleted</c>
+    /// arriving from the source after the combined sequence has already terminated are silently
+    /// dropped via the <c>_done</c> guard.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenSourceEventsAfterTerminated_ThenDropped()
+    {
+        var source = new SyncDirectSource<int>();
+        var trigger = new SyncDirectSource<object>();
+        var values = new List<int>();
+        Exception? caught = null;
+        var completedCount = 0;
+
+        using var sub = source.SampleLatest(trigger)
+            .Subscribe(values.Add, ex => caught = ex, () => completedCount++);
+
+        // Terminate via trigger error first.
+        var expected = new InvalidOperationException("trigger");
+        trigger.Observer.OnError(expected);
+        source.Observer.OnNext(1);
+        source.Observer.OnError(new InvalidOperationException("late"));
+        source.Observer.OnCompleted();
+
+        await Assert.That(caught).IsSameReferenceAs(expected);
+        await Assert.That(values).IsEmpty();
+        await Assert.That(completedCount).IsEqualTo(0);
+    }
 }

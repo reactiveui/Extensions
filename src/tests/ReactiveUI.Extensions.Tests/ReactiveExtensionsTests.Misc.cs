@@ -13,6 +13,9 @@ public partial class ReactiveExtensionsTests
     /// <summary>String literal "initial" used by multiple tests.</summary>
     private const string InitialValueLiteral = "initial";
 
+    /// <summary>Stabilization window for scheduler-driven assertions.</summary>
+    private const int SchedulerStabilizeMilliseconds = 100;
+
     /// <summary>Hoisted source array used by tests (was inline literal).</summary>
     private static readonly string[] SequenceTest123HelloTest456World = ["test123", "hello", "test456", "world"];
 
@@ -613,6 +616,274 @@ public partial class ReactiveExtensionsTests
         await Assert.That(results).IsCollectionEqualTo([InitialValueLiteral, ChangedValueLiteral]);
     }
 
+    /// <summary>Verifies <c>ScheduleSafe(action)</c> uses the scheduler when one is supplied.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenScheduleSafeImmediateWithScheduler_ThenSchedulerIsUsed()
+    {
+        var scheduler = new Microsoft.Reactive.Testing.TestScheduler();
+        var ran = false;
+
+        scheduler.ScheduleSafe(() => ran = true);
+
+        await Assert.That(ran).IsFalse();
+        scheduler.AdvanceBy(1);
+        await Assert.That(ran).IsTrue();
+    }
+
+    /// <summary>Verifies <c>ScheduleSafe(dueTime, action)</c> uses the scheduler when one is supplied.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenScheduleSafeDelayedWithScheduler_ThenSchedulerIsUsed()
+    {
+        const int DelayTicks = 50;
+        var scheduler = new Microsoft.Reactive.Testing.TestScheduler();
+        var ran = false;
+
+        scheduler.ScheduleSafe(TimeSpan.FromTicks(DelayTicks), () => ran = true);
+
+        await Assert.That(ran).IsFalse();
+        scheduler.AdvanceBy(DelayTicks);
+        await Assert.That(ran).IsTrue();
+    }
+
+    /// <summary>Verifies the two-argument <c>OnErrorRetry&lt;TSource,TException&gt;</c> overload retries indefinitely.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenOnErrorRetryTypedTwoArgOverload_ThenRetriesAndCallsErrorHandler()
+    {
+        const int SuccessAttempt = 2;
+        var attempts = 0;
+        var values = new List<int>();
+        var caught = new List<InvalidOperationException>();
+        var source = Observable.Create<int>(observer =>
+        {
+            var attempt = Interlocked.Increment(ref attempts);
+            observer.OnNext(attempt);
+            if (attempt < SuccessAttempt)
+            {
+                observer.OnError(new InvalidOperationException("retry"));
+            }
+            else
+            {
+                observer.OnCompleted();
+            }
+
+            return System.Reactive.Disposables.Disposable.Empty;
+        });
+
+        using var sub = source.OnErrorRetry<int, InvalidOperationException>(caught.Add).Subscribe(values.Add);
+
+        await Assert.That(values).IsCollectionEqualTo([1, SuccessAttempt]);
+        await Assert.That(caught).Count().IsEqualTo(1);
+    }
+
+    /// <summary>Verifies the typed <c>OnErrorRetry&lt;TSource,TException&gt;</c> skips the error callback when the exception type does not match.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenOnErrorRetryNonMatchingExceptionType_ThenOnErrorCallbackSkipped()
+    {
+        var caught = new List<NotSupportedException>();
+        var values = new List<int>();
+        var failure = new InvalidOperationException("wrong type");
+
+        var source = Observable.Create<int>(observer =>
+        {
+            observer.OnNext(1);
+            observer.OnError(failure);
+            return System.Reactive.Disposables.Disposable.Empty;
+        });
+
+        using var sub = source.OnErrorRetry<int, NotSupportedException>(caught.Add, retryCount: 1, TimeSpan.Zero, Scheduler.Default)
+            .Subscribe(values.Add, static _ => { });
+
+        await Task.Delay(TimeSpan.FromMilliseconds(SchedulerStabilizeMilliseconds));
+
+        await Assert.That(caught).IsEmpty();
+        await Assert.That(values.Count).IsGreaterThanOrEqualTo(1);
+    }
+
+    /// <summary>Verifies the two-argument <c>RetryWithBackoff</c> overload retries until success.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenRetryWithBackoffTwoArgOverload_ThenRetriesUntilSuccess()
+    {
+        const int SuccessAttempt = 2;
+        var attempts = 0;
+        var done = new TaskCompletionSource<List<int>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var values = new List<int>();
+        var source = Observable.Create<int>(observer =>
+        {
+            var attempt = Interlocked.Increment(ref attempts);
+            if (attempt < SuccessAttempt)
+            {
+                observer.OnError(new InvalidOperationException("retry"));
+            }
+            else
+            {
+                observer.OnNext(attempt);
+                observer.OnCompleted();
+            }
+
+            return System.Reactive.Disposables.Disposable.Empty;
+        });
+
+        using var sub = source.RetryWithBackoff(maxRetries: 3, TimeSpan.FromMilliseconds(1))
+            .Subscribe(values.Add, () => done.TrySetResult(values));
+
+        var captured = await done.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await Assert.That(captured).IsCollectionEqualTo([SuccessAttempt]);
+    }
+
+    /// <summary>Verifies <c>ReplayLastOnSubscribe</c> throws when the source is null.</summary>
+    [Test]
+    public void WhenReplayLastOnSubscribeSourceNull_ThenThrows() =>
+        Assert.Throws<ArgumentNullException>(static () => ReactiveExtensions.ReplayLastOnSubscribe<int>(null!, 0));
+
+    /// <summary>Verifies the two-argument <c>BufferUntilInactive</c> overload flushes a buffer on completion using the default scheduler.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenBufferUntilInactiveTwoArgOverload_ThenFlushesBufferOnCompletion()
+    {
+        var subject = new Subject<int>();
+        var results = new List<IList<int>>();
+        var completed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        using var sub = subject.BufferUntilInactive(TimeSpan.FromSeconds(5))
+            .Subscribe(results.Add, () => completed.TrySetResult());
+
+        subject.OnNext(1);
+        subject.OnNext(SampleValue2);
+        subject.OnCompleted();
+
+        await completed.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await Assert.That(results.Count).IsGreaterThanOrEqualTo(1);
+        await Assert.That(results[^1]).IsCollectionEqualTo([1, SampleValue2]);
+    }
+
+    /// <summary>Verifies <c>CatchReturn</c> substitutes the fallback value when the source errors.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenCatchReturnSourceErrors_ThenEmitsFallbackAndCompletes()
+    {
+        const int Fallback = 99;
+        var subject = new Subject<int>();
+        var results = new List<int>();
+        var completed = false;
+
+        using var sub = subject.CatchReturn(Fallback).Subscribe(results.Add, () => completed = true);
+
+        subject.OnNext(1);
+        subject.OnError(new InvalidOperationException("boom"));
+
+        await Assert.That(results).IsCollectionEqualTo([1, Fallback]);
+        await Assert.That(completed).IsTrue();
+    }
+
+    /// <summary>Verifies <c>CatchReturnUnit</c> substitutes <see cref="Unit.Default"/> when the source errors.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenCatchReturnUnitSourceErrors_ThenEmitsUnitAndCompletes()
+    {
+        var subject = new Subject<Unit>();
+        var results = new List<Unit>();
+        var completed = false;
+
+        using var sub = subject.CatchReturnUnit().Subscribe(results.Add, () => completed = true);
+
+        subject.OnError(new InvalidOperationException("boom"));
+
+        await Assert.That(results).IsCollectionEqualTo([Unit.Default]);
+        await Assert.That(completed).IsTrue();
+    }
+
+    /// <summary>Exercises <c>CatchReturn</c>'s <c>OnCompleted</c> forwarder — when the source
+    /// completes normally without erroring, completion passes through to the downstream.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenCatchReturnSourceCompletesNormally_ThenForwardsCompletion()
+    {
+        const int Fallback = 99;
+        var subject = new Subject<int>();
+        var results = new List<int>();
+        var completed = false;
+
+        using var sub = subject.CatchReturn(Fallback).Subscribe(results.Add, () => completed = true);
+
+        subject.OnNext(1);
+        subject.OnCompleted();
+
+        await Assert.That(results).IsCollectionEqualTo([1]);
+        await Assert.That(completed).IsTrue();
+    }
+
+    /// <summary>Exercises <c>CatchIgnore&lt;T,TException&gt;</c>'s <c>OnCompleted</c> forwarder —
+    /// when the source completes normally, the observer passes completion straight through.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenCatchIgnoreWithErrorActionSourceCompletesNormally_ThenForwardsCompletion()
+    {
+        var subject = new Subject<int>();
+        var results = new List<int>();
+        var completed = false;
+
+        using var sub = subject.CatchIgnore<int, InvalidOperationException>(static _ => { })
+            .Subscribe(results.Add, () => completed = true);
+
+        subject.OnNext(1);
+        subject.OnCompleted();
+
+        await Assert.That(results).IsCollectionEqualTo([1]);
+        await Assert.That(completed).IsTrue();
+    }
+
+    /// <summary>Exercises the empty-on-error <c>CatchIgnore&lt;T&gt;</c> overload's <c>OnCompleted</c>
+    /// forwarder — when the source completes normally, the observer forwards completion.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenCatchIgnoreEmptyOverloadSourceCompletesNormally_ThenForwardsCompletion()
+    {
+        var subject = new Subject<int?>();
+        var completed = false;
+
+        using var sub = subject.CatchIgnore().Subscribe(static _ => { }, () => completed = true);
+
+        subject.OnCompleted();
+
+        await Assert.That(completed).IsTrue();
+    }
+
+    /// <summary>Exercises <c>ToPropertyObservable</c>'s <c>as MemberExpression ?? throw</c> branch
+    /// — passing an expression whose body is not a member access raises ArgumentException.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenToPropertyObservableNonMemberExpression_ThenThrowsArgumentException()
+    {
+        var owner = new ToPropertyNonMemberOwner();
+
+        Action call = () => owner.ToPropertyObservable(static _ => 1 + 1);
+        var ex = Assert.Throws<ArgumentException>(call);
+
+        await Assert.That(ex).IsNotNull();
+    }
+
+    /// <summary>Exercises <c>AsSignalObservable</c>'s <c>OnError</c> forwarder — the synthesized
+    /// Unit-stream propagates the source's error verbatim.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenAsSignalSourceErrors_ThenForwardsError()
+    {
+        var subject = new Subject<int>();
+        Exception? caught = null;
+        var expected = new InvalidOperationException("as-signal-error");
+
+        using var sub = subject.AsSignal().Subscribe(static _ => { }, ex => caught = ex);
+
+        subject.OnError(expected);
+
+        await Assert.That(caught).IsSameReferenceAs(expected);
+    }
+
     /// <summary>
     /// Test class for INotifyPropertyChanged.
     /// </summary>
@@ -643,5 +914,20 @@ public partial class ReactiveExtensionsTests
         }
 
         = string.Empty;
+    }
+
+    /// <summary>INPC owner whose property type lets us pass a non-member expression body
+    /// (e.g. a literal arithmetic expression) into <c>ToPropertyObservable</c> so the
+    /// <c>as MemberExpression ?? throw</c> guard fires. The <c>PropertyChanged</c> event is
+    /// required by the interface but never raised — the guard short-circuits before
+    /// subscription wiring runs.</summary>
+    private sealed class ToPropertyNonMemberOwner : INotifyPropertyChanged
+    {
+        /// <inheritdoc/>
+        public event PropertyChangedEventHandler? PropertyChanged
+        {
+            add => _ = value;
+            remove => _ = value;
+        }
     }
 }

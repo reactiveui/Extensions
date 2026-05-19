@@ -3,12 +3,16 @@
 // See the LICENSE file in the project root for full license information.
 
 using ReactiveUI.Extensions.Async;
+using ReactiveUI.Extensions.Async.Subjects;
 
 namespace ReactiveUI.Extensions.Tests.Async;
 
 /// <summary>Tests for CombineLatestOperatorTests.</summary>
 public partial class CombineLatestOperatorTests
 {
+    /// <summary>Second value emitted by the selector-throws test.</summary>
+    private const int SelectorThrowSecondValue = 2;
+
     /// <summary>Tests CombineLatest error-resume after disposal is ignored.</summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
@@ -80,5 +84,36 @@ public partial class CombineLatestOperatorTests
 
         var result = await sources.CombineLatest().FirstAsync();
         await Assert.That(result).Count().IsEqualTo(ExpectedCount);
+    }
+
+    /// <summary>Verifies that when the <c>resultSelector</c> throws synchronously while combining
+    /// the latest snapshot, the failure is forwarded as a terminal completion.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenCombineLatestSelectorThrows_ThenCompletesWithFailure()
+    {
+        var a = SubjectAsync.Create<int>();
+        var b = SubjectAsync.Create<int>();
+        IReadOnlyList<IObservableAsync<int>> sources = [a.Values, b.Values];
+        var expected = new InvalidOperationException("selector-failed");
+        var completed = new TaskCompletionSource<Result>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        await using var sub = await sources.CombineLatest<int, int>(
+                snapshot => throw expected)
+            .SubscribeAsync(
+                static (_, _) => default,
+                null,
+                result =>
+                {
+                    completed.TrySetResult(result);
+                    return default;
+                });
+
+        await a.OnNextAsync(1, CancellationToken.None);
+        await b.OnNextAsync(SelectorThrowSecondValue, CancellationToken.None);
+
+        var terminal = await completed.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await Assert.That(terminal.IsFailure).IsTrue();
+        await Assert.That(terminal.Exception).IsSameReferenceAs(expected);
     }
 }

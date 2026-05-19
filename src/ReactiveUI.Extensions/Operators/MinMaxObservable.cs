@@ -16,12 +16,11 @@ namespace ReactiveUI.Extensions.Operators;
 /// <typeparam name="T">The value type.</typeparam>
 /// <param name="sources">The source observables.</param>
 /// <param name="emitMaximum"><c>true</c> to emit the maximum; <c>false</c> to emit the minimum.</param>
-internal sealed class MinMaxObservable<T>(IEnumerable<IObservable<T>> sources, bool emitMaximum) : IObservable<T>
+internal sealed class MinMaxObservable<T>(IReadOnlyList<IObservable<T>> sources, bool emitMaximum) : IObservable<T>
     where T : struct, IComparable<T>
 {
     /// <summary>The source list.</summary>
-    private readonly IReadOnlyList<IObservable<T>> _sourceList =
-        InvalidOperationExceptionHelper.Check(sources as IReadOnlyList<IObservable<T>> ?? sources?.ToList());
+    private readonly IReadOnlyList<IObservable<T>> _sourceList = InvalidOperationExceptionHelper.Check(sources);
 
     /// <inheritdoc/>
     public IDisposable Subscribe(IObserver<T> observer)

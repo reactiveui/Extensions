@@ -924,6 +924,40 @@ public class TimeBasedOperatorTests
         await Assert.That(result).IsCollectionEqualTo([1, ExpectedSecond, ExpectedThird]);
     }
 
+    /// <summary>Verifies that an exception thrown by the downstream observer's
+    /// <c>OnCompletedAsync</c> during a <c>Timeout</c> firing is routed to
+    /// <see cref="UnhandledExceptionHandler"/>.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenTimeoutFiresAndDownstreamCompletionThrows_ThenRoutedToUnhandled()
+    {
+        var previousHandler = UnhandledExceptionHandler.CurrentHandler;
+        try
+        {
+            Exception? unhandled = null;
+            var unhandledTcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            UnhandledExceptionHandler.Register(ex =>
+            {
+                unhandled = ex;
+                unhandledTcs.TrySetResult();
+            });
+
+            var throwing = new TimeoutThrowingObserver<int>(new InvalidOperationException("completion-failed"));
+
+            await using var sub = await ObservableAsync.Never<int>()
+                .Timeout(TimeSpan.FromMilliseconds(1))
+                .SubscribeAsync(throwing, CancellationToken.None);
+
+            await unhandledTcs.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            await Assert.That(unhandled).IsNotNull();
+            await Assert.That(unhandled!.Message).IsEqualTo("completion-failed");
+        }
+        finally
+        {
+            UnhandledExceptionHandler.Register(previousHandler);
+        }
+    }
+
     /// <summary>
     /// A custom <see cref="TimeProvider"/> that delegates timer creation to the system provider.
     /// Used to exercise the non-system <see cref="TimeProvider"/> code paths in Interval and Timer operators.
@@ -1009,5 +1043,24 @@ public class TimeBasedOperatorTests
             /// <returns>A completed <see cref="ValueTask"/>.</returns>
             public ValueTask DisposeAsync() => default;
         }
+    }
+
+    /// <summary>Bare-bones downstream observer that throws from <c>OnCompletedAsync</c> to
+    /// exercise the catch block in <c>Timeout</c>'s <c>FireTimeoutAsync</c>.</summary>
+    /// <typeparam name="T">The element type.</typeparam>
+    /// <param name="error">The exception to throw on completion.</param>
+    private sealed class TimeoutThrowingObserver<T>(Exception error) : IObserverAsync<T>
+    {
+        /// <inheritdoc/>
+        public ValueTask OnNextAsync(T value, CancellationToken cancellationToken) => default;
+
+        /// <inheritdoc/>
+        public ValueTask OnErrorResumeAsync(Exception err, CancellationToken cancellationToken) => default;
+
+        /// <inheritdoc/>
+        public ValueTask OnCompletedAsync(Result result) => throw error;
+
+        /// <inheritdoc/>
+        public ValueTask DisposeAsync() => default;
     }
 }

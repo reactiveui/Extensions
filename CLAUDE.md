@@ -93,7 +93,7 @@ Code coverage uses **Microsoft.Testing.Extensions.CodeCoverage** configured in `
 **Note:** If a code coverage MCP server is available, prefer using it over manual report generation — it is far more efficient.
 
 ```powershell
-# Run tests with code coverage (from src/ folder)
+# Run tests with code coverage (from src/ folder).
 dotnet test --solution ReactiveUI.Extensions.slnx -c Release -- --coverage --coverage-output-format cobertura
 
 # Generate HTML report using ReportGenerator (install if needed: dotnet tool install -g dotnet-reportgenerator-globaltool)
@@ -111,9 +111,16 @@ open /tmp/code_coverage/index.html        # macOS
 ```
 
 **Key configuration** (`src/testconfig.json`):
-- `modulePaths.include`: `Extensions\\..*` — covers all production assemblies
-- `modulePaths.exclude`: `.*Tests.*`, `.*TestRunner.*` — excludes test/runner assemblies
-- `skipAutoProperties: true` — auto-properties excluded from coverage metrics
+- `Format: "cobertura"` — cobertura output for ReportGenerator
+- `CodeCoverage.SkipAutoProperties: true` — auto-properties excluded from coverage metrics
+- `CodeCoverage.ModulePaths.Exclude`: `.*Tests\\.dll$`, `.*TestRunner.*` — excludes test/runner assemblies
+- `CodeCoverage.Functions.Exclude`: `.*__.*` — single generic pattern excluding compiler-
+  generated names (async state machines `<X>d__N`, lambda methods `<X>b__N_M`, local-function
+  state machines `<<X>g__Helper|N_M>d`, and closure types `<>c__DisplayClass*`). None of our
+  user code uses double underscores, so the pattern is unambiguous.
+- Race-only methods (Throttle.Emit, ThrottleDistinct.Emit, Result.TryThrow's post-Throw
+  closing brace) are marked `[ExcludeFromCodeCoverage]` in source — the default
+  Attributes.Exclude honors that attribute.
 
 **Tips:**
 - Always clean `bin/` and `obj/` folders before coverage runs to avoid stale results
@@ -351,15 +358,34 @@ because they're style, not perf.
 ### Suppressions
 
 - **Fix the code, don't silence the rule.** Refactor the call site
-  rather than reaching for an attribute.
-- When suppression is genuinely correct, attach a per-symbol
-  `[SuppressMessage("Category", "RuleId", Justification = "...")]`
-  with a real reason. Project-wide `<NoWarn>` is acceptable only for
-  bulk patterns scoped to a project and must carry a comment in the
-  `.csproj` explaining the scope.
+  rather than reaching for a suppression. Almost every analyzer hit
+  has a structural fix — pull a helper out, invert a guard, change a
+  return type, drop a defensive null check, restructure the throw —
+  that's preferable to silencing the rule.
+- **`#pragma warning disable` is banned everywhere in this repo** —
+  production, tests, benchmarks, samples. There is no per-line escape
+  hatch. If a rule fires, restructure the code. The only exception
+  is generated files (`*.g.cs`, `obj/`), which we do not edit.
+- **`[SuppressMessage]` requires explicit human consultation.** Do
+  not add a new `[SuppressMessage]` without approval. When approved,
+  the attribute must carry a per-symbol `Justification` line that
+  names the concrete reason (a past incident, a constraint, a
+  language-version quirk). Treat each occurrence as a small debt —
+  a second hit on the same rule usually means the design is wrong;
+  fix that instead. Do not invent new `[SuppressMessage]` attributes
+  to bypass an analyzer error during a Claude session; restructure,
+  or stop and ask.
+- **Zero `<NoWarn>` policy.** Project-wide `<NoWarn>` entries in
+  `.csproj` / `.props` / `.targets` are not acceptable without
+  explicit human consultation and are unlikely to be approved. There
+  are currently zero `<NoWarn>` entries in this repo; do not add the
+  first one. If a rule is broadly wrong for the project, fix the
+  rule's call sites or escalate before disabling it at the project
+  level.
 - **SA1201 from `extension<T>` is the one accepted global false
-  positive.** Do not invent new project-wide suppressions on the same
-  rule for other reasons.
+  positive** and is handled via the per-symbol pattern, not a
+  `<NoWarn>`. Do not invent new project-wide suppressions on the
+  same rule for other reasons.
 
 ### Tests
 

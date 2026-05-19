@@ -12,10 +12,24 @@ namespace ReactiveUI.Extensions.Tests.Async;
 /// Tests for terminal operators: FirstAsync, LastAsync, SingleAsync, CountAsync, AnyAsync, AllAsync,
 /// ContainsAsync, AggregateAsync, ToListAsync, ToDictionaryAsync, ForEachAsync, WaitCompletionAsync, ToAsyncEnumerable.
 /// </summary>
-public class TerminalOperatorTests
+public partial class TerminalOperatorTests
 {
     /// <summary>String literal "resume error" used by multiple tests.</summary>
     private const string ResumeErrorMessage = "resume error";
+
+    /// <summary>Expected exception text when a single/first observer terminates on an empty source
+    /// without a predicate.</summary>
+    private const string NoElementsMessage = "Sequence contains no elements.";
+
+    /// <summary>Expected exception text when a single/first observer terminates with a predicate
+    /// that never matches.</summary>
+    private const string NoMatchingElementsMessage = "Sequence contains no matching elements.";
+
+    /// <summary>Expected exception text when SingleAsync sees more than one element with no predicate.</summary>
+    private const string MoreThanOneElementMessage = "Sequence contains more than one element.";
+
+    /// <summary>Expected exception text when SingleAsync's predicate matches more than one element.</summary>
+    private const string MoreThanOneMatchingElementMessage = "Sequence contains more than one matching element.";
 
     /// <summary>String literal "source failed" used by multiple tests.</summary>
     private const string SourceFailedMessage = "source failed";
@@ -46,10 +60,17 @@ public class TerminalOperatorTests
         await Assert.That(result).IsEqualTo(ExpectedFirstMatch);
     }
 
-    /// <summary>Tests FirstAsync on empty throws.</summary>
+    /// <summary>Tests FirstAsync on empty throws InvalidOperationException with the no-elements
+    /// message — exercises the predicate-null branch of <c>FirstAsyncObserver.OnCompletedAsyncCore</c>.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
-    public void WhenFirstAsyncOnEmpty_ThenThrowsInvalidOperation() =>
-        Assert.ThrowsAsync<InvalidOperationException>(async () => await ObservableAsync.Empty<int>().FirstAsync());
+    public async Task WhenFirstAsyncOnEmpty_ThenThrowsInvalidOperation()
+    {
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            await ObservableAsync.Empty<int>().FirstAsync());
+
+        await Assert.That(ex!.Message).IsEqualTo(NoElementsMessage);
+    }
 
     /// <summary>Tests FirstAsync with predicate when no elements match throws InvalidOperationException with matching message.</summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
@@ -59,7 +80,7 @@ public class TerminalOperatorTests
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
             await ObservableAsync.Range(1, 5).FirstAsync(x => x > 100));
 
-        await Assert.That(ex!.Message).IsEqualTo("Sequence contains no matching elements.");
+        await Assert.That(ex!.Message).IsEqualTo(NoMatchingElementsMessage);
     }
 
     /// <summary>Tests FirstAsync propagates error from OnErrorResumeAsync.</summary>
@@ -205,7 +226,7 @@ public class TerminalOperatorTests
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
             await ObservableAsync.Range(1, 5).LastAsync(x => x > 100));
 
-        await Assert.That(ex!.Message).IsEqualTo("Sequence contains no matching elements.");
+        await Assert.That(ex!.Message).IsEqualTo(NoMatchingElementsMessage);
     }
 
     /// <summary>Tests LastAsync on empty throws with no-elements message.</summary>
@@ -216,7 +237,7 @@ public class TerminalOperatorTests
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
             await ObservableAsync.Empty<int>().LastAsync());
 
-        await Assert.That(ex!.Message).IsEqualTo("Sequence contains no elements.");
+        await Assert.That(ex!.Message).IsEqualTo(NoElementsMessage);
     }
 
     /// <summary>Tests LastAsync propagates error from OnErrorResumeAsync.</summary>
@@ -357,10 +378,29 @@ public class TerminalOperatorTests
         Assert.ThrowsAsync<InvalidOperationException>(async () => await ObservableAsync.Range(1, MultipleElementCount).SingleAsync());
     }
 
-    /// <summary>Tests SingleAsync on empty throws.</summary>
+    /// <summary>Tests SingleAsync on empty throws — exercises the predicate-null branch of
+    /// <c>SingleElementObserver.OnCompletedAsyncCore</c>'s message construction.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
-    public void WhenSingleAsyncOnEmpty_ThenThrowsInvalidOperation() =>
-        Assert.ThrowsAsync<InvalidOperationException>(async () => await ObservableAsync.Empty<int>().SingleAsync());
+    public async Task WhenSingleAsyncOnEmpty_ThenThrowsInvalidOperation()
+    {
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            await ObservableAsync.Empty<int>().SingleAsync());
+
+        await Assert.That(ex!.Message).IsEqualTo(NoElementsMessage);
+    }
+
+    /// <summary>Tests SingleAsync with predicate on no-match throws — exercises the
+    /// predicate-non-null branch of <c>SingleElementObserver.OnCompletedAsyncCore</c>.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenSingleAsyncWithPredicateNoMatch_ThenThrowsInvalidOperationWithMatchingMessage()
+    {
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            await ObservableAsync.Range(1, 5).SingleAsync(static x => x > 100));
+
+        await Assert.That(ex!.Message).IsEqualTo(NoMatchingElementsMessage);
+    }
 
     /// <summary>Tests SingleOrDefault on empty returns default.</summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
@@ -454,7 +494,7 @@ public class TerminalOperatorTests
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
             await ObservableAsync.Range(1, 3).SingleOrDefaultAsync(0));
 
-        await Assert.That(ex!.Message).IsEqualTo("Sequence contains more than one element.");
+        await Assert.That(ex!.Message).IsEqualTo(MoreThanOneElementMessage);
     }
 
     /// <summary>Tests SingleOrDefaultAsync with predicate reports correct message when multiple elements match.</summary>
@@ -466,7 +506,7 @@ public class TerminalOperatorTests
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
             await ObservableAsync.Range(1, 5).SingleOrDefaultAsync(x => x > 2, -1));
 
-        await Assert.That(ex!.Message).IsEqualTo("Sequence contains more than one matching element.");
+        await Assert.That(ex!.Message).IsEqualTo(MoreThanOneMatchingElementMessage);
     }
 
     /// <summary>Tests SingleOrDefaultAsync propagates error from OnErrorResumeAsync with the defaultValue overload.</summary>
@@ -1003,7 +1043,7 @@ public class TerminalOperatorTests
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
             await ObservableAsync.Range(1, 5).SingleAsync(x => x > 2));
 
-        await Assert.That(ex!.Message).IsEqualTo("Sequence contains more than one matching element.");
+        await Assert.That(ex!.Message).IsEqualTo(MoreThanOneMatchingElementMessage);
     }
 
     /// <summary>Tests SingleAsync with predicate throws when no elements match.</summary>
@@ -1014,7 +1054,7 @@ public class TerminalOperatorTests
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
             await ObservableAsync.Range(1, 5).SingleAsync(x => x > 100));
 
-        await Assert.That(ex!.Message).IsEqualTo("Sequence contains no matching elements.");
+        await Assert.That(ex!.Message).IsEqualTo(NoMatchingElementsMessage);
     }
 
     /// <summary>Tests SingleAsync propagates error from OnErrorResumeAsync.</summary>
@@ -1345,57 +1385,4 @@ public class TerminalOperatorTests
         const int SourceValue = 42;
         await ObservableAsync.Return(SourceValue).WaitCompletionAsync();
     }
-
-    /// <summary>Tests ForEachAsync with null sync action throws ArgumentNullException.</summary>
-    [Test]
-    public void WhenForEachAsyncWithNullSyncAction_ThenThrowsArgumentNullException() =>
-        Assert.ThrowsAsync<ArgumentNullException>(async () =>
-            await ObservableAsync.Return(1).ForEachAsync((Action<int>)null!));
-
-    /// <summary>Tests ForEachAsync with null async action throws ArgumentNullException.</summary>
-    [Test]
-    public void WhenForEachAsyncWithNullAsyncAction_ThenThrowsArgumentNullException() =>
-        Assert.ThrowsAsync<ArgumentNullException>(async () =>
-            await ObservableAsync.Return(1).ForEachAsync(null!));
-
-    /// <summary>Tests async ForEachAsync propagates source failure.</summary>
-    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
-    [Test]
-    public async Task WhenForEachAsyncSourceFails_ThenThrows()
-    {
-        var error = new InvalidOperationException("test");
-        await Assert.ThrowsAsync<InvalidOperationException>(async () =>
-            await ObservableAsync.Throw<int>(error).ForEachAsync((_, _) => default));
-    }
-
-    /// <summary>Tests sync ForEachAsync propagates source failure.</summary>
-    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
-    [Test]
-    public async Task WhenForEachAsyncSyncOverloadSourceFails_ThenThrows()
-    {
-        var error = new InvalidOperationException("test");
-        await Assert.ThrowsAsync<InvalidOperationException>(async () =>
-            await ObservableAsync.Throw<int>(error).ForEachAsync(_ => { }));
-    }
-
-    /// <summary>Tests ToAsyncEnumerable propagates source failure.</summary>
-    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
-    [Test]
-    public async Task WhenToAsyncEnumerableSourceFails_ThenThrows()
-    {
-        var error = new InvalidOperationException("enum-error");
-        await Assert.ThrowsAsync<InvalidOperationException>(async () =>
-        {
-            await foreach (var item in ObservableAsync.Throw<int>(error)
-                               .ToAsyncEnumerable(() => Channel.CreateUnbounded<int>()))
-            {
-                _ = item;
-            }
-        });
-    }
-
-    /// <summary>Tests Wrap with a null observer throws ArgumentNullException.</summary>
-    [Test]
-    public void WhenWrapWithNullObserver_ThenThrowsArgumentNullException() =>
-        Assert.Throws<ArgumentNullException>(() => ObservableAsync.Wrap<int>(null!));
 }

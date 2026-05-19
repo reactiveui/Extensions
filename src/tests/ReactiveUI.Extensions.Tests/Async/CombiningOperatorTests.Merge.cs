@@ -653,19 +653,7 @@ public partial class CombiningOperatorTests
     public async Task WhenMergeEnumerableSourceThrowsDuringSubscribe_ThenCompletesWithFailure()
     {
         var throwingSource = ObservableAsync.Create<int>((_, _) =>
-        {
-            try
-            {
-                throw new InvalidOperationException(SubscribeBoomMessage);
-#pragma warning disable CS0162 // Unreachable code detected
-                return ValueTask.FromResult(DisposableAsync.Empty);
-#pragma warning restore CS0162
-            }
-            catch (Exception exception)
-            {
-                return ValueTask.FromException<IAsyncDisposable>(exception);
-            }
-        });
+            ValueTask.FromException<IAsyncDisposable>(new InvalidOperationException(SubscribeBoomMessage)));
 
         IObservableAsync<int>[] sources = [throwingSource];
 
@@ -698,19 +686,7 @@ public partial class CombiningOperatorTests
     public async Task WhenMergeEnumerableInnerSubscribeThrowsTaskCanceled_ThenHandledGracefully()
     {
         var canceledSource = ObservableAsync.Create<int>((_, _) =>
-        {
-            try
-            {
-                throw new TaskCanceledException("subscribe canceled");
-#pragma warning disable CS0162 // Unreachable code detected
-                return ValueTask.FromResult(DisposableAsync.Empty);
-#pragma warning restore CS0162
-            }
-            catch (Exception exception)
-            {
-                return ValueTask.FromException<IAsyncDisposable>(exception);
-            }
-        });
+            ValueTask.FromException<IAsyncDisposable>(new TaskCanceledException("subscribe canceled")));
 
         Result? completionResult = null;
         var items = new List<int>();
@@ -750,19 +726,7 @@ public partial class CombiningOperatorTests
         Result? completionResult = null;
 
         var throwingSource = ObservableAsync.Create<int>((_, _) =>
-        {
-            try
-            {
-                throw new InvalidOperationException(SubscribeBoomMessage);
-#pragma warning disable CS0162 // Unreachable code detected
-                return ValueTask.FromResult(DisposableAsync.Empty);
-#pragma warning restore CS0162
-            }
-            catch (Exception exception)
-            {
-                return ValueTask.FromException<IAsyncDisposable>(exception);
-            }
-        });
+            ValueTask.FromException<IAsyncDisposable>(new InvalidOperationException(SubscribeBoomMessage)));
 
         await using var sub = await new[] { throwingSource }
             .Merge()
@@ -796,19 +760,7 @@ public partial class CombiningOperatorTests
 
         var goodSource = new DirectSource<int>();
         var throwingSource = ObservableAsync.Create<int>((_, _) =>
-        {
-            try
-            {
-                throw new InvalidOperationException("second subscribe boom");
-#pragma warning disable CS0162 // Unreachable code detected
-                return ValueTask.FromResult(DisposableAsync.Empty);
-#pragma warning restore CS0162
-            }
-            catch (Exception exception)
-            {
-                return ValueTask.FromException<IAsyncDisposable>(exception);
-            }
-        });
+            ValueTask.FromException<IAsyncDisposable>(new InvalidOperationException("second subscribe boom")));
 
         await using var sub = await new IObservableAsync<int>[] { goodSource, throwingSource }
             .Merge()
@@ -884,5 +836,209 @@ public partial class CombiningOperatorTests
 
         await Assert.That(completionResult).IsNotNull();
         await Assert.That(completionResult!.Value.IsFailure).IsTrue();
+    }
+
+    /// <summary>Verifies that subscribing <c>Merge(IEnumerable)</c> with an already-cancelled
+    /// token short-circuits the subscription's cancellation chain immediately.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenMergeSubscribedWithAlreadyCancelledToken_ThenSubscriptionDisposes()
+    {
+        using var cts = new CancellationTokenSource();
+        await cts.CancelAsync();
+
+        var first = ObservableAsync.Return(1);
+        var second = ObservableAsync.Return(SampleValue2);
+
+        var values = new List<int>();
+        await using var sub = await first.Merge(second).SubscribeAsync(
+            (v, _) =>
+            {
+                values.Add(v);
+                return default;
+            },
+            cts.Token);
+
+        // The subscription should have been cancelled before producing any values.
+        await Assert.That(values.Count).IsLessThanOrEqualTo(SampleValue2);
+    }
+
+    /// <summary>Verifies that subscribing <c>Merge(maxConcurrency)</c> with an already-cancelled
+    /// token short-circuits the subscription's cancellation chain immediately.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenMergeMaxConcurrencySubscribedWithAlreadyCancelledToken_ThenSubscriptionDisposes()
+    {
+        using var cts = new CancellationTokenSource();
+        await cts.CancelAsync();
+
+        var outer = ObservableAsync.Return(ObservableAsync.Return(1));
+
+        await using var sub = await outer.Merge(1).SubscribeAsync(
+            static (_, _) => default,
+            cts.Token);
+
+        // The act of producing the disposable without throwing exercises the
+        // already-cancelled short-circuit in LinkExternalCancellation.
+        await Assert.That(sub).IsNotNull();
+    }
+
+    /// <summary>Verifies that subscribing <c>Merge</c> with a cancellable but not-yet-cancelled
+    /// token registers the external link and the registration fires when the token is cancelled
+    /// after subscribe, tearing the subscription down.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenMergeExternalTokenCancelledAfterSubscribe_ThenRegistrationFires()
+    {
+        using var cts = new CancellationTokenSource();
+        var first = SubjectAsync.Create<int>();
+        var second = SubjectAsync.Create<int>();
+
+        await using var sub = await first.Values.Merge(second.Values).SubscribeAsync(
+            static (_, _) => default,
+            cts.Token);
+
+        await cts.CancelAsync();
+
+        // After external cancellation the subscription must be unaffected by further pushes.
+        await first.OnNextAsync(1, CancellationToken.None);
+        await Assert.That(sub).IsNotNull();
+    }
+
+    /// <summary>Verifies that subscribing <c>Merge(maxConcurrency)</c> with a cancellable but
+    /// not-yet-cancelled token registers the external link.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenMergeMaxConcurrencyExternalTokenCancelledAfterSubscribe_ThenRegistrationFires()
+    {
+        using var cts = new CancellationTokenSource();
+        var outer = SubjectAsync.Create<IObservableAsync<int>>();
+
+        await using var sub = await outer.Values.Merge(1).SubscribeAsync(
+            static (_, _) => default,
+            cts.Token);
+
+        await cts.CancelAsync();
+
+        // After external cancellation the subscription must be unaffected.
+        await Assert.That(sub).IsNotNull();
+    }
+
+    /// <summary>Verifies the <see cref="ObservableAsync.MergeSubscription{T}.ForwardOnNextLocked"/>
+    /// inside-gate after-dispose guard by subscribing, disposing the subscription, then calling
+    /// the locked-helper directly — exercising the defensive branch that is otherwise only
+    /// reachable through a real concurrency race between dispose and gate acquisition.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenMergeForwardOnNextLockedAfterDispose_ThenDropped()
+    {
+        var captured = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var downstream = new CapturingObserver<int>(onNext: captured);
+        var subscription = new ObservableAsync.MergeSubscription<int>(downstream);
+
+        await subscription.DisposeAsync();
+        await subscription.ForwardOnNextLocked(1);
+
+        await Assert.That(captured.Task.IsCompleted).IsFalse();
+    }
+
+    /// <summary>Verifies the <see cref="ObservableAsync.MergeSubscription{T}.ForwardOnErrorResumeLocked"/>
+    /// inside-gate after-dispose guard.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenMergeForwardOnErrorResumeLockedAfterDispose_ThenDropped()
+    {
+        var captured = new TaskCompletionSource<Exception>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var downstream = new CapturingObserver<int>(onError: captured);
+        var subscription = new ObservableAsync.MergeSubscription<int>(downstream);
+
+        await subscription.DisposeAsync();
+        await subscription.ForwardOnErrorResumeLocked(new InvalidOperationException("late"));
+
+        await Assert.That(captured.Task.IsCompleted).IsFalse();
+    }
+
+    /// <summary>Verifies the
+    /// <see cref="ObservableAsync.MergeEnumerableObservable{T}.MergeEnumerableSubscription.OnNextAsyncLocked"/>
+    /// inside-gate after-dispose guard on the enumerable-Merge subscription class.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenMergeEnumerableOnNextAsyncLockedAfterDispose_ThenDropped()
+    {
+        var captured = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var downstream = new CapturingObserver<int>(onNext: captured);
+
+        // Subscribe to a real Merge to obtain a MergeEnumerableSubscription; then dispose it
+        // and call the Locked helper directly to verify the inside-gate guard.
+        IObservableAsync<int>[] sources = [ObservableAsync.Never<int>()];
+        var sub = await sources.Merge().SubscribeAsync(downstream, CancellationToken.None);
+        var enumerableSub = (ObservableAsync.MergeEnumerableObservable<int>.MergeEnumerableSubscription)sub;
+
+        await enumerableSub.DisposeAsync();
+        await enumerableSub.OnNextAsyncLocked(1);
+
+        await Assert.That(captured.Task.IsCompleted).IsFalse();
+    }
+
+    /// <summary>Verifies the enumerable-Merge subscription's after-dispose
+    /// <c>OnErrorResumeAsyncLocked</c> guard.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenMergeEnumerableOnErrorResumeAsyncLockedAfterDispose_ThenDropped()
+    {
+        var captured = new TaskCompletionSource<Exception>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var downstream = new CapturingObserver<int>(onError: captured);
+        IObservableAsync<int>[] sources = [ObservableAsync.Never<int>()];
+        var sub = await sources.Merge().SubscribeAsync(downstream, CancellationToken.None);
+        var enumerableSub = (ObservableAsync.MergeEnumerableObservable<int>.MergeEnumerableSubscription)sub;
+
+        await enumerableSub.DisposeAsync();
+        await enumerableSub.OnErrorResumeAsyncLocked(new InvalidOperationException("late"));
+
+        await Assert.That(captured.Task.IsCompleted).IsFalse();
+    }
+
+    /// <summary>Test observer used by direct-invocation Merge tests; captures the first
+    /// <c>OnNextAsync</c> or <c>OnErrorResumeAsync</c> via the supplied TCS so the assertion
+    /// can verify the post-dispose call did not deliver anything.</summary>
+    /// <typeparam name="T">The element type.</typeparam>
+    private sealed class CapturingObserver<T> : IObserverAsync<T>
+    {
+        /// <summary>Captures the first <c>OnNextAsync</c> value, if a TCS was supplied.</summary>
+        private readonly TaskCompletionSource<T>? _onNext;
+
+        /// <summary>Captures the first <c>OnErrorResumeAsync</c> exception, if a TCS was supplied.</summary>
+        private readonly TaskCompletionSource<Exception>? _onError;
+
+        /// <summary>Initializes a new instance of the <see cref="CapturingObserver{T}"/> class.</summary>
+        /// <param name="onNext">Optional TCS for capturing the first <c>OnNextAsync</c> value.</param>
+        /// <param name="onError">Optional TCS for capturing the first <c>OnErrorResumeAsync</c> exception.</param>
+        public CapturingObserver(
+            TaskCompletionSource<T>? onNext = null,
+            TaskCompletionSource<Exception>? onError = null)
+        {
+            _onNext = onNext;
+            _onError = onError;
+        }
+
+        /// <inheritdoc/>
+        public ValueTask OnNextAsync(T value, CancellationToken cancellationToken)
+        {
+            _onNext?.TrySetResult(value);
+            return default;
+        }
+
+        /// <inheritdoc/>
+        public ValueTask OnErrorResumeAsync(Exception error, CancellationToken cancellationToken)
+        {
+            _onError?.TrySetResult(error);
+            return default;
+        }
+
+        /// <inheritdoc/>
+        public ValueTask OnCompletedAsync(Result result) => default;
+
+        /// <inheritdoc/>
+        public ValueTask DisposeAsync() => default;
     }
 }

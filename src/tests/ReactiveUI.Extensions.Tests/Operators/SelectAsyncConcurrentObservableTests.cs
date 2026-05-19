@@ -137,4 +137,29 @@ public class SelectAsyncConcurrentObservableTests
         Array.Sort(sorted);
         await Assert.That(sorted).IsCollectionEqualTo([First, Second]);
     }
+
+    /// <summary>Verifies that <c>OnNext</c>, <c>OnError</c> and a duplicate <c>OnCompleted</c>
+    /// arriving after the source has already completed are silently dropped.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenEventsAfterCompleted_ThenDropped()
+    {
+        var source = new SyncDirectSource<int>();
+        var values = new List<int>();
+        Exception? caught = null;
+        var completedCount = 0;
+
+        using var sub = source.SelectAsyncConcurrent(static x => Task.FromResult(x), maxConcurrency: 1)
+            .Subscribe(values.Add, ex => caught = ex, () => completedCount++);
+
+        source.Observer.OnCompleted();
+        source.Observer.OnNext(1);
+        source.Observer.OnError(new InvalidOperationException("late"));
+        source.Observer.OnCompleted();
+
+        await Task.Delay(SettleDelayMilliseconds);
+        await Assert.That(completedCount).IsEqualTo(1);
+        await Assert.That(values).IsEmpty();
+        await Assert.That(caught).IsNull();
+    }
 }

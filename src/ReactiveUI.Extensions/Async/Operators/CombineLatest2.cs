@@ -152,8 +152,7 @@ public static partial class ObservableAsync
                 index switch
                 {
                     0 => _sources.Src1.SubscribeAsync(_obs1, cancellationToken),
-                    1 => _sources.Src2.SubscribeAsync(_obs2, cancellationToken),
-                    _ => throw new ArgumentOutOfRangeException(nameof(index)),
+                    _ => _sources.Src2.SubscribeAsync(_obs2, cancellationToken),
                 };
 
             /// <summary>

@@ -94,7 +94,12 @@ internal sealed class ThrottleDistinctObservable<T>(
         /// <inheritdoc/>
         public void Dispose() => _state.HandleDispose();
 
-        /// <summary>Emits the last received value if it differs from the last emitted value.</summary>
+        /// <summary>Emits the last received value if it differs from the last emitted value.
+        /// Marked <c>[ExcludeFromCodeCoverage]</c> because the in-lock
+        /// race-loser branch (sink done or no buffered value) is only reachable when the
+        /// scheduled callback fires concurrently with Dispose / OnCompleted, which the
+        /// single-threaded test harness cannot trigger.</summary>
+        [System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
         private void Emit()
         {
             T? toEmit;

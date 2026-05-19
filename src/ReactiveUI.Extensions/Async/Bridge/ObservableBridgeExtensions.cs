@@ -193,30 +193,12 @@ public static class ObservableBridgeExtensions
             {
                 try
                 {
-                    Task task;
-                    switch (work.Kind)
+                    var task = work.Kind switch
                     {
-                        case WorkKind.Next:
-                        {
-                            task = ToTask(observer.OnNextAsync(work.Value, cancellationToken));
-                            break;
-                        }
-
-                        case WorkKind.CompletedSuccess:
-                        {
-                            task = ToTask(observer.OnCompletedAsync(Result.Success));
-                            break;
-                        }
-
-                        case WorkKind.CompletedFailure:
-                        {
-                            task = ToTask(observer.OnCompletedAsync(Result.Failure(work.Error!)));
-                            break;
-                        }
-
-                        default:
-                            return;
-                    }
+                        WorkKind.Next => ToTask(observer.OnNextAsync(work.Value, cancellationToken)),
+                        WorkKind.CompletedSuccess => ToTask(observer.OnCompletedAsync(Result.Success)),
+                        _ => ToTask(observer.OnCompletedAsync(Result.Failure(work.Error!))),
+                    };
 
                     task.GetAwaiter().GetResult();
                 }

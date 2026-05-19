@@ -44,6 +44,24 @@ public partial class ReactiveExtensionsTests
         }
     }
 
+    /// <summary>Exercises <c>BufferUntilObservable</c>'s <c>OnError</c> forwarding —
+    /// the observer hands the source's error straight to the downstream subscriber.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenBufferUntilSourceErrors_ThenForwardsError()
+    {
+        using var subject = new Subject<char>();
+        Exception? caught = null;
+        var expected = new InvalidOperationException("buffer-until-error");
+
+        using var sub = subject.BufferUntil('<', '>').Subscribe(static _ => { }, ex => caught = ex);
+
+        subject.OnNext('a');
+        subject.OnError(expected);
+
+        await Assert.That(caught).IsSameReferenceAs(expected);
+    }
+
     /// <summary>
     /// Tests BufferUntil emits remaining buffered content when the source completes before the end delimiter.
     /// </summary>

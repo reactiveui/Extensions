@@ -2,7 +2,6 @@
 // ReactiveUI Association Incorporated licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using System.Diagnostics.CodeAnalysis;
 using ReactiveUI.Extensions.Async;
 using ReactiveUI.Extensions.Async.Disposables;
 using ReactiveUI.Extensions.Async.Subjects;
@@ -14,6 +13,9 @@ namespace ReactiveUI.Extensions.Tests.Async;
 /// </summary>
 public class TransformationOperatorTests
 {
+    /// <summary>Number of inputs fed into the async-accumulator <c>Scan</c> sync-result test.</summary>
+    private const int ScanInputCount = 3;
+
     /// <summary>Hoisted source array used by tests (was inline literal).</summary>
     private static readonly int[] Sequence123456 = [1, 2, 3, 4, 5, 6];
 
@@ -154,6 +156,108 @@ public class TransformationOperatorTests
     public void WhenScanNullAccumulator_ThenThrowsArgumentNull() =>
         Assert.Throws<ArgumentNullException>(() =>
             ObservableAsync.Return(1).Scan(0, (Func<int, int, int>)null!));
+
+    /// <summary>Exercises the sync-action <c>Do&lt;T&gt;(Action&lt;T&gt;, Action&lt;Exception&gt;, Action&lt;Result&gt;)</c>
+    /// overload's non-null-callback branches in <c>DoSyncObserver</c>'s OnNext / OnErrorResume / OnCompleted.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenDoSyncWithAllCallbacks_ThenInvokesAndForwards()
+    {
+        const int ExpectedFirst = 7;
+        const int ExpectedSecond = 8;
+        var nextValues = new List<int>();
+        var errors = new List<Exception>();
+        var completions = new List<Result>();
+        var errored = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var completed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        var source = ObservableAsync.Create<int>(async (observer, ct) =>
+        {
+            await observer.OnNextAsync(ExpectedFirst, ct);
+            await observer.OnErrorResumeAsync(new InvalidOperationException("resume"), ct);
+            await observer.OnNextAsync(ExpectedSecond, ct);
+            await observer.OnCompletedAsync(Result.Success);
+            return DisposableAsync.Empty;
+        });
+
+        await using var sub = await source
+            .Do(
+                nextValues.Add,
+                exception =>
+                {
+                    errors.Add(exception);
+                    errored.TrySetResult();
+                },
+                result =>
+                {
+                    completions.Add(result);
+                    completed.TrySetResult();
+                })
+            .SubscribeAsync(static (_, _) => default);
+
+        await Task.WhenAll(errored.Task, completed.Task).WaitAsync(TimeSpan.FromSeconds(5));
+
+        await Assert.That(nextValues).IsCollectionEqualTo([ExpectedFirst, ExpectedSecond]);
+        await Assert.That(errors).Count().IsEqualTo(1);
+        await Assert.That(completions).Count().IsEqualTo(1);
+    }
+
+    /// <summary>Exercises the no-arg <c>Do&lt;T&gt;()</c> overload's null-callback branches on
+    /// the resumable-error and completion paths — pushes an <c>OnErrorResumeAsync</c> followed
+    /// by a successful completion through <c>Do()</c> with all callbacks null, hitting the
+    /// <c>onErrorResume?.Invoke</c> null arm and the <c>onCompleted?.Invoke</c> null arm.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenDoWithNoCallbacksAndSourceEmitsErrorResume_ThenForwardsBoth()
+    {
+        Exception? caught = null;
+        var completed = false;
+        var errorTcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var completionTcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        var source = ObservableAsync.Create<int>(async (observer, ct) =>
+        {
+            await observer.OnErrorResumeAsync(new InvalidOperationException("resume"), ct);
+            await observer.OnCompletedAsync(Result.Success);
+            return DisposableAsync.Empty;
+        });
+
+        await using var sub = await source
+            .Do()
+            .SubscribeAsync(
+                static (_, _) => default,
+                (ex, _) =>
+                {
+                    caught = ex;
+                    errorTcs.TrySetResult();
+                    return default;
+                },
+                _ =>
+                {
+                    completed = true;
+                    completionTcs.TrySetResult();
+                    return default;
+                });
+
+        await Task.WhenAll(errorTcs.Task, completionTcs.Task).WaitAsync(TimeSpan.FromSeconds(5));
+
+        await Assert.That(caught).IsNotNull();
+        await Assert.That(completed).IsTrue();
+    }
+
+    /// <summary>Exercises the no-arg <c>Do&lt;T&gt;()</c> overload — a pure pass-through that
+    /// constructs a <c>DoSyncObservable</c> with all callbacks set to null.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenDoWithNoCallbacks_ThenPassesThroughValues()
+    {
+        const int ExpectedSecond = 2;
+        const int ExpectedThird = 3;
+
+        var result = await ObservableAsync.Range(1, 3).Do().ToListAsync();
+
+        await Assert.That(result).IsCollectionEqualTo([1, ExpectedSecond, ExpectedThird]);
+    }
 
     /// <summary>Tests sync Do invokes side effects.</summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
@@ -337,19 +441,7 @@ public class TransformationOperatorTests
         UnhandledExceptionHandler.Register(handlerExceptions.Add);
 
         var source = ObservableAsync.Create<int>((_, _) =>
-        {
-            try
-            {
-                throw new ApplicationException("source error");
-#pragma warning disable CS0162 // Unreachable code detected
-                return ValueTask.FromResult(DisposableAsync.Empty);
-#pragma warning restore CS0162 // Unreachable code detected
-            }
-            catch (Exception exception)
-            {
-                return ValueTask.FromException<IAsyncDisposable>(exception);
-            }
-        });
+            ValueTask.FromException<IAsyncDisposable>(new ApplicationException("source error")));
 
         var pipeline = source.Prepend(42);
 
@@ -635,19 +727,7 @@ public class TransformationOperatorTests
         UnhandledExceptionHandler.Register(handlerExceptions.Add);
 
         var source = ObservableAsync.Create<int>((_, _) =>
-        {
-            try
-            {
-                throw new ApplicationException("source failure");
-#pragma warning disable CS0162 // Unreachable code detected
-                return ValueTask.FromResult(DisposableAsync.Empty);
-#pragma warning restore CS0162 // Unreachable code detected
-            }
-            catch (Exception exception)
-            {
-                return ValueTask.FromException<IAsyncDisposable>(exception);
-            }
-        });
+            ValueTask.FromException<IAsyncDisposable>(new ApplicationException("source failure")));
 
         // Prepend a single value so the prepend loop completes, then SubscribeAsync on the
         // throwing source triggers the catch path. The completion handler throws a second
@@ -913,19 +993,7 @@ public class TransformationOperatorTests
         try
         {
             var source = ObservableAsync.Create<int>((_, _) =>
-            {
-                try
-                {
-                    throw new ApplicationException("source subscribe error");
-#pragma warning disable CS0162 // Unreachable code detected
-                    return ValueTask.FromResult(DisposableAsync.Empty);
-#pragma warning restore CS0162 // Unreachable code detected
-                }
-                catch (Exception exception)
-                {
-                    return ValueTask.FromException<IAsyncDisposable>(exception);
-                }
-            });
+                ValueTask.FromException<IAsyncDisposable>(new ApplicationException("source subscribe error")));
 
             var pipeline = source.Prepend(1);
 
@@ -1011,6 +1079,78 @@ public class TransformationOperatorTests
                 _ => ObservableAsync.Throw<int>(error)).FirstAsync());
 
         await Assert.That(disposed).IsTrue();
+    }
+
+    /// <summary>Verifies the async-accumulator <c>Scan</c> overload's sync-completed fast path —
+    /// returning a synchronously-completed <see cref="ValueTask{TResult}"/> from the accumulator
+    /// takes the inline <c>pending.Result</c> branch.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenScanAsyncAccumulatorReturnsSync_ThenForwardsAccumulator()
+    {
+        const int ThirdRunningTotal = 3;
+        const int SixthRunningTotal = 6;
+        var result = await ObservableAsync.Range(1, ScanInputCount)
+            .Scan(0, static (acc, x, _) => new ValueTask<int>(acc + x))
+            .ToListAsync();
+
+        await Assert.That(result).IsCollectionEqualTo([1, ThirdRunningTotal, SixthRunningTotal]);
+    }
+
+    /// <summary>Verifies that the sync-accumulator <c>Scan</c> overload forwards a non-terminal
+    /// upstream error downstream.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenScanSyncSourceErrorResume_ThenForwarded()
+    {
+        var subject = SubjectAsync.Create<int>();
+        Exception? caught = null;
+        var errorTcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        await using var sub = await subject.Values
+            .Scan(0, static (acc, x) => acc + x)
+            .SubscribeAsync(
+                static (_, _) => default,
+                (ex, _) =>
+                {
+                    caught = ex;
+                    errorTcs.TrySetResult();
+                    return default;
+                });
+
+        var expected = new InvalidOperationException("scan-sync-error");
+        await subject.OnErrorResumeAsync(expected, CancellationToken.None);
+
+        await errorTcs.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await Assert.That(caught).IsSameReferenceAs(expected);
+    }
+
+    /// <summary>Verifies that the async-accumulator <c>Scan</c> overload forwards a non-terminal
+    /// upstream error downstream.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenScanAsyncSourceErrorResume_ThenForwarded()
+    {
+        var subject = SubjectAsync.Create<int>();
+        Exception? caught = null;
+        var errorTcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        await using var sub = await subject.Values
+            .Scan(0, static (acc, x, _) => new ValueTask<int>(acc + x))
+            .SubscribeAsync(
+                static (_, _) => default,
+                (ex, _) =>
+                {
+                    caught = ex;
+                    errorTcs.TrySetResult();
+                    return default;
+                });
+
+        var expected = new InvalidOperationException("scan-async-error");
+        await subject.OnErrorResumeAsync(expected, CancellationToken.None);
+
+        await errorTcs.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await Assert.That(caught).IsSameReferenceAs(expected);
     }
 
     /// <summary>
