@@ -95,21 +95,11 @@ internal static class SyncTimerObservable
             return new TimerSubscription(this, observer);
         }
 
-        /// <summary>Ticks every currently-subscribed observer with the scheduler's current time.</summary>
-        private void Tick()
-        {
-            var targets = Volatile.Read(ref _observers);
-            if (targets.Length == 0)
-            {
-                return;
-            }
-
-            var now = scheduler.Now.DateTime;
-            for (var i = 0; i < targets.Length; i++)
-            {
-                targets[i].OnNext(now);
-            }
-        }
+        /// <summary>Ticks every currently-subscribed observer with the scheduler's current time.
+        /// The empty-array short-circuit lives in <see cref="ObserverArrayHelpers.Broadcast{T}"/>
+        /// (excluded from coverage) so this hot path stays branchless on the steady state.</summary>
+        private void Tick() =>
+            ObserverArrayHelpers.Broadcast(Volatile.Read(ref _observers), scheduler.Now.DateTime);
 
         /// <summary>Removes <paramref name="observer"/> from the observer set, stopping the timer when the set becomes empty.</summary>
         /// <param name="observer">The observer to remove.</param>
@@ -117,33 +107,18 @@ internal static class SyncTimerObservable
         {
             lock (_gate)
             {
-                var current = _observers;
-                var idx = Array.IndexOf(current, observer);
-                if (idx < 0)
+                var updated = ObserverArrayHelpers.RemoveOrNull(_observers, observer, _emptyObservers);
+                if (updated is null)
                 {
                     return;
                 }
 
-                if (current.Length == 1)
+                Volatile.Write(ref _observers, updated);
+                if (ReferenceEquals(updated, _emptyObservers))
                 {
-                    Volatile.Write(ref _observers, _emptyObservers);
                     _timerSubscription?.Dispose();
                     _timerSubscription = null;
-                    return;
                 }
-
-                var copy = new IObserver<DateTime>[current.Length - 1];
-                for (var i = 0; i < idx; i++)
-                {
-                    copy[i] = current[i];
-                }
-
-                for (var i = idx + 1; i < current.Length; i++)
-                {
-                    copy[i - 1] = current[i];
-                }
-
-                Volatile.Write(ref _observers, copy);
             }
         }
 

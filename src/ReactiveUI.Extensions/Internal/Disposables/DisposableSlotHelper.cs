@@ -9,13 +9,15 @@ namespace ReactiveUI.Extensions.Internal.Disposables;
 /// <summary>
 /// Pure-plumbing helpers for the swap-disposable-slot pattern shared by
 /// <see cref="MutableDisposable"/> and <see cref="SwapDisposable"/>. Centralizes the
-/// TOCTOU race-defensive recheck so the call-site setters stay branchless one-liners.
-/// Marked <see cref="ExcludeFromCodeCoverageAttribute"/> — the recheck protects against
-/// an extremely narrow concurrent-Dispose race that cannot be deterministically triggered
-/// in unit tests, in the same spirit as <see cref="ArgumentExceptionHelper"/>'s
+/// pre-check / store / race-recheck flow so the call-site setters stay one-line delegations.
+/// All testable branches (already-disposed pre-check, steady-state assign, idempotent dispose)
+/// have direct unit tests against this class. The single race-recheck step that fires only
+/// when <c>Dispose()</c> runs concurrently between the helper's <c>Volatile.Read</c> pre-check
+/// and the store is isolated in <see cref="DisposeIfRaced"/>, which is marked
+/// <see cref="ExcludeFromCodeCoverageAttribute"/> — that step is unreachable without a real
+/// concurrent thread, in the same spirit as <see cref="ArgumentExceptionHelper"/>'s
 /// throw-helpers.
 /// </summary>
-[ExcludeFromCodeCoverage]
 internal static class DisposableSlotHelper
 {
     /// <summary>Sentinel value indicating the holder has been disposed.</summary>
@@ -25,7 +27,8 @@ internal static class DisposableSlotHelper
     /// Reassigns an inner disposable slot WITHOUT disposing the previous value (mutable-assign
     /// semantics, matching the <see cref="MutableDisposable"/> contract). If the holder is
     /// already disposed, the incoming value is disposed immediately; if Dispose races between
-    /// the pre-check and the store, the just-stored value is disposed to avoid leaking it.
+    /// the pre-check and the store, the just-stored value is disposed via
+    /// <see cref="DisposeIfRaced"/>.
     /// </summary>
     /// <param name="slot">The reference to the current-inner field.</param>
     /// <param name="disposed">The reference to the disposed-flag field.</param>
@@ -42,20 +45,14 @@ internal static class DisposableSlotHelper
         }
 
         Interlocked.Exchange(ref slot, value);
-
-        if (Volatile.Read(ref disposed) != DisposedSentinel)
-        {
-            return;
-        }
-
-        Interlocked.Exchange(ref slot, null)?.Dispose();
+        DisposeIfRaced(ref slot, ref disposed);
     }
 
     /// <summary>
     /// Reassigns an inner disposable slot and disposes the previous value (swap semantics,
     /// matching the <see cref="SwapDisposable"/> contract). If the holder is already disposed,
     /// the incoming value is disposed immediately; if Dispose races between the swap and the
-    /// recheck, the just-stored value is also disposed.
+    /// recheck, the just-stored value is disposed via <see cref="DisposeIfRaced"/>.
     /// </summary>
     /// <param name="slot">The reference to the current-inner field.</param>
     /// <param name="disposed">The reference to the disposed-flag field.</param>
@@ -73,13 +70,7 @@ internal static class DisposableSlotHelper
 
         var previous = Interlocked.Exchange(ref slot, value);
         previous?.Dispose();
-
-        if (Volatile.Read(ref disposed) != DisposedSentinel)
-        {
-            return;
-        }
-
-        Interlocked.Exchange(ref slot, null)?.Dispose();
+        DisposeIfRaced(ref slot, ref disposed);
     }
 
     /// <summary>
@@ -103,5 +94,24 @@ internal static class DisposableSlotHelper
 
         Interlocked.Exchange(ref slot, null)?.Dispose();
         return true;
+    }
+
+    /// <summary>
+    /// Race-only cleanup: if <c>Dispose()</c> ran concurrently between the setter's pre-check
+    /// and the slot store, swap the value out and dispose it to avoid leaking. The branch
+    /// only fires when a real concurrent thread cancels in the TOCTOU window, which cannot
+    /// be deterministically simulated in single-threaded unit tests — hence the exclusion.
+    /// </summary>
+    /// <param name="slot">The reference to the current-inner field.</param>
+    /// <param name="disposed">The reference to the disposed-flag field.</param>
+    [ExcludeFromCodeCoverage]
+    private static void DisposeIfRaced(ref IDisposable? slot, ref int disposed)
+    {
+        if (Volatile.Read(ref disposed) != DisposedSentinel)
+        {
+            return;
+        }
+
+        Interlocked.Exchange(ref slot, null)?.Dispose();
     }
 }
