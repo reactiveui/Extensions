@@ -184,4 +184,94 @@ public class OperatorAfterTerminalGuardTests
 
         await Assert.That(completedCount).IsEqualTo(1);
     }
+
+    /// <summary>Verifies <c>RetryWithBackoff</c>'s sink silently drops a source error after dispose.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenRetryWithBackoffSourceErrorAfterDispose_ThenDropped()
+    {
+        var source = new SyncDirectSource<int>();
+        Exception? caught = null;
+
+        var sub = source.RetryWithBackoff(maxRetries: 1, TimeSpan.FromMilliseconds(SettleDelayMilliseconds))
+            .Subscribe(static _ => { }, ex => caught = ex);
+
+        sub.Dispose();
+        source.Observer.OnError(new InvalidOperationException("after-dispose"));
+
+        await Assert.That(caught).IsNull();
+    }
+
+    /// <summary>Verifies <c>WhileObservable</c>'s after-dispose guard.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenWhileDisposedTwice_ThenSecondIsNoOp()
+    {
+        var ran = 0;
+        var condition = true;
+        var sub = ReactiveExtensions.While(
+                () =>
+                {
+                    if (!condition)
+                    {
+                        return false;
+                    }
+
+                    condition = false;
+                    return true;
+                },
+                () => Interlocked.Increment(ref ran))
+            .Subscribe(static _ => { });
+
+        sub.Dispose();
+        sub.Dispose();
+
+        await Assert.That(ran).IsEqualTo(1);
+    }
+
+    /// <summary>Verifies <c>ScheduledSource</c>'s emit catch — when the side-effect action throws,
+    /// the exception is forwarded as <c>OnError</c> on the downstream observer.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenScheduledSourceActionThrows_ThenForwardsError()
+    {
+        var scheduler = new TestScheduler();
+        var source = new Subject<int>();
+        var expected = new InvalidOperationException("action-failed");
+        Exception? caught = null;
+
+        using var sub = source.Schedule(TimeSpan.FromTicks(TickWindow), scheduler, _ => throw expected)
+            .Subscribe(static _ => { }, ex => caught = ex);
+
+        source.OnNext(1);
+        scheduler.AdvanceBy(TickWindow * SettleMultiplier);
+
+        await Assert.That(caught).IsSameReferenceAs(expected);
+    }
+
+    /// <summary>Verifies the <c>SubscribeSynchronous</c> sink's null-callback branches —
+    /// omitting <c>onError</c> and <c>onCompleted</c> covers the null-coalescing fast paths.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenSubscribeSynchronousOmitsErrorAndCompletedCallbacks_ThenNullPathsTaken()
+    {
+        var subject = new Subject<int>();
+        var processed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        using var sub = subject.SubscribeSynchronous<int>(_ =>
+        {
+            processed.TrySetResult();
+            return Task.CompletedTask;
+        });
+
+        subject.OnNext(1);
+        await processed.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        // Subject silently terminates without invoking the optional callbacks.
+        subject.OnError(new InvalidOperationException("ignored"));
+
+        var second = new Subject<int>();
+        using var sub2 = second.SubscribeSynchronous<int>(static _ => Task.CompletedTask);
+        second.OnCompleted();
+    }
 }
