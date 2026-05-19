@@ -158,4 +158,21 @@ public partial class ObservableSubscriptionExtensionsTests
         var ex = Assert.Throws<TimeoutException>(call);
         await Assert.That(ex).IsNotNull();
     }
+
+    /// <summary>Verifies the single-arg <c>WaitForCompletion(IObservable&lt;Unit&gt;)</c> overload —
+    /// pass-through to the scheduler-aware core with default timeout.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenWaitForCompletionUnitDefault_ThenReturnsOnCompletion()
+    {
+        var subject = new Subject<Unit>();
+        var pump = Task.Run(() =>
+        {
+            subject.OnNext(Unit.Default);
+            subject.OnCompleted();
+        });
+
+        subject.WaitForCompletion();
+        await pump;
+    }
 }

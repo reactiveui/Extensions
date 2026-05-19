@@ -370,4 +370,39 @@ public partial class ReactiveExtensionsTests
         await received.Task.WaitAsync(TimeSpan.FromSeconds(5));
         await Assert.That(results).Contains(SampleValue2);
     }
+
+    /// <summary>Verifies that <c>DebounceUntil</c> forwards source completion downstream.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenDebounceUntilSourceCompletes_ThenForwardsCompletion()
+    {
+        var scheduler = new TestScheduler();
+        var subject = new Subject<int>();
+        var completed = false;
+
+        using var sub = subject.DebounceUntil(TimeSpan.FromTicks(SchedulerWindowTicks), static _ => true, scheduler)
+            .Subscribe(static _ => { }, () => completed = true);
+
+        subject.OnCompleted();
+
+        await Assert.That(completed).IsTrue();
+    }
+
+    /// <summary>Verifies that <c>DebounceUntil</c> forwards source errors downstream.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenDebounceUntilSourceErrors_ThenForwardsError()
+    {
+        var scheduler = new TestScheduler();
+        var subject = new Subject<int>();
+        Exception? caught = null;
+        var expected = new InvalidOperationException("source-failed");
+
+        using var sub = subject.DebounceUntil(TimeSpan.FromTicks(SchedulerWindowTicks), static _ => true, scheduler)
+            .Subscribe(static _ => { }, ex => caught = ex);
+
+        subject.OnError(expected);
+
+        await Assert.That(caught).IsSameReferenceAs(expected);
+    }
 }
