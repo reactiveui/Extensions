@@ -9,7 +9,24 @@ namespace ReactiveUI.Extensions.Tests;
 /// <summary>Tests for ReactiveExtensionsTests.</summary>
 public partial class ReactiveExtensionsTests
 {
-    /// <summary>
+    /// <summary>Exercises the <c>BooleanReduceObservable</c> ctor's fallback when the supplied
+    /// <see cref="IEnumerable{T}"/> is not also an <see cref="IReadOnlyList{T}"/> — the cast
+    /// fails, the null-coalescing operator falls through to <c>sources.ToList()</c>.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenCombineLatestValuesAreAllFalseNonListEnumerable_ThenMaterializedToList()
+    {
+        var subject1 = new BehaviorSubject<bool>(false);
+        var subject2 = new BehaviorSubject<bool>(false);
+        IEnumerable<IObservable<bool>> sources = new[] { subject1.AsObservable(), subject2.AsObservable() }.Where(static _ => true);
+        bool? result = null;
+
+        using var sub = sources.CombineLatestValuesAreAllFalse().Subscribe(x => result = x);
+
+        await Assert.That(result).IsTrue();
+    }
+
+/// <summary>
     /// Tests CombineLatestValuesAreAllFalse.
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>

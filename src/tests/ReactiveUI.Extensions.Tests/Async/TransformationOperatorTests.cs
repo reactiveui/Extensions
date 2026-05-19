@@ -2,7 +2,6 @@
 // ReactiveUI Association Incorporated licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using System.Diagnostics.CodeAnalysis;
 using ReactiveUI.Extensions.Async;
 using ReactiveUI.Extensions.Async.Disposables;
 using ReactiveUI.Extensions.Async.Subjects;
@@ -157,6 +156,51 @@ public class TransformationOperatorTests
     public void WhenScanNullAccumulator_ThenThrowsArgumentNull() =>
         Assert.Throws<ArgumentNullException>(() =>
             ObservableAsync.Return(1).Scan(0, (Func<int, int, int>)null!));
+
+    /// <summary>Exercises the sync-action <c>Do&lt;T&gt;(Action&lt;T&gt;, Action&lt;Exception&gt;, Action&lt;Result&gt;)</c>
+    /// overload's non-null-callback branches in <c>DoSyncObserver</c>'s OnNext / OnErrorResume / OnCompleted.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenDoSyncWithAllCallbacks_ThenInvokesAndForwards()
+    {
+        const int ExpectedFirst = 7;
+        const int ExpectedSecond = 8;
+        var nextValues = new List<int>();
+        var errors = new List<Exception>();
+        var completions = new List<Result>();
+        var errored = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var completed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        var source = ObservableAsync.Create<int>(async (observer, ct) =>
+        {
+            await observer.OnNextAsync(ExpectedFirst, ct);
+            await observer.OnErrorResumeAsync(new InvalidOperationException("resume"), ct);
+            await observer.OnNextAsync(ExpectedSecond, ct);
+            await observer.OnCompletedAsync(Result.Success);
+            return DisposableAsync.Empty;
+        });
+
+        await using var sub = await source
+            .Do(
+                nextValues.Add,
+                exception =>
+                {
+                    errors.Add(exception);
+                    errored.TrySetResult();
+                },
+                result =>
+                {
+                    completions.Add(result);
+                    completed.TrySetResult();
+                })
+            .SubscribeAsync(static (_, _) => default);
+
+        await Task.WhenAll(errored.Task, completed.Task).WaitAsync(TimeSpan.FromSeconds(5));
+
+        await Assert.That(nextValues).IsCollectionEqualTo([ExpectedFirst, ExpectedSecond]);
+        await Assert.That(errors).Count().IsEqualTo(1);
+        await Assert.That(completions).Count().IsEqualTo(1);
+    }
 
     /// <summary>Exercises the no-arg <c>Do&lt;T&gt;()</c> overload — a pure pass-through that
     /// constructs a <c>DoSyncObservable</c> with all callbacks set to null.</summary>
@@ -354,19 +398,7 @@ public class TransformationOperatorTests
         UnhandledExceptionHandler.Register(handlerExceptions.Add);
 
         var source = ObservableAsync.Create<int>((_, _) =>
-        {
-            try
-            {
-                throw new ApplicationException("source error");
-#pragma warning disable CS0162 // Unreachable code detected
-                return ValueTask.FromResult(DisposableAsync.Empty);
-#pragma warning restore CS0162 // Unreachable code detected
-            }
-            catch (Exception exception)
-            {
-                return ValueTask.FromException<IAsyncDisposable>(exception);
-            }
-        });
+            ValueTask.FromException<IAsyncDisposable>(new ApplicationException("source error")));
 
         var pipeline = source.Prepend(42);
 
@@ -652,19 +684,7 @@ public class TransformationOperatorTests
         UnhandledExceptionHandler.Register(handlerExceptions.Add);
 
         var source = ObservableAsync.Create<int>((_, _) =>
-        {
-            try
-            {
-                throw new ApplicationException("source failure");
-#pragma warning disable CS0162 // Unreachable code detected
-                return ValueTask.FromResult(DisposableAsync.Empty);
-#pragma warning restore CS0162 // Unreachable code detected
-            }
-            catch (Exception exception)
-            {
-                return ValueTask.FromException<IAsyncDisposable>(exception);
-            }
-        });
+            ValueTask.FromException<IAsyncDisposable>(new ApplicationException("source failure")));
 
         // Prepend a single value so the prepend loop completes, then SubscribeAsync on the
         // throwing source triggers the catch path. The completion handler throws a second
@@ -930,19 +950,7 @@ public class TransformationOperatorTests
         try
         {
             var source = ObservableAsync.Create<int>((_, _) =>
-            {
-                try
-                {
-                    throw new ApplicationException("source subscribe error");
-#pragma warning disable CS0162 // Unreachable code detected
-                    return ValueTask.FromResult(DisposableAsync.Empty);
-#pragma warning restore CS0162 // Unreachable code detected
-                }
-                catch (Exception exception)
-                {
-                    return ValueTask.FromException<IAsyncDisposable>(exception);
-                }
-            });
+                ValueTask.FromException<IAsyncDisposable>(new ApplicationException("source subscribe error")));
 
             var pipeline = source.Prepend(1);
 

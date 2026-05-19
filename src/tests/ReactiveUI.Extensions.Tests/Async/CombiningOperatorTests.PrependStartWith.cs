@@ -3,7 +3,6 @@
 // See the LICENSE file in the project root for full license information.
 
 using ReactiveUI.Extensions.Async;
-using ReactiveUI.Extensions.Async.Disposables;
 
 namespace ReactiveUI.Extensions.Tests.Async;
 
@@ -287,19 +286,7 @@ public partial class CombiningOperatorTests
     public async Task WhenPrependSourceThrows_ThenCompletesWithFailure()
     {
         var throwingSource = ObservableAsync.Create<int>((_, _) =>
-        {
-            try
-            {
-                throw new InvalidOperationException("source boom");
-#pragma warning disable CS0162 // Unreachable code detected
-                return ValueTask.FromResult(DisposableAsync.Empty);
-#pragma warning restore CS0162
-            }
-            catch (Exception exception)
-            {
-                return ValueTask.FromException<IAsyncDisposable>(exception);
-            }
-        });
+            ValueTask.FromException<IAsyncDisposable>(new InvalidOperationException("source boom")));
 
         Result? completionResult = null;
 
@@ -333,19 +320,7 @@ public partial class CombiningOperatorTests
 
         // Create a source that throws OperationCanceledException on subscribe
         var cancellingSource = ObservableAsync.Create<int>((_, _) =>
-        {
-            try
-            {
-                throw new OperationCanceledException();
-#pragma warning disable CS0162 // Unreachable code detected
-                return ValueTask.FromResult(DisposableAsync.Empty);
-#pragma warning restore CS0162
-            }
-            catch (Exception exception)
-            {
-                return ValueTask.FromException<IAsyncDisposable>(exception);
-            }
-        });
+            ValueTask.FromException<IAsyncDisposable>(new OperationCanceledException()));
 
         var sub = await cancellingSource
             .Prepend([1, 2])

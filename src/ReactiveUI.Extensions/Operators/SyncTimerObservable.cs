@@ -116,7 +116,10 @@ internal static class SyncTimerObservable
                 Volatile.Write(ref _observers, updated);
                 if (ReferenceEquals(updated, _emptyObservers))
                 {
-                    _timerSubscription?.Dispose();
+                    // Subscribe sets _timerSubscription on first add, before the disposable is
+                    // returned; if we reach the "all observers gone" branch, at least one Subscribe
+                    // ran, so _timerSubscription is non-null by construction.
+                    _timerSubscription!.Dispose();
                     _timerSubscription = null;
                 }
             }

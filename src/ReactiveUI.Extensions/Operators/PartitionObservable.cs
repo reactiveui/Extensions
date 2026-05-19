@@ -137,7 +137,9 @@ internal sealed class PartitionObservable<T>
                 _parent._subscriptionCount--;
                 if (_parent._subscriptionCount == 0)
                 {
-                    _parent._sourceSubscription?.Dispose();
+                    // Subscribe set _sourceSubscription alongside _sink under the same lock,
+                    // so when the last branch disposes here it is non-null by construction.
+                    _parent._sourceSubscription!.Dispose();
                     _parent._sourceSubscription = null;
                     _parent._sink = null;
                 }

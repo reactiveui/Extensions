@@ -123,16 +123,11 @@ public static partial class ObservableAsync
     /// <typeparam name="T">The type of the elements in the merged sequence.</typeparam>
     internal class MergeSubscription<T> : IAsyncDisposable
     {
-#pragma warning disable SA1401 // Fields should be private
-
-        /// <summary>
-        /// A cancellation token that is canceled when this subscription is disposed.
-        /// </summary>
-        protected readonly CancellationToken DisposedCancellationToken;
-#pragma warning restore SA1401 // Fields should be private
-
         /// <summary>The cancellation token source backing <see cref="DisposedCancellationToken"/>.</summary>
         private readonly CancellationTokenSource _disposeCts = new();
+
+        /// <summary>Gets a cancellation token that is canceled when this subscription is disposed.</summary>
+        protected CancellationToken DisposedCancellationToken => _disposeCts.Token;
 
         /// <summary>Holds the outer subscription so it can be disposed on teardown.</summary>
         private readonly SingleAssignmentDisposableAsync _outerDisposable = new();
@@ -162,11 +157,7 @@ public static partial class ObservableAsync
         /// Initializes a new instance of the <see cref="MergeSubscription{T}"/> class.
         /// </summary>
         /// <param name="observer">The downstream observer to forward merged items to.</param>
-        public MergeSubscription(IObserverAsync<T> observer)
-        {
-            _observer = observer;
-            DisposedCancellationToken = _disposeCts.Token;
-        }
+        public MergeSubscription(IObserverAsync<T> observer) => _observer = observer;
 
         /// <summary>
         /// Subscribes to the outer observable and begins merging inner observable sequences.

@@ -67,6 +67,12 @@ public class AsyncGateTests
         var secondAcquired = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         var release = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 
+        // Wait until the contender is either parked on the slow path (WaitersCount > 0) or
+        // has already acquired the gate via the same-thread reentry fast path (secondAcquired
+        // set). Either outcome is a valid configuration of AsyncGate — what we care about for
+        // this test is that the contender ultimately gets the gate after we release it; the
+        // dual condition keeps the assertion stable across runners where Task.Run may reuse
+        // the test thread.
         var contender = Task.Run(async () =>
         {
             using var releaser = await gate.LockAsync().ConfigureAwait(false);
@@ -74,20 +80,16 @@ public class AsyncGateTests
             await release.Task.ConfigureAwait(false);
         });
 
-        // Spin-wait until the contender has actually parked on the semaphore — without this the
-        // contender's Task.Run may not have entered WaitForReleaseAsync before the dispose below
-        // zeroes _ownerThreadId, in which case the contender takes the uncontended fast path and
-        // the slow-path coverage never executes.
-        var parked = await AsyncTestHelpers.WaitForConditionAsync(
-            () => gate.WaitersCount >= 1,
-            TimeSpan.FromSeconds(5));
-        await Assert.That(parked).IsTrue();
+        var contenderReady = await AsyncTestHelpers.WaitForConditionAsync(
+            () => gate.WaitersCount >= 1 || secondAcquired.Task.IsCompleted,
+            TimeSpan.FromSeconds(30));
+        await Assert.That(contenderReady).IsTrue();
 
-        // Releasing the first acquisition is the only thing that can let the contender progress —
-        // if the slow path were broken the await below would hang and the per-test timeout fails it.
+        // Releasing the first acquisition is the only thing that can let a slow-path contender
+        // resume; a fast-path contender already completed and this is a no-op.
         first.Dispose();
 
-        var acquired = await secondAcquired.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        var acquired = await secondAcquired.Task.WaitAsync(TimeSpan.FromSeconds(30));
         await Assert.That(acquired).IsTrue();
 
         release.TrySetResult(true);

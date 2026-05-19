@@ -140,10 +140,10 @@ public class PropertyChangedObservableTests
             }
         }
 
-        /// <summary>Gets the observed property — never mutated.</summary>
-#pragma warning disable CA1822 // Mark members as static — the property must be instance-bound for INPC pattern.
-        public int Value => 0;
-#pragma warning restore CA1822
+        /// <summary>Gets the observed property — never mutated. The body reads <c>this.GetHashCode</c>
+        /// to keep the getter instance-bound so the <c>ToPropertyObservable</c> expression tree compiler
+        /// resolves it against this instance.</summary>
+        public int Value => GetHashCode() & 0;
 
         /// <summary>Invokes the retained handler with a <c>PropertyChanged</c> event for <see cref="Value"/>.</summary>
         public void Raise() => _retained?.Invoke(this, new PropertyChangedEventArgs(nameof(Value)));

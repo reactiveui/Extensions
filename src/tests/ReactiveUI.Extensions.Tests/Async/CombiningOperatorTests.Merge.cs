@@ -653,19 +653,7 @@ public partial class CombiningOperatorTests
     public async Task WhenMergeEnumerableSourceThrowsDuringSubscribe_ThenCompletesWithFailure()
     {
         var throwingSource = ObservableAsync.Create<int>((_, _) =>
-        {
-            try
-            {
-                throw new InvalidOperationException(SubscribeBoomMessage);
-#pragma warning disable CS0162 // Unreachable code detected
-                return ValueTask.FromResult(DisposableAsync.Empty);
-#pragma warning restore CS0162
-            }
-            catch (Exception exception)
-            {
-                return ValueTask.FromException<IAsyncDisposable>(exception);
-            }
-        });
+            ValueTask.FromException<IAsyncDisposable>(new InvalidOperationException(SubscribeBoomMessage)));
 
         IObservableAsync<int>[] sources = [throwingSource];
 
@@ -698,19 +686,7 @@ public partial class CombiningOperatorTests
     public async Task WhenMergeEnumerableInnerSubscribeThrowsTaskCanceled_ThenHandledGracefully()
     {
         var canceledSource = ObservableAsync.Create<int>((_, _) =>
-        {
-            try
-            {
-                throw new TaskCanceledException("subscribe canceled");
-#pragma warning disable CS0162 // Unreachable code detected
-                return ValueTask.FromResult(DisposableAsync.Empty);
-#pragma warning restore CS0162
-            }
-            catch (Exception exception)
-            {
-                return ValueTask.FromException<IAsyncDisposable>(exception);
-            }
-        });
+            ValueTask.FromException<IAsyncDisposable>(new TaskCanceledException("subscribe canceled")));
 
         Result? completionResult = null;
         var items = new List<int>();
@@ -750,19 +726,7 @@ public partial class CombiningOperatorTests
         Result? completionResult = null;
 
         var throwingSource = ObservableAsync.Create<int>((_, _) =>
-        {
-            try
-            {
-                throw new InvalidOperationException(SubscribeBoomMessage);
-#pragma warning disable CS0162 // Unreachable code detected
-                return ValueTask.FromResult(DisposableAsync.Empty);
-#pragma warning restore CS0162
-            }
-            catch (Exception exception)
-            {
-                return ValueTask.FromException<IAsyncDisposable>(exception);
-            }
-        });
+            ValueTask.FromException<IAsyncDisposable>(new InvalidOperationException(SubscribeBoomMessage)));
 
         await using var sub = await new[] { throwingSource }
             .Merge()
@@ -796,19 +760,7 @@ public partial class CombiningOperatorTests
 
         var goodSource = new DirectSource<int>();
         var throwingSource = ObservableAsync.Create<int>((_, _) =>
-        {
-            try
-            {
-                throw new InvalidOperationException("second subscribe boom");
-#pragma warning disable CS0162 // Unreachable code detected
-                return ValueTask.FromResult(DisposableAsync.Empty);
-#pragma warning restore CS0162
-            }
-            catch (Exception exception)
-            {
-                return ValueTask.FromException<IAsyncDisposable>(exception);
-            }
-        });
+            ValueTask.FromException<IAsyncDisposable>(new InvalidOperationException("second subscribe boom")));
 
         await using var sub = await new IObservableAsync<int>[] { goodSource, throwingSource }
             .Merge()

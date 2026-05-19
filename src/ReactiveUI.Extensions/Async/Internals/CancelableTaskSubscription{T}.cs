@@ -40,10 +40,10 @@ internal abstract class CancelableTaskSubscription<T>(IObserverAsync<T> observer
     /// Starts the operation synchronously using the current cancellation token.
     /// </summary>
     /// <remarks>This method initiates the asynchronous operation and does not wait for its completion. To
-    /// monitor progress or handle completion, use the asynchronous counterpart directly.</remarks>
-#pragma warning disable CA2012 // Use ValueTasks correctly
-    public void Run() => _ = RunAsync(_cts.Token);
-#pragma warning restore CA2012 // Use ValueTasks correctly
+    /// monitor progress or handle completion, use the asynchronous counterpart directly. The
+    /// <see cref="ValueTask"/> returned by <see cref="RunAsync"/> is converted to a <see cref="Task"/>
+    /// before being discarded so the fire-and-forget pattern stays compatible with CA2012.</remarks>
+    public void Run() => _ = RunAsync(_cts.Token).AsTask();
 
     /// <summary>
     /// Asynchronously releases the resources used by the object and cancels any ongoing operations.
