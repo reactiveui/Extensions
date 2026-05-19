@@ -73,6 +73,65 @@ public class OperatorAfterTerminalGuardTests
         await Assert.That(caught).IsNull();
     }
 
+    /// <summary>Exercises <c>RetryWithDelay.SubscribeToSource</c>'s <c>_disposed</c> guard —
+    /// when the source errors and schedules a delayed re-subscribe, then the subscription is
+    /// disposed before the delay elapses, the scheduled callback invokes <c>SubscribeToSource</c>
+    /// which sees <c>_disposed == true</c> and returns at the guard rather than re-subscribing.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenRetryWithDelayDisposedDuringDelay_ThenSubscribeToSourceGuardSkipsRetry()
+    {
+        const int LongDelayMs = 250;
+        var subscribeCount = 0;
+        IObservable<int> source = Observable.Create<int>(o =>
+        {
+            subscribeCount++;
+            o.OnError(new InvalidOperationException("retry-after-dispose"));
+            return System.Reactive.Disposables.Disposable.Empty;
+        });
+
+        var sub = source.RetryForeverWithDelay(TimeSpan.FromMilliseconds(LongDelayMs))
+            .Subscribe(static _ => { });
+
+        // First subscribe ran; source errored synchronously and a retry has been scheduled.
+        sub.Dispose();
+
+        // Wait past the delay window so the scheduled callback fires while _disposed = true,
+        // hitting the SubscribeToSource _disposed guard rather than re-subscribing.
+        await Task.Delay(LongDelayMs + LongDelayMs);
+
+        await Assert.That(subscribeCount).IsEqualTo(1);
+    }
+
+    /// <summary>Exercises <c>RetryWithBackoff.SubscribeToSource</c>'s <c>_disposed</c> guard —
+    /// same shape as the RetryWithDelay variant.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenRetryWithBackoffDisposedDuringDelay_ThenSubscribeToSourceGuardSkipsRetry()
+    {
+        const int LongDelayMs = 250;
+        var subscribeCount = 0;
+        IObservable<int> source = Observable.Create<int>(o =>
+        {
+            subscribeCount++;
+            o.OnError(new InvalidOperationException("retry-after-dispose"));
+            return System.Reactive.Disposables.Disposable.Empty;
+        });
+
+        var sub = source.OnErrorRetry(
+                (Exception _) => { },
+                10,
+                TimeSpan.FromMilliseconds(LongDelayMs),
+                TaskPoolScheduler.Default)
+            .Subscribe(static _ => { });
+
+        sub.Dispose();
+
+        await Task.Delay(LongDelayMs + LongDelayMs);
+
+        await Assert.That(subscribeCount).IsEqualTo(1);
+    }
+
     /// <summary>Verifies <c>TakeUntilInclusive</c>'s after-terminal sink guard.</summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]

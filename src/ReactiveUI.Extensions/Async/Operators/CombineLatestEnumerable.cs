@@ -103,7 +103,7 @@ public static partial class ObservableAsync
         /// </summary>
         /// <param name="parent">The parent subscription.</param>
         /// <param name="index">The source index.</param>
-        private sealed class IndexedObserver(Subscription parent, int index) : IObserverAsync<TSource>
+        internal sealed class IndexedObserver(Subscription parent, int index) : IObserverAsync<TSource>
         {
             /// <inheritdoc/>
             public ValueTask OnNextAsync(TSource value, CancellationToken cancellationToken) =>
@@ -127,7 +127,7 @@ public static partial class ObservableAsync
         /// <param name="sources">The source sequences.</param>
         /// <param name="observer">The observer.</param>
         /// <param name="resultSelector">The result selector.</param>
-        private sealed class Subscription(
+        internal sealed class Subscription(
             IObservableAsync<TSource>[] sources,
             IObserverAsync<TResult> observer,
             Func<IReadOnlyList<TSource>, TResult> resultSelector) : IAsyncDisposable
