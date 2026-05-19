@@ -3,6 +3,7 @@
 // See the LICENSE file in the project root for full license information.
 
 using ReactiveUI.Extensions.Async;
+using ReactiveUI.Extensions.Async.Subjects;
 
 namespace ReactiveUI.Extensions.Tests.Async;
 
@@ -354,5 +355,142 @@ public class FilteringOperatorTests
         var result = await source.DistinctUntilChangedBy(s => s[0]).ToListAsync();
 
         await Assert.That(result).IsCollectionEqualTo(["aa", "ba"]);
+    }
+
+    /// <summary>Verifies that sync-predicate <c>SkipWhile</c> forwards a non-terminal upstream error
+    /// through its <c>OnErrorResume</c> path.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenSkipWhileSyncSourceErrorResume_ThenForwarded()
+    {
+        var subject = SubjectAsync.Create<int>();
+        Exception? caught = null;
+        var errorTcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        await using var sub = await subject.Values
+            .SkipWhile(static x => x < 2)
+            .SubscribeAsync(
+                static (_, _) => default,
+                (ex, _) =>
+                {
+                    caught = ex;
+                    errorTcs.TrySetResult();
+                    return default;
+                });
+
+        var expected = new InvalidOperationException("skip-while-error");
+        await subject.OnErrorResumeAsync(expected, CancellationToken.None);
+
+        await errorTcs.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await Assert.That(caught).IsSameReferenceAs(expected);
+    }
+
+    /// <summary>Verifies that sync-predicate <c>TakeWhile</c> forwards a non-terminal upstream error
+    /// through its <c>OnErrorResume</c> path.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenTakeWhileSyncSourceErrorResume_ThenForwarded()
+    {
+        var subject = SubjectAsync.Create<int>();
+        Exception? caught = null;
+        var errorTcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        await using var sub = await subject.Values
+            .TakeWhile(static x => x < 10)
+            .SubscribeAsync(
+                static (_, _) => default,
+                (ex, _) =>
+                {
+                    caught = ex;
+                    errorTcs.TrySetResult();
+                    return default;
+                });
+
+        var expected = new InvalidOperationException("take-while-error");
+        await subject.OnErrorResumeAsync(expected, CancellationToken.None);
+
+        await errorTcs.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await Assert.That(caught).IsSameReferenceAs(expected);
+    }
+
+    /// <summary>Verifies the async-predicate <c>SkipWhile</c> sync-completed predicate path —
+    /// returning <see langword="true"/> drops the value, returning <see langword="false"/> latches
+    /// the gate and forwards.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenSkipWhileAsyncWithSyncPredicate_ThenLatchesOnFalse()
+    {
+        var result = await ObservableAsync.Range(1, 5)
+            .SkipWhile(static (x, _) => new ValueTask<bool>(x < 3))
+            .ToListAsync();
+
+        await Assert.That(result).IsCollectionEqualTo([ThirdElement, FourthElement, FifthElement]);
+    }
+
+    /// <summary>Verifies the async-predicate <c>TakeWhile</c> sync-completed predicate path —
+    /// returning <see langword="true"/> forwards, returning <see langword="false"/> terminates.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenTakeWhileAsyncWithSyncPredicate_ThenTerminatesOnFalse()
+    {
+        var result = await ObservableAsync.Range(1, 5)
+            .TakeWhile(static (x, _) => new ValueTask<bool>(x < 3))
+            .ToListAsync();
+
+        await Assert.That(result).IsCollectionEqualTo([1, SecondElement]);
+    }
+
+    /// <summary>Verifies that async-predicate <c>SkipWhile</c> forwards a non-terminal upstream error.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenSkipWhileAsyncSourceErrorResume_ThenForwarded()
+    {
+        var subject = SubjectAsync.Create<int>();
+        Exception? caught = null;
+        var errorTcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        await using var sub = await subject.Values
+            .SkipWhile(static (_, _) => new ValueTask<bool>(true))
+            .SubscribeAsync(
+                static (_, _) => default,
+                (ex, _) =>
+                {
+                    caught = ex;
+                    errorTcs.TrySetResult();
+                    return default;
+                });
+
+        var expected = new InvalidOperationException("skip-while-async-error");
+        await subject.OnErrorResumeAsync(expected, CancellationToken.None);
+
+        await errorTcs.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await Assert.That(caught).IsSameReferenceAs(expected);
+    }
+
+    /// <summary>Verifies that async-predicate <c>TakeWhile</c> forwards a non-terminal upstream error.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenTakeWhileAsyncSourceErrorResume_ThenForwarded()
+    {
+        var subject = SubjectAsync.Create<int>();
+        Exception? caught = null;
+        var errorTcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        await using var sub = await subject.Values
+            .TakeWhile(static (_, _) => new ValueTask<bool>(true))
+            .SubscribeAsync(
+                static (_, _) => default,
+                (ex, _) =>
+                {
+                    caught = ex;
+                    errorTcs.TrySetResult();
+                    return default;
+                });
+
+        var expected = new InvalidOperationException("take-while-async-error");
+        await subject.OnErrorResumeAsync(expected, CancellationToken.None);
+
+        await errorTcs.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await Assert.That(caught).IsSameReferenceAs(expected);
     }
 }

@@ -144,4 +144,56 @@ public partial class PartitionObservableTests
 
         await Assert.That(secondResults).IsCollectionEqualTo([Two]);
     }
+
+    /// <summary>Verifies the mid-array remove path on the false-side observer set — subscribes
+    /// three odd-side observers, disposes the middle one, and confirms the remaining two still
+    /// see odd values.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenMiddleFalseSideObserverDisposed_ThenOthersStillReceiveValues()
+    {
+        var subject = new Subject<int>();
+        var (_, odds) = subject.Partition(static x => x % Two == 0);
+        var firstResults = new List<int>();
+        var middleResults = new List<int>();
+        var lastResults = new List<int>();
+
+        using var first = odds.Subscribe(firstResults.Add);
+        var middle = odds.Subscribe(middleResults.Add);
+        using var last = odds.Subscribe(lastResults.Add);
+
+        subject.OnNext(One);
+        middle.Dispose();
+        subject.OnNext(Three);
+
+        await Assert.That(firstResults).IsCollectionEqualTo([One, Three]);
+        await Assert.That(middleResults).IsCollectionEqualTo([One]);
+        await Assert.That(lastResults).IsCollectionEqualTo([One, Three]);
+    }
+
+    /// <summary>Verifies that disposing a subscription whose parent sink has already been torn
+    /// down (last subscriber path) is a no-op.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenSubscriptionDisposedAfterParentSinkTornDown_ThenNoOp()
+    {
+        var subject = new Subject<int>();
+        var (evens, _) = subject.Partition(static x => x % Two == 0);
+
+        var first = evens.Subscribe(static _ => { });
+        first.Dispose();
+
+        // Subscribe again to create a fresh sink, then dispose the OLD disposable a second time
+        // (which now finds _sink == null because the prior tear-down already nulled it).
+        using var second = evens.Subscribe(static _ => { });
+        first.Dispose();
+
+        var results = new List<int>();
+        using var third = evens.Subscribe(results.Add);
+        subject.OnNext(Two);
+
+        // Third subscriber must receive the value emitted after the stale-subscription
+        // dispose, confirming the dispose was a safe no-op.
+        await Assert.That(results).IsCollectionEqualTo([Two]);
+    }
 }

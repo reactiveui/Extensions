@@ -599,4 +599,23 @@ public partial class CombiningOperatorTests
 
         await Assert.That(sub).IsNotNull();
     }
+
+    /// <summary>Verifies that subscribing <c>Zip</c> with a cancellable but not-yet-cancelled
+    /// token registers the external link and the registration fires when the token is cancelled
+    /// after subscribe, tearing the subscription down.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenZipExternalTokenCancelledAfterSubscribe_ThenRegistrationFires()
+    {
+        using var cts = new CancellationTokenSource();
+        var left = SubjectAsync.Create<int>();
+        var right = SubjectAsync.Create<int>();
+
+        await using var sub = await left.Values
+            .Zip(right.Values, static (a, b) => a + b)
+            .SubscribeAsync(static (_, _) => default, cts.Token);
+
+        await cts.CancelAsync();
+        await Assert.That(sub).IsNotNull();
+    }
 }

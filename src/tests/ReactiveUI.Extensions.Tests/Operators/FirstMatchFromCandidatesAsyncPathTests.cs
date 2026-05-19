@@ -139,4 +139,57 @@ public class FirstMatchFromCandidatesAsyncPathTests
         await Assert.That(results).IsEmpty();
         await Assert.That(completed).IsFalse();
     }
+
+    /// <summary>Verifies that when the synchronous transform throws for one candidate the next
+    /// candidate is tried — exercises the <c>catch { continue; }</c> path in the sync fast path.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenSyncTransformThrows_ThenContinuesToNextCandidate()
+    {
+        string[] keys = ["throw", "hit"];
+        var results = new List<string>();
+        var completed = false;
+
+        using var sub = ((IReadOnlyList<string>)keys)
+            .FirstMatchFromCandidates<string, string, string>(
+                static key => Observable.Return(key),
+                static raw => raw == "throw"
+                    ? throw new InvalidOperationException("transform-throws")
+                    : raw,
+                static value => value == "hit",
+                Fallback)
+            .Subscribe(results.Add, () => completed = true);
+
+        await Assert.That(results).IsCollectionEqualTo(["hit"]);
+        await Assert.That(completed).IsTrue();
+    }
+
+    /// <summary>Verifies that a second async candidate emission arriving after a match has already
+    /// fired is silently dropped via the <c>_done</c> guard in <c>AsyncSink.OnNext</c>.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenAsyncCandidateEmitsAfterMatch_ThenDroppedByDoneGuard()
+    {
+        string[] keys = ["hit"];
+        var subject = new Subject<string>();
+        var results = new List<string>();
+        var completed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        using var sub = ((IReadOnlyList<string>)keys)
+            .FirstMatchFromCandidates<string, string, string>(
+                _ => subject,
+                static raw => raw,
+                static value => value == "hit",
+                Fallback)
+            .Subscribe(results.Add, () => completed.TrySetResult());
+
+        subject.OnNext("hit");
+        await completed.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        subject.OnNext("ignored-late");
+        subject.OnError(new InvalidOperationException("ignored-late"));
+        subject.OnCompleted();
+
+        await Assert.That(results).IsCollectionEqualTo(["hit"]);
+    }
 }

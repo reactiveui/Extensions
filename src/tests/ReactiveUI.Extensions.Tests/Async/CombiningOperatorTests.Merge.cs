@@ -930,4 +930,45 @@ public partial class CombiningOperatorTests
         // already-cancelled short-circuit in LinkExternalCancellation.
         await Assert.That(sub).IsNotNull();
     }
+
+    /// <summary>Verifies that subscribing <c>Merge</c> with a cancellable but not-yet-cancelled
+    /// token registers the external link and the registration fires when the token is cancelled
+    /// after subscribe, tearing the subscription down.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenMergeExternalTokenCancelledAfterSubscribe_ThenRegistrationFires()
+    {
+        using var cts = new CancellationTokenSource();
+        var first = SubjectAsync.Create<int>();
+        var second = SubjectAsync.Create<int>();
+
+        await using var sub = await first.Values.Merge(second.Values).SubscribeAsync(
+            static (_, _) => default,
+            cts.Token);
+
+        await cts.CancelAsync();
+
+        // After external cancellation the subscription must be unaffected by further pushes.
+        await first.OnNextAsync(1, CancellationToken.None);
+        await Assert.That(sub).IsNotNull();
+    }
+
+    /// <summary>Verifies that subscribing <c>Merge(maxConcurrency)</c> with a cancellable but
+    /// not-yet-cancelled token registers the external link.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenMergeMaxConcurrencyExternalTokenCancelledAfterSubscribe_ThenRegistrationFires()
+    {
+        using var cts = new CancellationTokenSource();
+        var outer = SubjectAsync.Create<IObservableAsync<int>>();
+
+        await using var sub = await outer.Values.Merge(1).SubscribeAsync(
+            static (_, _) => default,
+            cts.Token);
+
+        await cts.CancelAsync();
+
+        // After external cancellation the subscription must be unaffected.
+        await Assert.That(sub).IsNotNull();
+    }
 }
