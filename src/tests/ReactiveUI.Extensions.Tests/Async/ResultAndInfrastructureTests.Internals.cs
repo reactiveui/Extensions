@@ -645,4 +645,41 @@ public partial class ResultAndInfrastructureTests
         await Assert.That(handledErrors).Count().IsGreaterThanOrEqualTo(1);
         await Assert.That(handledErrors[0]).IsSameReferenceAs(completionException);
     }
+
+    /// <summary>Exercises the <c>_rator.Current?.ContinueWith(...)</c> null-conditional branch
+    /// on <c>ConcurrencyLimiter.PullNextTask</c> — an enumerator that yields a <see langword="null"/>
+    /// task entry causes the conditional <c>ContinueWith</c> to short-circuit so no continuation
+    /// is scheduled for the null slot.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenConcurrencyLimiterEnumeratorYieldsNullTask_ThenContinueWithSkipped()
+    {
+        Task<int>?[] tasks = [null];
+        var limiter = new ConcurrencyLimiter<int>(tasks!, 1);
+
+        var emitted = new List<int>();
+        var completed = false;
+        var sub = limiter.Observable.Subscribe(emitted.Add, () => completed = true);
+        sub.Dispose();
+
+        await Assert.That(limiter).IsNotNull();
+        await Assert.That(emitted).IsEmpty();
+        await Assert.That(completed).IsFalse();
+    }
+
+    /// <summary>Exercises the <c>_rator?.Dispose()</c> idempotent branch on
+    /// <c>ConcurrencyLimiter.ClearRator</c> — a second call sees the field already nulled
+    /// and the conditional dispose becomes a no-op.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenConcurrencyLimiterClearRatorCalledTwice_ThenSecondCallIsNoOp()
+    {
+        Task<int>[] tasks = [];
+        var limiter = new ConcurrencyLimiter<int>(tasks, 1);
+
+        limiter.ClearRator();
+        limiter.ClearRator();
+
+        await Assert.That(limiter).IsNotNull();
+    }
 }

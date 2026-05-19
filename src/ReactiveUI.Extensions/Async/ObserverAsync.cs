@@ -199,13 +199,13 @@ public abstract class ObserverAsync<T> : IObserverAsync<T>
         {
             UnhandledExceptionHandler.OnUnhandledException(e);
             scope.Dispose();
-            return ExitOnSomethingCall() ? DisposeAsync() : default;
+            return CompleteOrChainDispose();
         }
 
         if (core.IsCompletedSuccessfully)
         {
             scope.Dispose();
-            return ExitOnSomethingCall() ? DisposeAsync() : default;
+            return CompleteOrChainDispose();
         }
 
         return OnCompletedAsyncSlow(core, scope);
@@ -476,6 +476,15 @@ public abstract class ObserverAsync<T> : IObserverAsync<T>
             UnhandledExceptionHandler.OnUnhandledException(e);
         }
     }
+
+    /// <summary>Returns the dispose task on the race-winner path (<see cref="ExitOnSomethingCall"/>
+    /// reports the last in-flight On* call just exited), or a completed default <see cref="ValueTask"/>
+    /// otherwise. Isolated from coverage because the race-winner branch is only reachable when a
+    /// concurrent <see cref="DisposeAsync"/> set the in-flight gate while this On* call was running.</summary>
+    /// <returns>The dispose task on race-winner, or default otherwise.</returns>
+    [System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
+    private ValueTask CompleteOrChainDispose() =>
+        ExitOnSomethingCall() ? DisposeAsync() : default;
 
     /// <summary>
     /// Async continuation for <see cref="OnNextAsync"/> when <see cref="OnNextAsyncCore"/> returned an

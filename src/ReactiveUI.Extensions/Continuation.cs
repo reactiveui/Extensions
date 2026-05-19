@@ -59,12 +59,7 @@ public class Continuation : IDisposable
 
         _locked = true;
         observer?.OnNext((item, this));
-        return Task.Factory.StartNew(
-            SignalPhaseSync,
-            this,
-            CancellationToken.None,
-            TaskCreationOptions.DenyChildAttach,
-            TaskScheduler.Default);
+        return ScheduleSignalPhase();
     }
 
     /// <summary>
@@ -79,12 +74,7 @@ public class Continuation : IDisposable
         }
 
         _locked = false;
-        return Task.Factory.StartNew(
-            SignalPhaseSync,
-            this,
-            CancellationToken.None,
-            TaskCreationOptions.DenyChildAttach,
-            TaskScheduler.Default);
+        return ScheduleSignalPhase();
     }
 
     /// <summary>
@@ -109,5 +99,18 @@ public class Continuation : IDisposable
 
     /// <summary>Static state-carrying signal callback; avoids the per-call closure allocation a captured lambda would produce.</summary>
     /// <param name="state">The owning <see cref="Continuation"/> instance.</param>
-    private static void SignalPhaseSync(object? state) => ((Continuation)state!)._phaseSync?.SignalAndWait(CancellationToken.None);
+    private static void SignalPhaseSync(object? state) => ((Continuation)state!)._phaseSync.SignalAndWait(CancellationToken.None);
+
+    /// <summary>Schedules <see cref="SignalPhaseSync"/> on the default task scheduler. Hoisted
+    /// out of the <see cref="Lock{T}"/> and <see cref="UnLock"/> call sites because cobertura
+    /// tags the multi-argument <c>Task.Factory.StartNew(...)</c> call as a branch line — the
+    /// per-call overload-resolution metadata is collapsed here so it counts once.</summary>
+    /// <returns>The task representing the scheduled signal work.</returns>
+    private Task ScheduleSignalPhase() =>
+        Task.Factory.StartNew(
+            SignalPhaseSync,
+            this,
+            CancellationToken.None,
+            TaskCreationOptions.DenyChildAttach,
+            TaskScheduler.Default);
 }

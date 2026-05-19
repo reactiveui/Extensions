@@ -853,6 +853,20 @@ public partial class ReactiveExtensionsTests
         await Assert.That(completed).IsTrue();
     }
 
+    /// <summary>Exercises <c>ToPropertyObservable</c>'s <c>as MemberExpression ?? throw</c> branch
+    /// — passing an expression whose body is not a member access raises ArgumentException.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenToPropertyObservableNonMemberExpression_ThenThrowsArgumentException()
+    {
+        var owner = new ToPropertyNonMemberOwner();
+
+        Action call = () => owner.ToPropertyObservable(static _ => 1 + 1);
+        var ex = Assert.Throws<ArgumentException>(call);
+
+        await Assert.That(ex).IsNotNull();
+    }
+
     /// <summary>Exercises <c>AsSignalObservable</c>'s <c>OnError</c> forwarder — the synthesized
     /// Unit-stream propagates the source's error verbatim.</summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
@@ -900,5 +914,20 @@ public partial class ReactiveExtensionsTests
         }
 
         = string.Empty;
+    }
+
+    /// <summary>INPC owner whose property type lets us pass a non-member expression body
+    /// (e.g. a literal arithmetic expression) into <c>ToPropertyObservable</c> so the
+    /// <c>as MemberExpression ?? throw</c> guard fires. The <c>PropertyChanged</c> event is
+    /// required by the interface but never raised — the guard short-circuits before
+    /// subscription wiring runs.</summary>
+    private sealed class ToPropertyNonMemberOwner : INotifyPropertyChanged
+    {
+        /// <inheritdoc/>
+        public event PropertyChangedEventHandler? PropertyChanged
+        {
+            add => _ = value;
+            remove => _ = value;
+        }
     }
 }

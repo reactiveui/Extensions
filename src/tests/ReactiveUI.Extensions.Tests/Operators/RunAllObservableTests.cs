@@ -115,6 +115,12 @@ public class RunAllObservableTests
             .Subscribe(static _ => { }, () => completed = true);
 
         sub.Dispose();
+
+        // Second dispose hits the Interlocked.Exchange null-loser branch in Sink.Dispose —
+        // the first call swapped in null and disposed the previous subscription, so the
+        // second call sees null and the `?.Dispose()` no-op fires.
+        sub.Dispose();
+
         subjectA.OnCompleted();
 
         await Assert.That(completed).IsFalse();

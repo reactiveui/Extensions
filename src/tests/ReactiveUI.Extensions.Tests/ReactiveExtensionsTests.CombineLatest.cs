@@ -9,6 +9,19 @@ namespace ReactiveUI.Extensions.Tests;
 /// <summary>Tests for ReactiveExtensionsTests.</summary>
 public partial class ReactiveExtensionsTests
 {
+    /// <summary>Exercises the <c>BooleanReduceObservable</c> ctor's <c>sources is null</c>
+    /// branch — both the cast-to-IReadOnlyList and the <c>sources?.ToList()</c> shortcut produce
+    /// null, so <c>InvalidOperationExceptionHelper.Check</c> throws.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenCombineLatestValuesAreAllFalseNullSources_ThenThrowsInvalidOperation()
+    {
+        Action call = () => _ = ((IEnumerable<IObservable<bool>>)null!).CombineLatestValuesAreAllFalse();
+        var ex = Assert.Throws<InvalidOperationException>(call);
+
+        await Assert.That(ex).IsNotNull();
+    }
+
     /// <summary>Exercises the <c>BooleanReduceObservable</c> ctor's fallback when the supplied
     /// <see cref="IEnumerable{T}"/> is not also an <see cref="IReadOnlyList{T}"/> — the cast
     /// fails, the null-coalescing operator falls through to <c>sources.ToList()</c>.</summary>

@@ -202,6 +202,49 @@ public class TransformationOperatorTests
         await Assert.That(completions).Count().IsEqualTo(1);
     }
 
+    /// <summary>Exercises the no-arg <c>Do&lt;T&gt;()</c> overload's null-callback branches on
+    /// the resumable-error and completion paths — pushes an <c>OnErrorResumeAsync</c> followed
+    /// by a successful completion through <c>Do()</c> with all callbacks null, hitting the
+    /// <c>onErrorResume?.Invoke</c> null arm and the <c>onCompleted?.Invoke</c> null arm.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenDoWithNoCallbacksAndSourceEmitsErrorResume_ThenForwardsBoth()
+    {
+        Exception? caught = null;
+        var completed = false;
+        var errorTcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var completionTcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        var source = ObservableAsync.Create<int>(async (observer, ct) =>
+        {
+            await observer.OnErrorResumeAsync(new InvalidOperationException("resume"), ct);
+            await observer.OnCompletedAsync(Result.Success);
+            return DisposableAsync.Empty;
+        });
+
+        await using var sub = await source
+            .Do()
+            .SubscribeAsync(
+                static (_, _) => default,
+                (ex, _) =>
+                {
+                    caught = ex;
+                    errorTcs.TrySetResult();
+                    return default;
+                },
+                _ =>
+                {
+                    completed = true;
+                    completionTcs.TrySetResult();
+                    return default;
+                });
+
+        await Task.WhenAll(errorTcs.Task, completionTcs.Task).WaitAsync(TimeSpan.FromSeconds(5));
+
+        await Assert.That(caught).IsNotNull();
+        await Assert.That(completed).IsTrue();
+    }
+
     /// <summary>Exercises the no-arg <c>Do&lt;T&gt;()</c> overload — a pure pass-through that
     /// constructs a <c>DoSyncObservable</c> with all callbacks set to null.</summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>

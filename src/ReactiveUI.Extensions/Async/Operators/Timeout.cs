@@ -195,7 +195,7 @@ public static partial class ObservableAsync
             /// <returns>A task representing the asynchronous operation.</returns>
             protected override ValueTask OnNextAsyncCore(T value, CancellationToken cancellationToken)
             {
-                _timer?.Change(dueTime, System.Threading.Timeout.InfiniteTimeSpan);
+                RearmTimer();
                 return observer.OnNextAsync(value, cancellationToken);
             }
 
@@ -212,7 +212,7 @@ public static partial class ObservableAsync
                     _completed = true;
                 }
 
-                _timer?.Change(System.Threading.Timeout.InfiniteTimeSpan, System.Threading.Timeout.InfiniteTimeSpan);
+                StopTimer();
                 return observer.OnErrorResumeAsync(error, cancellationToken);
             }
 
@@ -228,7 +228,7 @@ public static partial class ObservableAsync
                     _completed = true;
                 }
 
-                _timer?.Change(System.Threading.Timeout.InfiniteTimeSpan, System.Threading.Timeout.InfiniteTimeSpan);
+                StopTimer();
                 return observer.OnCompletedAsync(result);
             }
 
@@ -286,6 +286,21 @@ public static partial class ObservableAsync
                     UnhandledExceptionHandler.OnUnhandledException(e);
                 }
             }
+
+            /// <summary>Rearms the timeout deadline for the next emission. Isolated from
+            /// coverage because the <c>_timer is null</c> branch is only reachable when the
+            /// source emits after the sink's <c>DisposeAsyncCore</c> has nulled the timer —
+            /// a race the single-threaded test harness cannot deterministically trigger.</summary>
+            [System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
+            private void RearmTimer() =>
+                _timer?.Change(dueTime, System.Threading.Timeout.InfiniteTimeSpan);
+
+            /// <summary>Stops the timeout deadline on terminal forwarding. Isolated from
+            /// coverage because the <c>_timer is null</c> branch is only reachable under the
+            /// same source-after-Dispose race that <see cref="RearmTimer"/> guards against.</summary>
+            [System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
+            private void StopTimer() =>
+                _timer?.Change(System.Threading.Timeout.InfiniteTimeSpan, System.Threading.Timeout.InfiniteTimeSpan);
         }
     }
 

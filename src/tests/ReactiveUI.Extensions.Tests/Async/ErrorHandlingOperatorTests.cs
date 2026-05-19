@@ -4,6 +4,7 @@
 
 using ReactiveUI.Extensions.Async;
 using ReactiveUI.Extensions.Async.Disposables;
+using ReactiveUI.Extensions.Async.Subjects;
 
 namespace ReactiveUI.Extensions.Tests.Async;
 
@@ -172,6 +173,35 @@ public class ErrorHandlingOperatorTests
         var result = await ObservableAsync.Return(7).Retry().ToListAsync();
 
         await Assert.That(result).IsCollectionEqualTo([ExpectedValue]);
+    }
+
+    /// <summary>Exercises <c>CatchObserver.OnErrorResumeAsyncCore</c>'s null-callback branch —
+    /// when <c>Catch(handler)</c> is used without an <c>onErrorResume</c> argument, source
+    /// <c>OnErrorResumeAsync</c> notifications flow through to the downstream verbatim.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenCatchWithoutErrorResumeCallback_ThenForwardsToDownstream()
+    {
+        var subject = SubjectAsync.Create<int>();
+        Exception? caught = null;
+        var errorTcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        await using var sub = await subject.Values
+            .Catch(static _ => ObservableAsync.Return(42))
+            .SubscribeAsync(
+                static (_, _) => default,
+                (ex, _) =>
+                {
+                    caught = ex;
+                    errorTcs.TrySetResult();
+                    return default;
+                });
+
+        var expected = new InvalidOperationException("catch-passthrough");
+        await subject.OnErrorResumeAsync(expected, CancellationToken.None);
+
+        await errorTcs.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await Assert.That(caught).IsSameReferenceAs(expected);
     }
 
     /// <summary>Tests Catch with error resume callback is invoked.</summary>

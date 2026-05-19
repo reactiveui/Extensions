@@ -145,6 +145,12 @@ public class FirstMatchFromCandidatesAsyncPathTests
             .Subscribe(results.Add, () => completed = true);
 
         sub.Dispose();
+
+        // Second dispose hits the Interlocked.Exchange null-loser branch in AsyncSink.Dispose
+        // — the first call swapped in null and disposed the previous subscription, so the
+        // second call sees null and the `?.Dispose()` no-op fires.
+        sub.Dispose();
+
         firstSubject.OnNext("late");
         firstSubject.OnCompleted();
 

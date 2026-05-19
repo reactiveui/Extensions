@@ -81,6 +81,30 @@ public partial class CurrentValueSubjectTests
         await Assert.That(b).IsCollectionEqualTo([MultiInitialValue]);
     }
 
+    /// <summary>Disposing the first observer of a 2-observer subject exercises Unsubscribe's
+    /// <c>index == 0 ? existing[1] : existing[0]</c> ternary on the true branch — the surviving
+    /// observer collapses back to the single-observer fast path.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenFirstObserverOfPairDisposed_ThenSingleSurvivorReceives()
+    {
+        const int Update = 2;
+        using var subject = new CurrentValueSubject<int>(MultiInitialValue);
+        var a = new List<int>();
+        var b = new List<int>();
+
+        var subA = subject.Subscribe(a.Add);
+        using var subB = subject.Subscribe(b.Add);
+
+        // Dispose subA from the two-observer array; Unsubscribe's `index == 0 ? existing[1] : existing[0]`
+        // ternary picks the true branch, collapsing _observer to subB.
+        subA.Dispose();
+        subject.OnNext(Update);
+
+        await Assert.That(a).IsCollectionEqualTo([MultiInitialValue]);
+        await Assert.That(b).IsCollectionEqualTo([MultiInitialValue, Update]);
+    }
+
     /// <summary>Verifies that disposing the first observer of a 3-observer subject works
     /// (collapse exercises the index==0 branch of the shrink path).</summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>

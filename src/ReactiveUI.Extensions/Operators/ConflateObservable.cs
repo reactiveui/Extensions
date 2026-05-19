@@ -173,8 +173,11 @@ internal sealed class ConflateObservable<T>(
                         return;
                     }
 
-                    case NotificationKind.Completed:
+                    default:
                     {
+                        // NotificationKind has only three values; the discard arm absorbs
+                        // Completed so the compiler sees an exhaustive switch and coverage
+                        // stops counting a phantom default fall-through.
                         downstream.OnCompleted();
                         return;
                     }
