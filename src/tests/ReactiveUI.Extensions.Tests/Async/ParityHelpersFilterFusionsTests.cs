@@ -200,4 +200,204 @@ public class ParityHelpersFilterFusionsTests
         await Assert.That(received).IsNotNull();
         await Assert.That(received!.Message).IsEqualTo(Hit);
     }
+
+    /// <summary>Verifies that <c>Pairwise</c> forwards a non-terminal upstream error downstream.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenPairwiseSourceErrorResume_ThenForwarded()
+    {
+        var subject = SubjectAsync.Create<int>();
+        Exception? caught = null;
+        var errorTcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        await using var sub = await subject.Values.Pairwise().SubscribeAsync(
+            static (_, _) => default,
+            (ex, _) =>
+            {
+                caught = ex;
+                errorTcs.TrySetResult();
+                return default;
+            });
+
+        var expected = new InvalidOperationException("pairwise-error");
+        await subject.OnErrorResumeAsync(expected, CancellationToken.None);
+
+        await errorTcs.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await Assert.That(caught).IsSameReferenceAs(expected);
+    }
+
+    /// <summary>Verifies that <c>SkipWhileNull</c> forwards a non-terminal upstream error.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenSkipWhileNullSourceErrorResume_ThenForwarded()
+    {
+        var subject = SubjectAsync.Create<string?>();
+        Exception? caught = null;
+        var errorTcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        await using var sub = await subject.Values.SkipWhileNull().SubscribeAsync(
+            static (_, _) => default,
+            (ex, _) =>
+            {
+                caught = ex;
+                errorTcs.TrySetResult();
+                return default;
+            });
+
+        var expected = new InvalidOperationException("skip-while-null-error");
+        await subject.OnErrorResumeAsync(expected, CancellationToken.None);
+
+        await errorTcs.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await Assert.That(caught).IsSameReferenceAs(expected);
+    }
+
+    /// <summary>Verifies that <c>LatestOrDefault</c> forwards a non-terminal upstream error.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenLatestOrDefaultSourceErrorResume_ThenForwarded()
+    {
+        var subject = SubjectAsync.Create<int>();
+        Exception? caught = null;
+        var errorTcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        await using var sub = await subject.Values.LatestOrDefault(0).SubscribeAsync(
+            static (_, _) => default,
+            (ex, _) =>
+            {
+                caught = ex;
+                errorTcs.TrySetResult();
+                return default;
+            });
+
+        var expected = new InvalidOperationException("latest-or-default-error");
+        await subject.OnErrorResumeAsync(expected, CancellationToken.None);
+
+        await errorTcs.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await Assert.That(caught).IsSameReferenceAs(expected);
+    }
+
+    /// <summary>Verifies that <c>WaitUntil</c> forwards a non-terminal upstream error.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenWaitUntilSourceErrorResume_ThenForwarded()
+    {
+        var subject = SubjectAsync.Create<int>();
+        Exception? caught = null;
+        var errorTcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        await using var sub = await subject.Values.WaitUntil(static _ => false).SubscribeAsync(
+            static (_, _) => default,
+            (ex, _) =>
+            {
+                caught = ex;
+                errorTcs.TrySetResult();
+                return default;
+            });
+
+        var expected = new InvalidOperationException("wait-until-error");
+        await subject.OnErrorResumeAsync(expected, CancellationToken.None);
+
+        await errorTcs.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await Assert.That(caught).IsSameReferenceAs(expected);
+    }
+
+    /// <summary>Verifies that <c>AsSignal</c> forwards a non-terminal upstream error.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenAsSignalSourceErrorResume_ThenForwarded()
+    {
+        var subject = SubjectAsync.Create<int>();
+        Exception? caught = null;
+        var errorTcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        await using var sub = await subject.Values.AsSignal().SubscribeAsync(
+            static (_, _) => default,
+            (ex, _) =>
+            {
+                caught = ex;
+                errorTcs.TrySetResult();
+                return default;
+            });
+
+        var expected = new InvalidOperationException("as-signal-error");
+        await subject.OnErrorResumeAsync(expected, CancellationToken.None);
+
+        await errorTcs.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await Assert.That(caught).IsSameReferenceAs(expected);
+    }
+
+    /// <summary>Verifies that <c>Not</c> forwards a non-terminal upstream error.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenAsyncNotSourceErrorResume_ThenForwarded()
+    {
+        var subject = SubjectAsync.Create<bool>();
+        Exception? caught = null;
+        var errorTcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        await using var sub = await subject.Values.Not().SubscribeAsync(
+            static (_, _) => default,
+            (ex, _) =>
+            {
+                caught = ex;
+                errorTcs.TrySetResult();
+                return default;
+            });
+
+        var expected = new InvalidOperationException("not-error");
+        await subject.OnErrorResumeAsync(expected, CancellationToken.None);
+
+        await errorTcs.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await Assert.That(caught).IsSameReferenceAs(expected);
+    }
+
+    /// <summary>Verifies that <c>WhereTrue</c> forwards a non-terminal upstream error.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenWhereTrueSourceErrorResume_ThenForwarded()
+    {
+        var subject = SubjectAsync.Create<bool>();
+        Exception? caught = null;
+        var errorTcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        await using var sub = await subject.Values.WhereTrue().SubscribeAsync(
+            static (_, _) => default,
+            (ex, _) =>
+            {
+                caught = ex;
+                errorTcs.TrySetResult();
+                return default;
+            });
+
+        var expected = new InvalidOperationException("where-true-error");
+        await subject.OnErrorResumeAsync(expected, CancellationToken.None);
+
+        await errorTcs.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await Assert.That(caught).IsSameReferenceAs(expected);
+    }
+
+    /// <summary>Verifies that <c>WhereFalse</c> forwards a non-terminal upstream error.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenWhereFalseSourceErrorResume_ThenForwarded()
+    {
+        var subject = SubjectAsync.Create<bool>();
+        Exception? caught = null;
+        var errorTcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        await using var sub = await subject.Values.WhereFalse().SubscribeAsync(
+            static (_, _) => default,
+            (ex, _) =>
+            {
+                caught = ex;
+                errorTcs.TrySetResult();
+                return default;
+            });
+
+        var expected = new InvalidOperationException("where-false-error");
+        await subject.OnErrorResumeAsync(expected, CancellationToken.None);
+
+        await errorTcs.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await Assert.That(caught).IsSameReferenceAs(expected);
+    }
 }

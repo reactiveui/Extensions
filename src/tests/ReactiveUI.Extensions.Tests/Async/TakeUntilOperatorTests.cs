@@ -703,4 +703,100 @@ public partial class TakeUntilOperatorTests
         await Assert.That(completionResult).IsNotNull();
         await Assert.That(completionResult!.Value.IsSuccess).IsTrue();
     }
+
+    /// <summary>Verifies the two-argument <c>TakeUntil(other, cancellationToken)</c> overload.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenTakeUntilOtherWithCancellationToken_ThenCompletesOnCancellation()
+    {
+        using var cts = new CancellationTokenSource();
+        var source = SubjectAsync.Create<int>();
+        var other = SubjectAsync.Create<int>();
+        var completed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        await using var sub = await source.Values.TakeUntil(other.Values, cts.Token).SubscribeAsync(
+            static (_, _) => default,
+            null,
+            _ =>
+            {
+                completed.TrySetResult();
+                return default;
+            });
+
+        await cts.CancelAsync();
+        await completed.Task.WaitAsync(TimeSpan.FromSeconds(5));
+    }
+
+    /// <summary>Verifies the two-argument <c>TakeUntil(task, cancellationToken)</c> overload.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenTakeUntilTaskWithCancellationToken_ThenCompletesOnCancellation()
+    {
+        using var cts = new CancellationTokenSource();
+        var source = SubjectAsync.Create<int>();
+        var taskTcs = new TaskCompletionSource();
+        var completed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        await using var sub = await source.Values.TakeUntil(taskTcs.Task, cts.Token).SubscribeAsync(
+            static (_, _) => default,
+            null,
+            _ =>
+            {
+                completed.TrySetResult();
+                return default;
+            });
+
+        await cts.CancelAsync();
+        await completed.Task.WaitAsync(TimeSpan.FromSeconds(5));
+    }
+
+    /// <summary>Verifies the predicate overload with a cancellable token reaches the
+    /// CT-linked branch.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenTakeUntilPredicateWithCancellationToken_ThenCompletesOnCancellation()
+    {
+        using var cts = new CancellationTokenSource();
+        var source = SubjectAsync.Create<int>();
+        var completed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        await using var sub = await source.Values
+            .TakeUntil(static _ => false, cts.Token)
+            .SubscribeAsync(
+                static (_, _) => default,
+                null,
+                _ =>
+            {
+                completed.TrySetResult();
+                return default;
+            });
+
+        await cts.CancelAsync();
+        await completed.Task.WaitAsync(TimeSpan.FromSeconds(5));
+    }
+
+    /// <summary>Verifies the async-predicate overload with a cancellable token reaches the
+    /// CT-linked branch.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenTakeUntilAsyncPredicateWithCancellationToken_ThenCompletesOnCancellation()
+    {
+        using var cts = new CancellationTokenSource();
+        var source = SubjectAsync.Create<int>();
+        var completed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        await using var sub = await source.Values
+            .TakeUntil(static (_, _) => new ValueTask<bool>(false), cts.Token)
+            .SubscribeAsync(
+                static (_, _) => default,
+                null,
+                _ =>
+            {
+                completed.TrySetResult();
+                return default;
+            });
+
+        await cts.CancelAsync();
+        await completed.Task.WaitAsync(TimeSpan.FromSeconds(5));
+    }
 }

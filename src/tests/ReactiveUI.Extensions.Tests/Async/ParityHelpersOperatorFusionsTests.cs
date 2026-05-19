@@ -524,6 +524,79 @@ public class ParityHelpersOperatorFusionsTests
         }
     }
 
+    /// <summary>Verifies that an unhandled exception thrown by the downstream observer inside
+    /// <c>ThrottleDistinct</c>'s delayed-emit task is routed to
+    /// <see cref="UnhandledExceptionHandler"/>.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenThrottleDistinctDownstreamThrowsInDelay_ThenRoutedToUnhandled()
+    {
+        var previousHandler = UnhandledExceptionHandler.CurrentHandler;
+        try
+        {
+            Exception? unhandled = null;
+            var unhandledTcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            UnhandledExceptionHandler.Register(ex =>
+            {
+                unhandled = ex;
+                unhandledTcs.TrySetResult();
+            });
+
+            var subject = SubjectAsync.Create<int>();
+            var throwingObserver = new ThrowingAsyncObserver<int>(new InvalidOperationException("downstream-throws"));
+
+            await using var sub = await subject.Values
+                .ThrottleDistinct(TimeSpan.FromMilliseconds(ThrottleWindowMilliseconds))
+                .SubscribeAsync(throwingObserver, CancellationToken.None);
+
+            await subject.OnNextAsync(One, CancellationToken.None);
+            await unhandledTcs.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+            await Assert.That(unhandled).IsNotNull();
+            await Assert.That(unhandled!.Message).IsEqualTo("downstream-throws");
+        }
+        finally
+        {
+            UnhandledExceptionHandler.Register(previousHandler);
+        }
+    }
+
+    /// <summary>Verifies that an unhandled exception thrown by the downstream observer inside
+    /// <c>DebounceUntil</c>'s delayed-emit task is routed to <see cref="UnhandledExceptionHandler"/>.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenDebounceUntilDownstreamThrowsInDelay_ThenRoutedToUnhandled()
+    {
+        var previousHandler = UnhandledExceptionHandler.CurrentHandler;
+        try
+        {
+            Exception? unhandled = null;
+            var unhandledTcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            UnhandledExceptionHandler.Register(ex =>
+            {
+                unhandled = ex;
+                unhandledTcs.TrySetResult();
+            });
+
+            var subject = SubjectAsync.Create<int>();
+            var throwingObserver = new ThrowingAsyncObserver<int>(new InvalidOperationException("debounce-downstream-throws"));
+
+            await using var sub = await subject.Values
+                .DebounceUntil(TimeSpan.FromMilliseconds(ThrottleWindowMilliseconds), static _ => false)
+                .SubscribeAsync(throwingObserver, CancellationToken.None);
+
+            await subject.OnNextAsync(One, CancellationToken.None);
+            await unhandledTcs.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+            await Assert.That(unhandled).IsNotNull();
+            await Assert.That(unhandled!.Message).IsEqualTo("debounce-downstream-throws");
+        }
+        finally
+        {
+            UnhandledExceptionHandler.Register(previousHandler);
+        }
+    }
+
     /// <summary>Yields values as a generic <see cref="IEnumerable{T}"/> (neither array nor list)
     /// to drive the slow-path branch of <c>ForEach</c>.</summary>
     /// <param name="values">Values to yield.</param>
@@ -534,5 +607,29 @@ public class ParityHelpersOperatorFusionsTests
         {
             yield return v;
         }
+    }
+
+    /// <summary>Bare-bones downstream async observer that throws a given exception inside
+    /// <c>OnNextAsync</c>. Bypassing the <see cref="ObserverAsync{T}"/> base class is intentional
+    /// — the base class would otherwise swallow synchronous throws and route them through
+    /// <see cref="UnhandledExceptionHandler"/>, never letting the exception propagate up to the
+    /// upstream operator's <c>catch (Exception e)</c> block under test.</summary>
+    /// <typeparam name="T">The element type.</typeparam>
+    /// <param name="error">The exception to throw on every emission.</param>
+    private sealed class ThrowingAsyncObserver<T>(Exception error) : IObserverAsync<T>
+    {
+        /// <inheritdoc/>
+        public ValueTask OnNextAsync(T value, CancellationToken cancellationToken) =>
+            throw error;
+
+        /// <inheritdoc/>
+        public ValueTask OnErrorResumeAsync(Exception err, CancellationToken cancellationToken) =>
+            default;
+
+        /// <inheritdoc/>
+        public ValueTask OnCompletedAsync(Result result) => default;
+
+        /// <inheritdoc/>
+        public ValueTask DisposeAsync() => default;
     }
 }

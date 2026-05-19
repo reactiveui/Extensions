@@ -74,4 +74,73 @@ public class FirstAsTaskHelperTests
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(async () => await task);
         await Assert.That(ex).IsSameReferenceAs(expected);
     }
+
+    /// <summary>Verifies that a second <c>OnNext</c> arriving via a non-cooperative source
+    /// (one that does not stop emitting after the first value) is dropped by the latch.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenSecondOnNextAfterFirstSettled_ThenIgnored()
+    {
+        var source = new InvasiveObservable<int>();
+        var task = FirstAsTaskHelper.FirstAsTask(source);
+
+        source.Observer.OnNext(FirstValue);
+        source.Observer.OnNext(SecondValue);
+        source.Observer.OnError(new InvalidOperationException("ignored"));
+        source.Observer.OnCompleted();
+
+        await Assert.That(await task).IsEqualTo(FirstValue);
+    }
+
+    /// <summary>Verifies that a second <c>OnError</c> arriving after the first is dropped.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenSecondOnErrorAfterFirstSettled_ThenIgnored()
+    {
+        var source = new InvasiveObservable<int>();
+        var task = FirstAsTaskHelper.FirstAsTask(source);
+        var expected = new InvalidOperationException("first");
+
+        source.Observer.OnError(expected);
+        source.Observer.OnError(new InvalidOperationException("ignored"));
+        source.Observer.OnCompleted();
+
+        var caught = await Assert.ThrowsAsync<InvalidOperationException>(async () => await task);
+        await Assert.That(caught).IsSameReferenceAs(expected);
+    }
+
+    /// <summary>Verifies that a second <c>OnCompleted</c> arriving after the first is dropped.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenSecondOnCompletedAfterFirstSettled_ThenIgnored()
+    {
+        var source = new InvasiveObservable<int>();
+        var task = FirstAsTaskHelper.FirstAsTask(source);
+
+        source.Observer.OnCompleted();
+        source.Observer.OnCompleted();
+        source.Observer.OnError(new InvalidOperationException("ignored"));
+
+        await Assert.ThrowsAsync<InvalidOperationException>(async () => await task);
+    }
+
+    /// <summary>Test observable that captures its subscriber so tests can directly invoke
+    /// non-cooperative double-terminal sequences against <c>FirstAsTaskHelper</c>'s observer.</summary>
+    /// <typeparam name="T">The element type.</typeparam>
+    private sealed class InvasiveObservable<T> : IObservable<T>
+    {
+        /// <summary>The captured observer from the most recent subscription.</summary>
+        private IObserver<T>? _observer;
+
+        /// <summary>Gets the captured observer.</summary>
+        public IObserver<T> Observer => _observer
+            ?? throw new InvalidOperationException("No subscriber yet.");
+
+        /// <inheritdoc/>
+        public IDisposable Subscribe(IObserver<T> observer)
+        {
+            _observer = observer;
+            return System.Reactive.Disposables.Disposable.Empty;
+        }
+    }
 }

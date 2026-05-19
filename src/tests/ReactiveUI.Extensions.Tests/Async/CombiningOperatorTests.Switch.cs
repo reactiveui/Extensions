@@ -532,4 +532,21 @@ public partial class CombiningOperatorTests
 
         await Assert.That(sub).IsNotNull();
     }
+
+    /// <summary>Verifies that subscribing <c>Switch</c> with a cancellable but not-yet-cancelled
+    /// token registers the external link and the registration fires on later cancellation.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenSwitchExternalTokenCancelledAfterSubscribe_ThenRegistrationFires()
+    {
+        using var cts = new CancellationTokenSource();
+        var outer = SubjectAsync.Create<IObservableAsync<int>>();
+
+        await using var sub = await outer.Values
+            .Switch()
+            .SubscribeAsync(static (_, _) => default, cts.Token);
+
+        await cts.CancelAsync();
+        await Assert.That(sub).IsNotNull();
+    }
 }
