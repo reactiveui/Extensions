@@ -136,6 +136,87 @@ public class OperatorAfterTerminalGuardTests
         await Assert.That(values).IsEmpty();
     }
 
+    /// <summary>Verifies <c>DetectStale</c>'s post-completion <c>OnNext</c> guard — values
+    /// arriving after the upstream completed are dropped at the <c>_state.Done</c> check.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenDetectStaleEventsAfterCompleted_ThenDropped()
+    {
+        var scheduler = new TestScheduler();
+        var source = new SyncDirectSource<int>();
+        var values = new List<Stale<int>>();
+        var completedCount = 0;
+
+        using var sub = source.DetectStale(TimeSpan.FromTicks(TickWindow), scheduler)
+            .Subscribe(values.Add, () => completedCount++);
+
+        source.Observer.OnCompleted();
+        source.Observer.OnNext(1);
+        scheduler.AdvanceBy(TickWindow * SettleMultiplier);
+
+        await Assert.That(completedCount).IsEqualTo(1);
+        await Assert.That(values).IsEmpty();
+    }
+
+    /// <summary>Verifies <c>DropIfBusy</c>'s post-completion <c>OnNext</c> guard.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenDropIfBusyEventsAfterCompleted_ThenDropped()
+    {
+        var source = new SyncDirectSource<int>();
+        var values = new List<int>();
+        var completedCount = 0;
+
+        using var sub = source.DropIfBusy(static _ => Task.CompletedTask)
+            .Subscribe(values.Add, () => completedCount++);
+
+        source.Observer.OnCompleted();
+        source.Observer.OnNext(1);
+        source.Observer.OnError(new InvalidOperationException("late"));
+
+        await Assert.That(completedCount).IsEqualTo(1);
+        await Assert.That(values).IsEmpty();
+    }
+
+    /// <summary>Verifies <c>SampleLatest</c>'s post-completion <c>Sample</c> guard.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenSampleLatestSampledAfterCompleted_ThenNoOp()
+    {
+        var source = new SyncDirectSource<int>();
+        var sampler = new Subject<object>();
+        var values = new List<int>();
+        var completedCount = 0;
+
+        using var sub = source.SampleLatest(sampler)
+            .Subscribe(values.Add, () => completedCount++);
+
+        source.Observer.OnNext(1);
+        source.Observer.OnCompleted();
+        sampler.OnNext(new object());
+
+        await Assert.That(completedCount).IsEqualTo(1);
+    }
+
+    /// <summary>Verifies <c>Heartbeat</c>'s post-completion <c>OnNext</c> guard.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenHeartbeatEventsAfterCompleted_ThenDropped()
+    {
+        var scheduler = new TestScheduler();
+        var source = new SyncDirectSource<int>();
+        var completedCount = 0;
+
+        using var sub = source.Heartbeat(TimeSpan.FromTicks(TickWindow), scheduler)
+            .Subscribe(static _ => { }, () => completedCount++);
+
+        source.Observer.OnCompleted();
+        source.Observer.OnNext(1);
+        scheduler.AdvanceBy(TickWindow * SettleMultiplier);
+
+        await Assert.That(completedCount).IsEqualTo(1);
+    }
+
     /// <summary>Verifies <c>DebounceUntil</c>'s post-completion sink guard — values arriving
     /// after the upstream has already completed are dropped at the <c>_state.Done</c> check
     /// inside <c>OnNext</c>.</summary>
