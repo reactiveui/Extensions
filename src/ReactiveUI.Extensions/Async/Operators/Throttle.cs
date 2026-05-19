@@ -155,12 +155,10 @@ public static partial class ObservableAsync
 
                     await observer.OnNextAsync(value, cancellationToken).ConfigureAwait(false);
                 }
-                catch (OperationCanceledException)
-                {
-                    // Observer disposed or token cancelled.
-                }
                 catch (Exception e)
                 {
+                    // UnhandledExceptionHandler filters OperationCanceledException internally so
+                    // a separate OCE-only catch would just duplicate the silent-drop behavior.
                     UnhandledExceptionHandler.OnUnhandledException(e);
                 }
             }

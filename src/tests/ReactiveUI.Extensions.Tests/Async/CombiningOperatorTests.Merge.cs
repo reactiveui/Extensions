@@ -1006,6 +1006,46 @@ public partial class CombiningOperatorTests
         await Assert.That(captured.Task.IsCompleted).IsFalse();
     }
 
+    /// <summary>Verifies the
+    /// <see cref="ObservableAsync.MergeEnumerableObservable{T}.MergeEnumerableSubscription.OnNextAsyncLocked"/>
+    /// inside-gate after-dispose guard on the enumerable-Merge subscription class.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenMergeEnumerableOnNextAsyncLockedAfterDispose_ThenDropped()
+    {
+        var captured = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var downstream = new CapturingObserver<int>(onNext: captured);
+
+        // Subscribe to a real Merge to obtain a MergeEnumerableSubscription; then dispose it
+        // and call the Locked helper directly to verify the inside-gate guard.
+        IObservableAsync<int>[] sources = [ObservableAsync.Never<int>()];
+        var sub = await sources.Merge().SubscribeAsync(downstream, CancellationToken.None);
+        var enumerableSub = (ObservableAsync.MergeEnumerableObservable<int>.MergeEnumerableSubscription)sub;
+
+        await enumerableSub.DisposeAsync();
+        await enumerableSub.OnNextAsyncLocked(1);
+
+        await Assert.That(captured.Task.IsCompleted).IsFalse();
+    }
+
+    /// <summary>Verifies the enumerable-Merge subscription's after-dispose
+    /// <c>OnErrorResumeAsyncLocked</c> guard.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenMergeEnumerableOnErrorResumeAsyncLockedAfterDispose_ThenDropped()
+    {
+        var captured = new TaskCompletionSource<Exception>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var downstream = new CapturingObserver<int>(onError: captured);
+        IObservableAsync<int>[] sources = [ObservableAsync.Never<int>()];
+        var sub = await sources.Merge().SubscribeAsync(downstream, CancellationToken.None);
+        var enumerableSub = (ObservableAsync.MergeEnumerableObservable<int>.MergeEnumerableSubscription)sub;
+
+        await enumerableSub.DisposeAsync();
+        await enumerableSub.OnErrorResumeAsyncLocked(new InvalidOperationException("late"));
+
+        await Assert.That(captured.Task.IsCompleted).IsFalse();
+    }
+
     /// <summary>Test observer used by direct-invocation Merge tests; captures the first
     /// <c>OnNextAsync</c> or <c>OnErrorResumeAsync</c> via the supplied TCS so the assertion
     /// can verify the post-dispose call did not deliver anything.</summary>

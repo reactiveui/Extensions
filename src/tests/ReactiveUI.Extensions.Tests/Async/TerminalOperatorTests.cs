@@ -1398,4 +1398,12 @@ public class TerminalOperatorTests
     [Test]
     public void WhenWrapWithNullObserver_ThenThrowsArgumentNullException() =>
         Assert.Throws<ArgumentNullException>(() => ObservableAsync.Wrap<int>(null!));
+
+    /// <summary>Verifies the async-callback <c>ForEachAsync</c> overload throws when the
+    /// callback delegate is null.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenForEachAsyncCallbackNull_ThenThrowsArgumentNullException() =>
+        await Assert.ThrowsAsync<ArgumentNullException>(async () =>
+            await ObservableAsync.Return(1).ForEachAsync(null!, CancellationToken.None));
 }
