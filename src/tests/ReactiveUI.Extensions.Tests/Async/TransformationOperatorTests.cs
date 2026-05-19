@@ -158,6 +158,20 @@ public class TransformationOperatorTests
         Assert.Throws<ArgumentNullException>(() =>
             ObservableAsync.Return(1).Scan(0, (Func<int, int, int>)null!));
 
+    /// <summary>Exercises the no-arg <c>Do&lt;T&gt;()</c> overload — a pure pass-through that
+    /// constructs a <c>DoSyncObservable</c> with all callbacks set to null.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenDoWithNoCallbacks_ThenPassesThroughValues()
+    {
+        const int ExpectedSecond = 2;
+        const int ExpectedThird = 3;
+
+        var result = await ObservableAsync.Range(1, 3).Do().ToListAsync();
+
+        await Assert.That(result).IsCollectionEqualTo([1, ExpectedSecond, ExpectedThird]);
+    }
+
     /// <summary>Tests sync Do invokes side effects.</summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]

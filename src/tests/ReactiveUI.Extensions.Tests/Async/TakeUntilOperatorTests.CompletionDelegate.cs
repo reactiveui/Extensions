@@ -595,4 +595,30 @@ public partial class TakeUntilOperatorTests
         await Assert.That(errorResumed).IsNotNull();
         await Assert.That(errorResumed!.Message).IsEqualTo("task fail");
     }
+
+    /// <summary>Exercises the <c>TakeUntil(CompletionObservableDelegate, CancellationToken)</c>
+    /// overload — the no-options shortcut that forwards to the full overload with null options.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenTakeUntilCompletionDelegateWithCancellationTokenOverload_ThenForwardsValues()
+    {
+        var source = SubjectAsync.Create<int>();
+        var values = new List<int>();
+
+        CompletionObservableDelegate stopSignal = _ => DisposableAsync.Empty;
+
+        await using var sub = await source.Values
+            .TakeUntil(stopSignal, CancellationToken.None)
+            .SubscribeAsync(
+                (x, _) =>
+                {
+                    values.Add(x);
+                    return default;
+                });
+
+        const int Sentinel = 17;
+        await source.OnNextAsync(Sentinel, CancellationToken.None);
+
+        await Assert.That(values).IsCollectionEqualTo([Sentinel]);
+    }
 }

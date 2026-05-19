@@ -136,6 +136,30 @@ public class OperatorAfterTerminalGuardTests
         await Assert.That(values).IsEmpty();
     }
 
+    /// <summary>Verifies <c>DebounceUntil</c>'s post-completion sink guard — values arriving
+    /// after the upstream has already completed are dropped at the <c>_state.Done</c> check
+    /// inside <c>OnNext</c>.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenDebounceUntilEventsAfterCompleted_ThenDropped()
+    {
+        var scheduler = new TestScheduler();
+        var source = new SyncDirectSource<int>();
+        var values = new List<int>();
+        var completedCount = 0;
+
+        using var sub = source.DebounceUntil(TimeSpan.FromTicks(TickWindow), static _ => true, scheduler)
+            .Subscribe(values.Add, () => completedCount++);
+
+        source.Observer.OnCompleted();
+        source.Observer.OnNext(1);
+        source.Observer.OnError(new InvalidOperationException("late"));
+        scheduler.AdvanceBy(TickWindow * SettleMultiplier);
+
+        await Assert.That(completedCount).IsEqualTo(1);
+        await Assert.That(values).IsEmpty();
+    }
+
     /// <summary>Verifies <c>BufferUntilIdle</c>'s post-completion sink guard.</summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]

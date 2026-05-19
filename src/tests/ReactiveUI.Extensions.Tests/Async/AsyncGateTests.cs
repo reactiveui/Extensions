@@ -74,6 +74,15 @@ public class AsyncGateTests
             await release.Task.ConfigureAwait(false);
         });
 
+        // Spin-wait until the contender has actually parked on the semaphore — without this the
+        // contender's Task.Run may not have entered WaitForReleaseAsync before the dispose below
+        // zeroes _ownerThreadId, in which case the contender takes the uncontended fast path and
+        // the slow-path coverage never executes.
+        var parked = await AsyncTestHelpers.WaitForConditionAsync(
+            () => gate.WaitersCount >= 1,
+            TimeSpan.FromSeconds(5));
+        await Assert.That(parked).IsTrue();
+
         // Releasing the first acquisition is the only thing that can let the contender progress —
         // if the slow path were broken the await below would hang and the per-test timeout fails it.
         first.Dispose();
