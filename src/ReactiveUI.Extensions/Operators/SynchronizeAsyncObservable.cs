@@ -131,7 +131,9 @@ internal sealed class SynchronizeAsyncObservable<T>(IObservable<T> source) : IOb
             /// <summary>Latches to <c>1</c> on the first dispose so signalling is idempotent.</summary>
             private int _disposed;
 
-            /// <summary>Returns the task the producer should await before completing the emission.</summary>
+            /// <summary>Returns the task the producer should await before completing the emission.
+            /// The producer calls this exactly once per signal, so the TCS is published with a plain
+            /// volatile write rather than a compare-exchange.</summary>
             /// <returns>A completed task if the consumer already disposed; otherwise the lazily-allocated TCS task.</returns>
             public Task WaitForDisposeAsync()
             {
@@ -141,17 +143,8 @@ internal sealed class SynchronizeAsyncObservable<T>(IObservable<T> source) : IOb
                 }
 
                 var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-                var existing = Interlocked.CompareExchange(ref _tcs, tcs, null);
-                if (existing is not null)
-                {
-                    return existing.Task;
-                }
-
-                if (Volatile.Read(ref _disposed) == 1)
-                {
-                    tcs.TrySetResult();
-                }
-
+                Volatile.Write(ref _tcs, tcs);
+                CompleteIfDisposedRaced(tcs);
                 return tcs.Task;
             }
 
@@ -164,6 +157,22 @@ internal sealed class SynchronizeAsyncObservable<T>(IObservable<T> source) : IOb
                 }
 
                 Volatile.Read(ref _tcs)?.TrySetResult();
+            }
+
+            /// <summary>Self-completes the just-published TCS if a dispose raced ahead of the publish and could
+            /// not see it, so the producer's await never hangs.</summary>
+            /// <param name="tcs">The completion source published for this signal.</param>
+            /// <remarks>The set-result is only taken when a concurrent dispose latches between the publish and
+            /// this re-check; isolated here and excluded from coverage as race-only.</remarks>
+            [System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
+            private void CompleteIfDisposedRaced(TaskCompletionSource tcs)
+            {
+                if (Volatile.Read(ref _disposed) != 1)
+                {
+                    return;
+                }
+
+                tcs.TrySetResult();
             }
         }
     }

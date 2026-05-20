@@ -92,6 +92,17 @@ public class DisposableTests
     public void WhenCompositeDisposableAsyncNegativeCapacity_ThenThrowsArgumentOutOfRange() =>
         Assert.Throws<ArgumentOutOfRangeException>(() => _ = new CompositeDisposableAsync(-1));
 
+    /// <summary>Tests CompositeDisposableAsync with zero capacity leaves the backing array unallocated.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenCompositeDisposableAsyncZeroCapacity_ThenEmpty()
+    {
+        var composite = new CompositeDisposableAsync(0);
+
+        await Assert.That(composite.Count).IsEqualTo(0);
+        await composite.DisposeAsync();
+    }
+
     /// <summary>Tests CompositeDisposableAsync with capacity works.</summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
@@ -973,6 +984,124 @@ public class DisposableTests
         var array = new IAsyncDisposable[1];
         Assert.Throws<ArgumentOutOfRangeException>(() => composite.CopyTo(array, 0));
 
+        await composite.DisposeAsync();
+    }
+
+    /// <summary>Tests the <see cref="ICollection{T}"/> constructor sizes exactly and disposes all members.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenCompositeDisposableAsyncFromCollection_ThenDisposesAll()
+    {
+        var count = 0;
+        List<IAsyncDisposable> list =
+        [
+            DisposableAsync.Create(() =>
+            {
+                Interlocked.Increment(ref count);
+                return default;
+            }),
+            DisposableAsync.Create(() =>
+            {
+                Interlocked.Increment(ref count);
+                return default;
+            }),
+        ];
+
+        const int ExpectedCount = 2;
+        var composite = new CompositeDisposableAsync(list);
+        await Assert.That(composite.Count).IsEqualTo(ExpectedCount);
+
+        await composite.DisposeAsync();
+        await Assert.That(count).IsEqualTo(ExpectedCount);
+    }
+
+    /// <summary>Tests the <see cref="ICollection{T}"/> constructor with an empty collection yields an empty composite.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenCompositeDisposableAsyncFromEmptyCollection_ThenEmpty()
+    {
+        List<IAsyncDisposable> empty = [];
+        var composite = new CompositeDisposableAsync(empty);
+
+        await Assert.That(composite.Count).IsEqualTo(0);
+        await composite.DisposeAsync();
+    }
+
+    /// <summary>Tests the params constructor with an empty array yields an empty composite.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenCompositeDisposableAsyncFromEmptyParams_ThenEmpty()
+    {
+        IAsyncDisposable[] empty = [];
+        var composite = new CompositeDisposableAsync(empty);
+
+        await Assert.That(composite.Count).IsEqualTo(0);
+        await composite.DisposeAsync();
+    }
+
+    /// <summary>Tests that the backing array grows beyond the default capacity and compacts after enough
+    /// removals, then enumerates a snapshot of the survivors and disposes them.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenGrownThenCompacted_ThenSurvivorsEnumeratedAndDisposed()
+    {
+        const int Total = 20;
+        const int Removed = 16;
+        var disposed = 0;
+        var composite = new CompositeDisposableAsync();
+        var items = new IAsyncDisposable[Total];
+
+        for (var i = 0; i < Total; i++)
+        {
+            items[i] = DisposableAsync.Create(() =>
+            {
+                Interlocked.Increment(ref disposed);
+                return default;
+            });
+            await composite.AddAsync(items[i]);
+        }
+
+        await Assert.That(composite.Count).IsEqualTo(Total);
+
+        for (var i = 0; i < Removed; i++)
+        {
+            await composite.Remove(items[i]);
+        }
+
+        await Assert.That(composite.Count).IsEqualTo(Total - Removed);
+
+        var enumerated = 0;
+        using (var enumerator = composite.GetEnumerator())
+        {
+            while (enumerator.MoveNext())
+            {
+                enumerated++;
+            }
+        }
+
+        await Assert.That(enumerated).IsEqualTo(Total - Removed);
+
+        await composite.DisposeAsync();
+        await Assert.That(disposed).IsEqualTo(Total);
+    }
+
+    /// <summary>Tests that enumerating an empty composite yields no elements.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenEnumeratedEmpty_ThenNoElements()
+    {
+        var composite = new CompositeDisposableAsync();
+
+        var enumerated = 0;
+        using (var enumerator = composite.GetEnumerator())
+        {
+            while (enumerator.MoveNext())
+            {
+                enumerated++;
+            }
+        }
+
+        await Assert.That(enumerated).IsEqualTo(0);
         await composite.DisposeAsync();
     }
 

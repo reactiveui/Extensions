@@ -55,4 +55,27 @@ public class SynchronizeAsyncObservableTests
         await Assert.That(caught).IsSameReferenceAs(expected);
         await Assert.That(completedCount).IsEqualTo(0);
     }
+
+    /// <summary>Verifies the per-emission <c>Sync</c> signal latches on first dispose so a second
+    /// dispose by the consumer is a silent no-op.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenSyncSignalDisposedTwice_ThenSecondDisposeIsNoOp()
+    {
+        var source = new SyncDirectSource<int>();
+        var processed = 0;
+
+        using var sub = source.SynchronizeAsync()
+            .Subscribe(t =>
+            {
+                t.Sync.Dispose();
+                t.Sync.Dispose();
+                processed++;
+            });
+
+        source.Observer.OnNext(1);
+
+        await Task.Delay(SettleDelayMilliseconds);
+        await Assert.That(processed).IsEqualTo(1);
+    }
 }

@@ -341,6 +341,27 @@ public partial class ResultAndInfrastructureTests
         await Assert.That(unhandled!.Message).IsEqualTo("async-throw");
     }
 
+    /// <summary>Verifies that linking an observer's own dispose token short-circuits as a no-op (the
+    /// token already drives the dispose chain) and leaves the observer usable.</summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task WhenLinkingOwnDisposeToken_ThenSelfLinkShortCircuits()
+    {
+        var received = new List<int>();
+        await using var observer = new TestableObserverAsync(
+            onNextAsyncCore: (value, _) =>
+            {
+                received.Add(value);
+                return default;
+            });
+
+        observer.LinkOwnDisposeToken();
+
+        await observer.OnNextAsync(SampleValue, CancellationToken.None);
+
+        await Assert.That(received).IsCollectionEqualTo([SampleValue]);
+    }
+
     /// <summary>
     /// A concrete <see cref="ObserverAsync{T}"/> implementation for testing, with
     /// configurable behavior for each virtual method.
@@ -353,6 +374,10 @@ public partial class ResultAndInfrastructureTests
         Func<Exception, CancellationToken, ValueTask>? onErrorResumeAsyncCore = null,
         Func<Result, ValueTask>? onCompletedAsyncCore = null) : ObserverAsync<int>
     {
+        /// <summary>Links the observer's own dispose token into its link chain, exercising the
+        /// self-link short-circuit in <c>LinkExternalCancellation</c>.</summary>
+        public void LinkOwnDisposeToken() => LinkExternalCancellation(InternalDisposedToken);
+
         /// <inheritdoc/>
         protected override ValueTask OnNextAsyncCore(int value, CancellationToken cancellationToken) =>
             onNextAsyncCore is not null ? onNextAsyncCore(value, cancellationToken) : default;

@@ -425,6 +425,21 @@ public partial class ReactiveExtensionsTests
     }
 
     /// <summary>
+    /// Tests ToHotValueTask converts to a hot value task that completes with the first value.
+    /// </summary>
+    /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
+    [Test]
+    public async Task ToHotValueTask_ConvertsToValueTask()
+    {
+        var subject = new Subject<int>();
+        var task = subject.ToHotValueTask();
+
+        subject.OnNext(SampleValue42);
+
+        await Assert.That(await task).IsEqualTo(SampleValue42);
+    }
+
+    /// <summary>
     /// Tests ToPropertyObservable observes property changes.
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>

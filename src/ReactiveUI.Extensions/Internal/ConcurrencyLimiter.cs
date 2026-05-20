@@ -9,9 +9,9 @@ namespace ReactiveUI.Extensions.Internal;
 /// <summary>
 /// Limits the concurrency of task execution and emits results through an observable sequence.
 /// Implements <see cref="IObservable{T}"/> directly so the surface needs no
-/// <c>DelegateObservable</c> / <c>ActionDisposable</c> closure wrappers; the per-task
-/// continuation state is the per-subscription <see cref="Subscription"/> instance, which is
-/// already a reference type and therefore needs no boxing through <see cref="object"/>.
+/// <c>ActionDisposable</c> closure wrappers; the per-task continuation state is the
+/// per-subscription <see cref="Subscription"/> instance, which is already a reference type
+/// and therefore needs no boxing through <see cref="object"/>.
 /// </summary>
 /// <typeparam name="T">The type of the task results.</typeparam>
 internal sealed class ConcurrencyLimiter<T> : IObservable<T>

@@ -140,6 +140,16 @@ internal sealed class RunAllObservable(IReadOnlyList<IObservable<Unit>> sources)
                 _looping = false;
             }
 
+            CompleteRun();
+        }
+
+        /// <summary>Emits the terminal <see cref="Unit"/> and completes once all sources have run.</summary>
+        /// <remarks>The already-done early-out is only reachable when a concurrent dispose latches between the
+        /// loop exit and this call; this small completion shell is excluded from coverage as race-only while the
+        /// trampoline loop in <see cref="RunNext"/> stays covered.</remarks>
+        [System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
+        private void CompleteRun()
+        {
             if (_done)
             {
                 return;

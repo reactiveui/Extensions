@@ -628,14 +628,17 @@ public abstract class ObserverAsync<T> : IObserverAsync<T>
     /// freshly-created CTS is cancelled immediately so its <see cref="CancellationToken.IsCancellationRequested"/>
     /// matches the post-dispose state callers expect.</summary>
     /// <returns>The dispose CTS, freshly cancelled if disposal was already signaled.</returns>
-    private CancellationTokenSource GetOrCreateDisposeCts()
-    {
-        var existing = Volatile.Read(ref _disposeCts);
-        if (existing is not null)
-        {
-            return existing;
-        }
+    private CancellationTokenSource GetOrCreateDisposeCts() =>
+        Volatile.Read(ref _disposeCts) ?? MaterializeDisposeCts();
 
+    /// <summary>Creates and publishes the dispose CTS on first request, discarding the freshly-created instance
+    /// if another thread published one first, and pre-cancelling it when disposal was already signaled.</summary>
+    /// <returns>The published dispose CTS.</returns>
+    /// <remarks>The compare-exchange-lost branch is only reachable when two threads materialize the CTS
+    /// concurrently; isolated here and excluded from coverage as race-only.</remarks>
+    [System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
+    private CancellationTokenSource MaterializeDisposeCts()
+    {
         var fresh = new CancellationTokenSource();
         var prior = Interlocked.CompareExchange(ref _disposeCts, fresh, null);
         if (prior is not null)

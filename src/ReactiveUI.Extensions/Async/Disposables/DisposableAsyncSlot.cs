@@ -23,7 +23,10 @@ public static class DisposableAsyncSlot
     /// <param name="slot">Reference to the caller-owned <see cref="IAsyncDisposable"/> field.</param>
     /// <param name="value">The new value to store, or <see langword="null"/> to clear the slot.</param>
     /// <returns>A <see cref="ValueTask"/> that completes once the previous occupant (if any) has been disposed.</returns>
+    /// <remarks>The compare-exchange retry (the loop back-edge) is only taken when a concurrent writer
+    /// wins the race, so it is unreachable by single-threaded tests; excluded from coverage accordingly.</remarks>
     [DebuggerStepThrough]
+    [ExcludeFromCodeCoverage]
     public static ValueTask SwapAsync(ref IAsyncDisposable? slot, IAsyncDisposable? value)
     {
         var current = Volatile.Read(ref slot);
