@@ -11,9 +11,10 @@ using ReactiveUI.Extensions.Async.Subjects;
 namespace ReactiveUI.Extensions.Benchmarks;
 
 /// <summary>
-/// Measures the per-emission cost of <c>GetMax</c> and <c>CombineLatestValuesAreAllTrue</c> —
-/// parity-helper combinators built on top of <c>CombineLatest</c>. Each pipeline has four
-/// pre-primed sources so every emission produces a downstream value.
+/// Measures the per-emission cost of <c>GetMax</c>, <c>GetMin</c>, and
+/// <c>CombineLatestValuesAreAllTrue</c> — parity-helper combinators built on top of
+/// <c>CombineLatest</c>. Each pipeline has four pre-primed sources so every emission produces a
+/// downstream value.
 /// </summary>
 [SimpleJob(RuntimeMoniker.Net10_0)]
 [MemoryDiagnoser]
@@ -40,6 +41,12 @@ public class GetMinMaxAndBooleanCombineBenchmarks : IDisposable
 
     /// <summary>Subscription on the <c>GetMax</c> pipeline.</summary>
     private IAsyncDisposable _maxSubscription = null!;
+
+    /// <summary>Sources for the <c>GetMin</c> pipeline.</summary>
+    private SerialStatelessSubjectAsync<int>[] _minSources = null!;
+
+    /// <summary>Subscription on the <c>GetMin</c> pipeline.</summary>
+    private IAsyncDisposable _minSubscription = null!;
 
     /// <summary>Sources for the <c>CombineLatestValuesAreAllTrue</c> pipeline.</summary>
     private SerialStatelessSubjectAsync<bool>[] _allTrueSources = null!;
@@ -76,6 +83,26 @@ public class GetMinMaxAndBooleanCombineBenchmarks : IDisposable
             await _maxSources[i].OnNextAsync(0, default).ConfigureAwait(false);
         }
 
+        _minSources = new SerialStatelessSubjectAsync<int>[SourceCount];
+        for (var i = 0; i < SourceCount; i++)
+        {
+            _minSources[i] = new SerialStatelessSubjectAsync<int>();
+        }
+
+        var minOthers = new IObservableAsync<int>[SourceCount - 1];
+        for (var i = 1; i < SourceCount; i++)
+        {
+            minOthers[i - 1] = _minSources[i];
+        }
+
+        _minSubscription = await _minSources[0].GetMin(minOthers)
+            .SubscribeAsync(_intSink, default).ConfigureAwait(false);
+
+        for (var i = 0; i < SourceCount; i++)
+        {
+            await _minSources[i].OnNextAsync(0, default).ConfigureAwait(false);
+        }
+
         _allTrueSources = new SerialStatelessSubjectAsync<bool>[SourceCount];
         var allTrueSnapshot = new IObservableAsync<bool>[SourceCount];
         for (var i = 0; i < SourceCount; i++)
@@ -104,6 +131,12 @@ public class GetMinMaxAndBooleanCombineBenchmarks : IDisposable
             await _maxSources[i].DisposeAsync().ConfigureAwait(false);
         }
 
+        await _minSubscription.DisposeAsync().ConfigureAwait(false);
+        for (var i = 0; i < _minSources.Length; i++)
+        {
+            await _minSources[i].DisposeAsync().ConfigureAwait(false);
+        }
+
         await _allTrueSubscription.DisposeAsync().ConfigureAwait(false);
         for (var i = 0; i < _allTrueSources.Length; i++)
         {
@@ -120,6 +153,18 @@ public class GetMinMaxAndBooleanCombineBenchmarks : IDisposable
     public async Task GetMax_FourPrimedSources()
     {
         var src0 = _maxSources[0];
+        for (var i = 0; i < EmissionCount; i++)
+        {
+            await src0.OnNextAsync(i, default).ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>Pushes values into the first source of the <c>GetMin</c> pipeline; every emission produces a downstream value because all four are primed.</summary>
+    /// <returns>A task that completes when every value has been propagated.</returns>
+    [Benchmark]
+    public async Task GetMin_FourPrimedSources()
+    {
+        var src0 = _minSources[0];
         for (var i = 0; i < EmissionCount; i++)
         {
             await src0.OnNextAsync(i, default).ConfigureAwait(false);

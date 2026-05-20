@@ -25,7 +25,7 @@ public class DropIfBusyObservableTests
         var faulted = new TaskCompletionSource<Exception>(TaskCreationOptions.RunContinuationsAsynchronously);
         var expected = new InvalidOperationException(ActionFailedMessage);
 
-        using var sub = subject.DropIfBusy(_ => Task.FromException(expected))
+        using var sub = subject.DropIfBusy(_ => ValueTask.FromException(expected))
             .Subscribe(static _ => { }, ex => faulted.TrySetResult(ex));
 
         subject.OnNext(TriggerValue);
@@ -43,7 +43,7 @@ public class DropIfBusyObservableTests
         Exception? caught = null;
         var expected = new InvalidOperationException(SourceErrorMessage);
 
-        using var sub = subject.DropIfBusy(static _ => Task.CompletedTask)
+        using var sub = subject.DropIfBusy(static _ => default)
             .Subscribe(static _ => { }, ex => caught = ex);
 
         subject.OnError(expected);
@@ -59,7 +59,7 @@ public class DropIfBusyObservableTests
         var subject = new Subject<int>();
         var completed = false;
 
-        using var sub = subject.DropIfBusy(static _ => Task.CompletedTask)
+        using var sub = subject.DropIfBusy(static _ => default)
             .Subscribe(static _ => { }, () => completed = true);
 
         subject.OnCompleted();

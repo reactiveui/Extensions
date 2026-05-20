@@ -28,9 +28,9 @@ internal sealed class HeartbeatObservable<T>(
         ArgumentExceptionHelper.ThrowIfNull(observer);
 
         var sink = new HeartbeatSink(observer, heartbeatPeriod, scheduler);
-        var subscription = source.Subscribe(sink);
+        sink.AttachSourceSubscription(source.Subscribe(sink));
         sink.Initialize();
-        return new DisposableBag(subscription, sink);
+        return sink;
     }
 
     /// <summary>
@@ -61,10 +61,30 @@ internal sealed class HeartbeatObservable<T>(
         /// </summary>
         private readonly MutableDisposable _timerSubscription = new();
 
+        /// <summary>Upstream subscription handle; set once via <see cref="AttachSourceSubscription"/>
+        /// so the sink can tear it down in <see cref="Dispose"/> without needing a wrapper bag.</summary>
+        private IDisposable? _sourceSubscription;
+
         /// <summary>
         /// Whether the sink has completed or been disposed.
         /// </summary>
         private bool _done;
+
+        /// <summary>Records the upstream subscription so <see cref="Dispose"/> can tear it down.</summary>
+        /// <param name="subscription">The upstream subscription handle.</param>
+        public void AttachSourceSubscription(IDisposable subscription)
+        {
+            lock (_gate)
+            {
+                if (_done)
+                {
+                    subscription.Dispose();
+                    return;
+                }
+
+                _sourceSubscription = subscription;
+            }
+        }
 
         /// <summary>
         /// Initializes the heartbeat timer.
@@ -121,11 +141,16 @@ internal sealed class HeartbeatObservable<T>(
         /// <inheritdoc/>
         public void Dispose()
         {
+            IDisposable? subscription;
             lock (_gate)
             {
                 _done = true;
                 _timerSubscription.Dispose();
+                subscription = _sourceSubscription;
+                _sourceSubscription = null;
             }
+
+            subscription?.Dispose();
         }
 
         /// <summary>

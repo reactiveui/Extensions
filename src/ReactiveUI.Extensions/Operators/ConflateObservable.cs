@@ -20,7 +20,7 @@ internal sealed class ConflateObservable<T>(
     TimeSpan minimumUpdatePeriod,
     IScheduler scheduler) : IObservable<T>
 {
-    /// <summary>Notification kind enqueued by the scheduler marshaller.</summary>
+    /// <summary>Notification kind enqueued by the upstream-marshalling path.</summary>
     private enum NotificationKind
     {
         /// <summary>OnNext with a value.</summary>
@@ -41,48 +41,78 @@ internal sealed class ConflateObservable<T>(
         ArgumentExceptionHelper.ThrowIfNull(observer);
 
         var sink = new ConflateSink(observer, minimumUpdatePeriod, scheduler);
-        var marshaller = new SchedulerMarshaller(sink, scheduler);
-        var subscription = source.Subscribe(marshaller);
-        return new DisposableBag(subscription, marshaller, sink);
+        sink.AttachSourceSubscription(source.Subscribe(sink));
+        return sink;
     }
 
-    /// <summary>
-    /// Discriminated payload enqueued by <see cref="SchedulerMarshaller"/>. Replaces the per-emission
-    /// closure / delegate trio that the previous <c>source.ObserveOn(scheduler).Subscribe(sink)</c>
-    /// allocated.
-    /// </summary>
+    /// <summary>Discriminated payload enqueued by the upstream-marshalling path.</summary>
     /// <param name="Kind">The notification kind.</param>
     /// <param name="Value">The element carried by <see cref="NotificationKind.Next"/>; default otherwise.</param>
     /// <param name="Error">The error carried by <see cref="NotificationKind.Error"/>; null otherwise.</param>
     private readonly record struct Notification(NotificationKind Kind, T Value, Exception? Error);
 
     /// <summary>
-    /// FIFO scheduler marshaller that replaces <c>source.ObserveOn(scheduler)</c>. Each upstream
-    /// notification is enqueued and a single drain action is scheduled on the scheduler; the drain
-    /// runs every queued notification in order before yielding. New notifications arriving during a
-    /// drain are picked up by the same drain pass.
+    /// Single observer that combines two previously-distinct concerns into one allocation:
+    /// (1) marshals upstream notifications onto the scheduler thread via a FIFO queue and a
+    /// scheduled drain, and (2) applies the conflate time-window throttle to each
+    /// <see cref="NotificationKind.Next"/> notification. End-user-observable semantics are
+    /// unchanged from the prior two-observer implementation.
     /// </summary>
-    /// <param name="downstream">The downstream observer to forward notifications to.</param>
-    /// <param name="scheduler">The scheduler used to dispatch the drain.</param>
-    internal sealed class SchedulerMarshaller(IObserver<T> downstream, IScheduler scheduler)
-        : IObserver<T>, IDisposable
+    /// <param name="downstream">The downstream observer.</param>
+    /// <param name="minimumUpdatePeriod">The minimum period between emissions.</param>
+    /// <param name="scheduler">The scheduler to run the conflation on.</param>
+    internal sealed class ConflateSink(
+        IObserver<T> downstream,
+        TimeSpan minimumUpdatePeriod,
+        IScheduler scheduler) : IObserver<T>, IDisposable
     {
 #if NET9_0_OR_GREATER
-        /// <summary>Protects <see cref="_queue"/>, <see cref="_draining"/>, and <see cref="_disposed"/>.</summary>
+        /// <summary>The gate protecting queue + draining + throttle state.</summary>
         private readonly Lock _gate = new();
 #else
-        /// <summary>Protects <see cref="_queue"/>, <see cref="_draining"/>, and <see cref="_disposed"/>.</summary>
+        /// <summary>The gate protecting queue + draining + throttle state.</summary>
         private readonly object _gate = new();
 #endif
 
-        /// <summary>The FIFO queue of pending notifications.</summary>
+        /// <summary>The FIFO queue of pending upstream notifications.</summary>
         private readonly Queue<Notification> _queue = new();
 
-        /// <summary><c>true</c> while a drain pass is in flight.</summary>
+        /// <summary>The disposable tracking a scheduled deferred emission.</summary>
+        private readonly MutableDisposable _updateScheduled = new();
+
+        /// <summary>Upstream subscription handle, set after <see cref="AttachSourceSubscription"/>.</summary>
+        private IDisposable? _sourceSubscription;
+
+        /// <summary>Wall-clock timestamp of the last emission forwarded downstream.</summary>
+        private DateTimeOffset _lastUpdateTime = DateTimeOffset.MinValue;
+
+        /// <summary><see langword="true"/> while a drain pass is in flight on the scheduler.</summary>
         private bool _draining;
 
-        /// <summary><c>true</c> after disposal.</summary>
-        private bool _disposed;
+        /// <summary><see langword="true"/> when an upstream OnCompleted is queued but a deferred
+        /// emission is still pending; the completion fires after that emission lands.</summary>
+        private bool _completionRequested;
+
+        /// <summary><see langword="true"/> once a terminal notification has reached downstream
+        /// or the sink has been disposed.</summary>
+        private bool _done;
+
+        /// <summary>Records the upstream subscription so <see cref="Dispose"/> can tear it down.
+        /// Caller invokes this once after <c>source.Subscribe(this)</c> returns.</summary>
+        /// <param name="subscription">The upstream subscription handle.</param>
+        public void AttachSourceSubscription(IDisposable subscription)
+        {
+            lock (_gate)
+            {
+                if (_done)
+                {
+                    subscription.Dispose();
+                    return;
+                }
+
+                _sourceSubscription = subscription;
+            }
+        }
 
         /// <inheritdoc/>
         public void OnNext(T value) => Enqueue(new Notification(NotificationKind.Next, value, null));
@@ -96,24 +126,32 @@ internal sealed class ConflateObservable<T>(
         /// <inheritdoc/>
         public void Dispose()
         {
+            IDisposable? subscription;
             lock (_gate)
             {
-                _disposed = true;
+                if (_done)
+                {
+                    return;
+                }
+
+                _done = true;
                 _queue.Clear();
+                subscription = _sourceSubscription;
+                _sourceSubscription = null;
+                _updateScheduled.Dispose();
             }
+
+            subscription?.Dispose();
         }
 
-        /// <summary>
-        /// Enqueues a notification and, if no drain is already in flight, schedules one onto the
-        /// configured scheduler.
-        /// </summary>
-        /// <param name="notification">The notification to forward.</param>
+        /// <summary>Enqueues an upstream notification; schedules a drain if one isn't already running.</summary>
+        /// <param name="notification">The notification to forward to the drain loop.</param>
         private void Enqueue(Notification notification)
         {
             bool scheduleDrain;
             lock (_gate)
             {
-                if (_disposed)
+                if (_done)
                 {
                     return;
                 }
@@ -138,11 +176,8 @@ internal sealed class ConflateObservable<T>(
             });
         }
 
-        /// <summary>
-        /// Drains every queued notification synchronously inside one scheduler callback. Terminal
-        /// notifications (OnError / OnCompleted) end the drain and leave <see cref="_draining"/>
-        /// <c>true</c> so no further drains are scheduled.
-        /// </summary>
+        /// <summary>Drains queued upstream notifications on the scheduler thread, applying the
+        /// conflate time-window throttle to <see cref="NotificationKind.Next"/> entries.</summary>
         private void Drain()
         {
             while (true)
@@ -150,7 +185,7 @@ internal sealed class ConflateObservable<T>(
                 Notification notification;
                 lock (_gate)
                 {
-                    if (_disposed || _queue.Count == 0)
+                    if (_done || _queue.Count == 0)
                     {
                         _draining = false;
                         return;
@@ -163,74 +198,31 @@ internal sealed class ConflateObservable<T>(
                 {
                     case NotificationKind.Next:
                     {
-                        downstream.OnNext(notification.Value);
+                        ProcessNext(notification.Value);
                         break;
                     }
 
                     case NotificationKind.Error:
                     {
-                        downstream.OnError(notification.Error!);
+                        ForwardError(notification.Error!);
                         return;
                     }
 
                     default:
                     {
                         // NotificationKind has only three values; the discard arm absorbs
-                        // Completed so the compiler sees an exhaustive switch and coverage
-                        // stops counting a phantom default fall-through.
-                        downstream.OnCompleted();
+                        // Completed so the compiler sees an exhaustive switch.
+                        ForwardCompleted();
                         return;
                     }
                 }
             }
         }
-    }
 
-    /// <summary>
-    /// Sink for the conflate operator.
-    /// </summary>
-    /// <param name="downstream">The downstream observer.</param>
-    /// <param name="minimumUpdatePeriod">The minimum period between emissions.</param>
-    /// <param name="scheduler">The scheduler to run the conflation on.</param>
-    internal sealed class ConflateSink(
-        IObserver<T> downstream,
-        TimeSpan minimumUpdatePeriod,
-        IScheduler scheduler) : IObserver<T>, IDisposable
-    {
-#if NET9_0_OR_GREATER
-        /// <summary>
-        /// The gate to synchronize access to the state.
-        /// </summary>
-        private readonly Lock _gate = new();
-#else
-        /// <summary>
-        /// The gate to synchronize access to the state.
-        /// </summary>
-        private readonly object _gate = new();
-#endif
-
-        /// <summary>
-        /// The disposable for the scheduled update.
-        /// </summary>
-        private readonly MutableDisposable _updateScheduled = new();
-
-        /// <summary>
-        /// The last time an update was sent.
-        /// </summary>
-        private DateTimeOffset _lastUpdateTime = DateTimeOffset.MinValue;
-
-        /// <summary>
-        /// Whether a completion has been requested.
-        /// </summary>
-        private bool _completionRequested;
-
-        /// <summary>
-        /// Whether the sink is done.
-        /// </summary>
-        private bool _done;
-
-        /// <inheritdoc/>
-        public void OnNext(T value)
+        /// <summary>Applies the throttle-window decision to a dequeued value and either emits
+        /// inline or schedules a deferred emission.</summary>
+        /// <param name="value">The value to forward.</param>
+        private void ProcessNext(T value)
         {
             var currentUpdateTime = scheduler.Now;
             bool scheduleRequired;
@@ -280,8 +272,9 @@ internal sealed class ConflateObservable<T>(
             }
         }
 
-        /// <inheritdoc/>
-        public void OnError(Exception error)
+        /// <summary>Forwards an error to downstream and terminates the sink.</summary>
+        /// <param name="error">The error to forward.</param>
+        private void ForwardError(Exception error)
         {
             lock (_gate)
             {
@@ -292,12 +285,13 @@ internal sealed class ConflateObservable<T>(
 
                 _done = true;
                 _updateScheduled.Dispose();
-                downstream.OnError(error);
             }
+
+            downstream.OnError(error);
         }
 
-        /// <inheritdoc/>
-        public void OnCompleted()
+        /// <summary>Forwards completion, deferring if a throttled emission is still scheduled.</summary>
+        private void ForwardCompleted()
         {
             lock (_gate)
             {
@@ -309,23 +303,13 @@ internal sealed class ConflateObservable<T>(
                 if (_updateScheduled.Disposable != null)
                 {
                     _completionRequested = true;
+                    return;
                 }
-                else
-                {
-                    _done = true;
-                    downstream.OnCompleted();
-                }
-            }
-        }
 
-        /// <inheritdoc/>
-        public void Dispose()
-        {
-            lock (_gate)
-            {
                 _done = true;
-                _updateScheduled.Dispose();
             }
+
+            downstream.OnCompleted();
         }
     }
 }

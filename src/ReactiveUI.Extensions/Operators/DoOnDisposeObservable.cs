@@ -3,7 +3,6 @@
 // See the LICENSE file in the project root for full license information.
 
 using ReactiveUI.Extensions.Internal;
-using ReactiveUI.Extensions.Internal.Disposables;
 
 namespace ReactiveUI.Extensions.Operators;
 
@@ -24,9 +23,29 @@ internal sealed class DoOnDisposeObservable<T>(
         InvalidOperationExceptionHelper.ThrowIfNull(disposeAction);
         ArgumentExceptionHelper.ThrowIfNull(observer);
 
-        var subscription = source.Subscribe(observer);
-        return new ActionDisposable(() =>
+        return new DoOnDisposeSubscription(source.Subscribe(observer), disposeAction);
+    }
+
+    /// <summary>
+    /// Per-subscribe disposal handle that forwards <see cref="IDisposable.Dispose"/> to the source
+    /// subscription and then to the caller-supplied action. Dedicated class instead of the
+    /// previous <c>ActionDisposable(() =&gt; …)</c> form so no closure is allocated per subscribe.
+    /// </summary>
+    /// <param name="subscription">The upstream subscription disposed before the action fires.</param>
+    /// <param name="disposeAction">The action executed once after the upstream is disposed.</param>
+    private sealed class DoOnDisposeSubscription(IDisposable subscription, Action disposeAction) : IDisposable
+    {
+        /// <summary>Latches to <c>1</c> on the first dispose so the action fires exactly once.</summary>
+        private int _disposed;
+
+        /// <inheritdoc/>
+        public void Dispose()
         {
+            if (Interlocked.Exchange(ref _disposed, 1) != 0)
+            {
+                return;
+            }
+
             try
             {
                 subscription.Dispose();
@@ -35,6 +54,6 @@ internal sealed class DoOnDisposeObservable<T>(
             {
                 disposeAction();
             }
-        });
+        }
     }
 }

@@ -3,6 +3,7 @@
 // See the LICENSE file in the project root for full license information.
 
 using System.Diagnostics.CodeAnalysis;
+using System.Reactive;
 using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Jobs;
 using ReactiveUI.Extensions.Async;
@@ -11,9 +12,10 @@ namespace ReactiveUI.Extensions.Benchmarks;
 
 /// <summary>
 /// Measures the construct-subscribe-drain cost of the small factory observables: <c>Return</c>,
-/// <c>Empty</c>, <c>Throw</c>, <c>Defer</c>, <c>FromAsync</c>, and <c>ToObservableAsync</c> over
-/// an <see cref="IEnumerable{T}"/>. Each benchmark builds the observable per invocation (these
-/// factories are not typically cached) so the measurement reflects the cold subscribe path.
+/// <c>Empty</c>, <c>Throw</c>, <c>Defer</c>, <c>FromAsync</c>, <c>Start</c>, and
+/// <c>ToObservableAsync</c> over an <see cref="IEnumerable{T}"/>. Each benchmark builds the
+/// observable per invocation (these factories are not typically cached) so the measurement
+/// reflects the cold subscribe path.
 /// </summary>
 [SimpleJob(RuntimeMoniker.Net10_0)]
 [MemoryDiagnoser]
@@ -35,6 +37,9 @@ public class FactoryObservableBenchmarks
 
     /// <summary>Sentinel value emitted by the FromAsync benchmark's synchronously-completing factory.</summary>
     private const int FromAsyncValue = 99;
+
+    /// <summary>Sentinel value returned by the <c>Start(Func)</c> benchmark's value factory.</summary>
+    private const int StartValue = 13;
 
     /// <summary>Cached enumerable so the ToObservableAsync benchmark doesn't measure list allocation.</summary>
     private static readonly int[] EnumerableSource = [.. Enumerable.Range(0, EnumerableLength)];
@@ -60,6 +65,37 @@ public class FactoryObservableBenchmarks
     [Benchmark]
     public ValueTask<int> FromAsync_SyncFactory() =>
         ObservableAsync.FromAsync(static _ => new ValueTask<int>(FromAsyncValue)).FirstAsync();
+
+    /// <summary>Builds <c>Throw</c> from a fresh error and drains it, swallowing the propagated error
+    /// so the measurement reflects the construct-subscribe-propagate path. A new exception is built
+    /// per invocation on purpose — reusing one instance would let <see cref="System.Runtime.ExceptionServices.ExceptionDispatchInfo"/>
+    /// append to its stack-trace string on every rethrow, inflating each successive op.</summary>
+    /// <returns>A <see cref="ValueTask"/> representing the asynchronous drain.</returns>
+    [Benchmark]
+    public async ValueTask Throw_Drain()
+    {
+        try
+        {
+            await ObservableAsync.Throw<int>(new InvalidOperationException("benchmark")).FirstAsync().ConfigureAwait(false);
+        }
+        catch (InvalidOperationException)
+        {
+            // Expected: Throw propagates the error through the drain. Swallowed so the benchmark
+            // measures the propagation path rather than failing the run.
+        }
+    }
+
+    /// <summary>Builds <c>Start(Action)</c>, schedules the no-op action, and drains the single <see cref="Unit"/>.</summary>
+    /// <returns>The single <see cref="Unit.Default"/> emission.</returns>
+    [Benchmark]
+    public ValueTask<Unit> StartAction_Drain() =>
+        ObservableAsync.Start(static () => { }).FirstAsync();
+
+    /// <summary>Builds <c>Start(Func)</c>, schedules the value factory, and drains its single emission.</summary>
+    /// <returns>The factory's emitted value.</returns>
+    [Benchmark]
+    public ValueTask<int> StartFunc_Drain() =>
+        ObservableAsync.Start(static () => StartValue).FirstAsync();
 
     /// <summary>Builds <c>ToObservableAsync</c> from a 100-element enumerable and counts the emissions.</summary>
     /// <returns>The element count, expected to be 100.</returns>

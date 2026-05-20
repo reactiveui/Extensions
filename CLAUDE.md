@@ -226,6 +226,15 @@ because they're style, not perf.
   operator we ship (`Select`, `Where`, `CombineLatest`, `Merge`,
   `Throttle`, `Scan`, etc.) is **our own implementation** under
   `Operators/` (sync) or `Async/Operators/` (async).
+- **`IScheduler` and `Unit` are unavoidable parts of Rx — do not try to
+  replace them.** `IScheduler` is the canonical scheduling abstraction the
+  entire Rx ecosystem (and our `IObservable<T>` consumers) interop through;
+  rolling our own scheduler interface would fragment that contract for zero
+  benefit. `Unit` is the standard "no value" token every Rx signal stream
+  uses. Both are foundational BCL-level contracts: depend on them directly,
+  pass them through, and don't author parallel substitutes. This is the one
+  place the "don't rebadge" rule inverts — here the *right* move is to reuse
+  the `System.Reactive` type, not replace it.
 - **`System.Reactive.Linq.Observable.*` is banned in production code
   paths** outside thin BCL bridges. If a feature feels like it needs
   `Observable.Foo`, add our own operator with the allocation profile we

@@ -4,6 +4,7 @@
 
 using System.Diagnostics.CodeAnalysis;
 using System.Reactive;
+using System.Text.RegularExpressions;
 using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Jobs;
 using ReactiveUI.Extensions.Internal;
@@ -20,7 +21,7 @@ namespace ReactiveUI.Extensions.Benchmarks;
 [SimpleJob(RuntimeMoniker.Net10_0)]
 [MemoryDiagnoser]
 [MarkdownExporterAttribute.GitHub]
-public class SyncFilterAndProjectionBenchmarks : IDisposable
+public partial class SyncFilterAndProjectionBenchmarks : IDisposable
 {
     /// <summary>Low end of the <see cref="EmissionCount"/> parameter sweep.</summary>
     private const int SmallEmissionCount = 1_000;
@@ -30,6 +31,21 @@ public class SyncFilterAndProjectionBenchmarks : IDisposable
 
     /// <summary>Pre-boxed non-null reference reused across <see cref="WhereIsNotNull_AllPassing"/> emissions.</summary>
     private const string SharedNonNull = "x";
+
+    /// <summary>A value that matches the digit pattern so every emission passes the regex filter.</summary>
+    private const string MatchingString = "abc123";
+
+    /// <summary>Match-timeout (milliseconds) shared by both the runtime-compiled and source-generated regexes.</summary>
+    private const int RegexTimeoutMs = 1000;
+
+    /// <summary>Runtime <see cref="RegexOptions.Compiled"/> regex reused across <see cref="Filter_CompiledRegexAllMatching"/> emissions.</summary>
+    private readonly Regex _compiledRegex = new(@"\d+", RegexOptions.Compiled, TimeSpan.FromMilliseconds(RegexTimeoutMs));
+
+    /// <summary>Source for the runtime-compiled <c>Filter(Regex)</c> pipeline.</summary>
+    private readonly CurrentValueSubject<string> _compiledFilterSource = new(MatchingString);
+
+    /// <summary>Source for the source-generated <c>Filter(Regex)</c> pipeline.</summary>
+    private readonly CurrentValueSubject<string> _generatedFilterSource = new(MatchingString);
 
     /// <summary>Source for the <c>AsSignal</c> pipeline; initial-value replay fires once during setup.</summary>
     private readonly CurrentValueSubject<int> _signalSource = new(0);
@@ -64,6 +80,12 @@ public class SyncFilterAndProjectionBenchmarks : IDisposable
     /// <summary>Subscription on the <c>WhereIsNotNull</c> pipeline.</summary>
     private IDisposable _whereNotNullSubscription = null!;
 
+    /// <summary>Subscription on the runtime-compiled <c>Filter(Regex)</c> pipeline.</summary>
+    private IDisposable _compiledFilterSubscription = null!;
+
+    /// <summary>Subscription on the source-generated <c>Filter(Regex)</c> pipeline.</summary>
+    private IDisposable _generatedFilterSubscription = null!;
+
     /// <summary>Gets or sets the number of emissions pushed through each pipeline per benchmark invocation.</summary>
     [Params(SmallEmissionCount, LargeEmissionCount)]
     public int EmissionCount { get; set; }
@@ -76,6 +98,8 @@ public class SyncFilterAndProjectionBenchmarks : IDisposable
         _notSubscription = _notSource.Not().Subscribe(_boolSink);
         _whereTrueSubscription = _whereTrueSource.WhereTrue().Subscribe(_boolSink);
         _whereNotNullSubscription = _whereNotNullSource.WhereIsNotNull().Subscribe(_stringSink);
+        _compiledFilterSubscription = _compiledFilterSource.Filter(_compiledRegex).Subscribe(_stringSink);
+        _generatedFilterSubscription = _generatedFilterSource.Filter(DigitsRegex()).Subscribe(_stringSink);
     }
 
     /// <summary>Tears each pipeline down.</summary>
@@ -94,6 +118,10 @@ public class SyncFilterAndProjectionBenchmarks : IDisposable
         _whereTrueSource.Dispose();
         _whereNotNullSubscription.Dispose();
         _whereNotNullSource.Dispose();
+        _compiledFilterSubscription.Dispose();
+        _compiledFilterSource.Dispose();
+        _generatedFilterSubscription.Dispose();
+        _generatedFilterSource.Dispose();
     }
 
     /// <summary>Drives values through <c>AsSignal</c>; every emission becomes <see cref="Unit.Default"/>.</summary>
@@ -126,6 +154,28 @@ public class SyncFilterAndProjectionBenchmarks : IDisposable
         }
     }
 
+    /// <summary>Drives a string matching the runtime <see cref="RegexOptions.Compiled"/> regex through
+    /// <c>Filter(Regex)</c> (every value passes).</summary>
+    [Benchmark]
+    public void Filter_CompiledRegexAllMatching()
+    {
+        for (var i = 0; i < EmissionCount; i++)
+        {
+            _compiledFilterSource.OnNext(MatchingString);
+        }
+    }
+
+    /// <summary>Drives a string matching the source-generated regex through <c>Filter(Regex)</c>
+    /// (every value passes).</summary>
+    [Benchmark]
+    public void Filter_GeneratedRegexAllMatching()
+    {
+        for (var i = 0; i < EmissionCount; i++)
+        {
+            _generatedFilterSource.OnNext(MatchingString);
+        }
+    }
+
     /// <summary>Drives a shared non-null reference through <c>WhereIsNotNull</c> (every value passes).</summary>
     [Benchmark]
     public void WhereIsNotNull_AllPassing()
@@ -154,6 +204,13 @@ public class SyncFilterAndProjectionBenchmarks : IDisposable
 
         Cleanup();
     }
+
+    /// <summary>Source-generated counterpart of <see cref="_compiledRegex"/>; the
+    /// <see cref="GeneratedRegexAttribute"/> emits the matcher at compile time rather than building
+    /// it via reflection emit at first use.</summary>
+    /// <returns>A cached, source-generated regex matching one-or-more ASCII digits.</returns>
+    [GeneratedRegex(@"\d+", RegexOptions.None, RegexTimeoutMs)]
+    private static partial Regex DigitsRegex();
 
     /// <summary>No-op observer used as the terminal sink for each pipeline.</summary>
     /// <typeparam name="T">The element type the sink consumes.</typeparam>

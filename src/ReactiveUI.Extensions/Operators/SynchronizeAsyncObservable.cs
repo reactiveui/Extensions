@@ -103,14 +103,68 @@ internal sealed class SynchronizeAsyncObservable<T>(IObservable<T> source) : IOb
         }
 
         /// <summary>
-        /// Processes the value asynchronously.
+        /// Processes the value. Pushes <c>(value, signal)</c> downstream and waits for the consumer
+        /// to dispose the signal. The fast path (consumer disposes synchronously inside <c>OnNext</c>)
+        /// returns a completed task without allocating a state machine or <see cref="TaskCompletionSource"/>;
+        /// the slow path (consumer defers disposal) lazily promotes the signal to a TCS-backed gate.
         /// </summary>
         /// <param name="value">The value to process.</param>
         /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
-        private async Task ProcessAsync(T value)
+        private Task ProcessAsync(T value)
         {
-            using var continuation = new Continuation();
-            await continuation.Lock(value, downstream).ConfigureAwait(false);
+            var signal = new SyncSignal();
+            downstream.OnNext((value, signal));
+            return signal.WaitForDisposeAsync();
+        }
+
+        /// <summary>
+        /// Per-emission gate: the downstream receives this handle as <c>Sync</c>. The producer
+        /// calls <see cref="WaitForDisposeAsync"/> after pushing the value; synchronous disposal
+        /// short-circuits to <see cref="Task.CompletedTask"/> with no TCS allocation. Late
+        /// (asynchronous) disposal lazily allocates a single <see cref="TaskCompletionSource"/>.
+        /// </summary>
+        private sealed class SyncSignal : IDisposable
+        {
+            /// <summary>The lazily-created completion source; only allocated on the slow path.</summary>
+            private TaskCompletionSource? _tcs;
+
+            /// <summary>Latches to <c>1</c> on the first dispose so signalling is idempotent.</summary>
+            private int _disposed;
+
+            /// <summary>Returns the task the producer should await before completing the emission.</summary>
+            /// <returns>A completed task if the consumer already disposed; otherwise the lazily-allocated TCS task.</returns>
+            public Task WaitForDisposeAsync()
+            {
+                if (Volatile.Read(ref _disposed) == 1)
+                {
+                    return Task.CompletedTask;
+                }
+
+                var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+                var existing = Interlocked.CompareExchange(ref _tcs, tcs, null);
+                if (existing is not null)
+                {
+                    return existing.Task;
+                }
+
+                if (Volatile.Read(ref _disposed) == 1)
+                {
+                    tcs.TrySetResult();
+                }
+
+                return tcs.Task;
+            }
+
+            /// <inheritdoc/>
+            public void Dispose()
+            {
+                if (Interlocked.Exchange(ref _disposed, 1) != 0)
+                {
+                    return;
+                }
+
+                Volatile.Read(ref _tcs)?.TrySetResult();
+            }
         }
     }
 }

@@ -56,6 +56,42 @@ internal sealed class ScheduledSourceObservable<T> : IObservable<T>
     }
 
     /// <summary>
+    /// Carries the per-emission state into the scheduled callback so the
+    /// scheduler lambda does not capture any fields. A <see langword="readonly"/>
+    /// <see langword="record"/> <see langword="struct"/> so it rides inside the
+    /// scheduler's work item by value rather than as a separate per-emission heap
+    /// allocation.
+    /// </summary>
+    /// <param name="Observer">The downstream observer.</param>
+    /// <param name="Value">The value to emit.</param>
+    /// <param name="Transform">The optional transform.</param>
+    /// <param name="Action">The optional side-effect.</param>
+    private readonly record struct EmitState(
+        IObserver<T> Observer,
+        T Value,
+        Func<T, T>? Transform,
+        Action<T>? Action)
+    {
+        /// <summary>
+        /// Applies the optional side-effect and transform, then emits the value
+        /// to the captured observer.
+        /// </summary>
+        public void Emit()
+        {
+            try
+            {
+                Action?.Invoke(Value);
+                var emitted = Transform is null ? Value : Transform(Value);
+                Observer.OnNext(emitted);
+            }
+            catch (Exception error)
+            {
+                Observer.OnError(error);
+            }
+        }
+    }
+
+    /// <summary>
     /// Per-value sink that captures the configured scheduling parameters once
     /// and schedules each <see cref="OnNext"/> through the configured
     /// <see cref="IScheduler"/>.
@@ -107,39 +143,6 @@ internal sealed class ScheduledSourceObservable<T> : IObservable<T>
         {
             // Intentionally not forwarded: original Observable.Create + Subscribe(Action<T>)
             // pattern silently dropped completion. Preserving that behaviour.
-        }
-    }
-
-    /// <summary>
-    /// Carries the per-emission state into the scheduled callback so the
-    /// scheduler lambda does not capture any fields.
-    /// </summary>
-    /// <param name="observer">The downstream observer.</param>
-    /// <param name="value">The value to emit.</param>
-    /// <param name="transform">The optional transform.</param>
-    /// <param name="action">The optional side-effect.</param>
-    private sealed class EmitState(
-        IObserver<T> observer,
-        T value,
-        Func<T, T>? transform,
-        Action<T>? action)
-    {
-        /// <summary>
-        /// Applies the optional side-effect and transform, then emits the value
-        /// to the captured observer.
-        /// </summary>
-        public void Emit()
-        {
-            try
-            {
-                action?.Invoke(value);
-                var emitted = transform is null ? value : transform(value);
-                observer.OnNext(emitted);
-            }
-            catch (Exception error)
-            {
-                observer.OnError(error);
-            }
         }
     }
 }

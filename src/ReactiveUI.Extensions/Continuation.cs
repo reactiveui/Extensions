@@ -63,6 +63,27 @@ public class Continuation : IDisposable
     }
 
     /// <summary>
+    /// <see cref="ValueTask"/>-returning counterpart to <see cref="Lock{T}"/>. Use this at per-emission
+    /// call sites where the returned task is awaited exactly once — saves the boxed <see cref="Task"/>
+    /// wrapper allocation in the already-locked fast path.
+    /// </summary>
+    /// <typeparam name="T">The type of the elements in the source sequence.</typeparam>
+    /// <param name="item">The item.</param>
+    /// <param name="observer">The observer.</param>
+    /// <returns>A <see cref="ValueTask"/> representing the asynchronous operation.</returns>
+    public ValueTask LockValueTask<T>(T item, IObserver<(T value, IDisposable Sync)>? observer)
+    {
+        if (_locked)
+        {
+            return default;
+        }
+
+        _locked = true;
+        observer?.OnNext((item, this));
+        return new ValueTask(ScheduleSignalPhase());
+    }
+
+    /// <summary>
     /// UnLocks this instance.
     /// </summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>

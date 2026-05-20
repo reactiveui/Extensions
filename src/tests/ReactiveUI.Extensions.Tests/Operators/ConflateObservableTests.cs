@@ -186,24 +186,25 @@ public class ConflateObservableTests
         await Assert.That(completed).IsFalse();
     }
 
-    /// <summary>Verifies <see cref="ReactiveUI.Extensions.Operators.ConflateObservable{T}.SchedulerMarshaller"/>'s
-    /// post-dispose <c>Enqueue</c> guard by constructing the marshaller directly, disposing it,
-    /// and then pushing a notification — exercising the defensive branch that is otherwise
-    /// unreachable through the front-door <c>Conflate</c> pipeline.</summary>
+    /// <summary>Verifies <see cref="ReactiveUI.Extensions.Operators.ConflateObservable{T}.ConflateSink"/>'s
+    /// post-dispose <c>Enqueue</c> guard by constructing the sink directly, disposing it, and then
+    /// pushing notifications — exercising the defensive branch that is otherwise unreachable
+    /// through the front-door <c>Conflate</c> pipeline.</summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous test operation.</returns>
     [Test]
-    public async Task WhenMarshallerEnqueuedAfterDispose_ThenSilentlyDropped()
+    public async Task WhenSinkEnqueuedAfterDispose_ThenSilentlyDropped()
     {
         var downstream = new RecordingObserver<int>();
         var scheduler = new TestScheduler();
-        var marshaller = new ReactiveUI.Extensions.Operators.ConflateObservable<int>.SchedulerMarshaller(
+        var sink = new ReactiveUI.Extensions.Operators.ConflateObservable<int>.ConflateSink(
             downstream,
+            TimeSpan.FromTicks(UpdatePeriodTicks),
             scheduler);
 
-        marshaller.Dispose();
-        marshaller.OnNext(1);
-        marshaller.OnError(new InvalidOperationException("late"));
-        marshaller.OnCompleted();
+        sink.Dispose();
+        sink.OnNext(1);
+        sink.OnError(new InvalidOperationException("late"));
+        sink.OnCompleted();
         scheduler.AdvanceBy(UpdatePeriodTicks);
 
         await Assert.That(downstream.Values).IsEmpty();
@@ -227,10 +228,12 @@ public class ConflateObservableTests
 
         var expected = new InvalidOperationException("first");
         sink.OnError(expected);
+        scheduler.AdvanceBy(UpdatePeriodTicks);
 
         sink.OnNext(1);
         sink.OnError(new InvalidOperationException("ignored"));
         sink.OnCompleted();
+        scheduler.AdvanceBy(UpdatePeriodTicks);
 
         await Assert.That(downstream.Error).IsSameReferenceAs(expected);
         await Assert.That(downstream.Values).IsEmpty();

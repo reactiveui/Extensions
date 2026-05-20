@@ -11,9 +11,10 @@ using ReactiveUI.Extensions.Async.Subjects;
 namespace ReactiveUI.Extensions.Benchmarks;
 
 /// <summary>
-/// Measures the per-emission cost of <c>Publish</c> + <c>RefCount</c> with four shared observers
-/// attached. Exercises the multicast / connectable wiring (subject snapshot, single upstream
-/// subscribe, fan-out to N observers per emission).
+/// Measures the per-emission cost of <c>Publish</c> + <c>RefCount</c> and the raw
+/// <c>Multicast(subject)</c> + <c>Connect</c> primitive, each with four shared observers attached.
+/// Exercises the multicast / connectable wiring (subject snapshot, single upstream subscribe,
+/// fan-out to N observers per emission).
 /// </summary>
 [SimpleJob(RuntimeMoniker.Net10_0)]
 [MemoryDiagnoser]
@@ -38,6 +39,15 @@ public class MulticastBenchmarks : IDisposable
     /// <summary>Subscriptions returned by each attached observer.</summary>
     private List<IAsyncDisposable> _subscriptions = null!;
 
+    /// <summary>Upstream subject feeding the raw <c>Multicast(subject)</c> pipeline.</summary>
+    private SerialStatelessSubjectAsync<int> _multicastSource = null!;
+
+    /// <summary>Subscriptions on the raw <c>Multicast(subject)</c> pipeline.</summary>
+    private List<IAsyncDisposable> _multicastSubscriptions = null!;
+
+    /// <summary>Connection handle returned by <c>ConnectAsync</c> on the raw multicast pipeline.</summary>
+    private IAsyncDisposable _multicastConnection = null!;
+
     /// <summary>Gets or sets the number of emissions pushed through the multicast per benchmark invocation.</summary>
     [Params(SmallEmissionCount, LargeEmissionCount)]
     public int EmissionCount { get; set; }
@@ -54,6 +64,16 @@ public class MulticastBenchmarks : IDisposable
         {
             _subscriptions.Add(await shared.SubscribeAsync(_sink, default).ConfigureAwait(false));
         }
+
+        _multicastSource = new SerialStatelessSubjectAsync<int>();
+        var connectable = _multicastSource.Multicast(SubjectAsync.Create<int>());
+        _multicastSubscriptions = new List<IAsyncDisposable>(ObserverCount);
+        for (var i = 0; i < ObserverCount; i++)
+        {
+            _multicastSubscriptions.Add(await connectable.SubscribeAsync(_sink, default).ConfigureAwait(false));
+        }
+
+        _multicastConnection = await connectable.ConnectAsync(default).ConfigureAwait(false);
     }
 
     /// <summary>Tears every subscription and the source subject down.</summary>
@@ -67,6 +87,14 @@ public class MulticastBenchmarks : IDisposable
         }
 
         await _source.DisposeAsync().ConfigureAwait(false);
+
+        await _multicastConnection.DisposeAsync().ConfigureAwait(false);
+        for (var i = 0; i < _multicastSubscriptions.Count; i++)
+        {
+            await _multicastSubscriptions[i].DisposeAsync().ConfigureAwait(false);
+        }
+
+        await _multicastSource.DisposeAsync().ConfigureAwait(false);
         await _sink.DisposeAsync().ConfigureAwait(false);
     }
 
@@ -78,6 +106,17 @@ public class MulticastBenchmarks : IDisposable
         for (var i = 0; i < EmissionCount; i++)
         {
             await _source.OnNextAsync(i, default).ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>Pushes <see cref="EmissionCount"/> values through the raw <c>Multicast(subject)</c> + <c>Connect</c> pipeline.</summary>
+    /// <returns>A task that completes when every observer has been notified for every emission.</returns>
+    [Benchmark]
+    public async Task MulticastConnect_FourSharedObservers()
+    {
+        for (var i = 0; i < EmissionCount; i++)
+        {
+            await _multicastSource.OnNextAsync(i, default).ConfigureAwait(false);
         }
     }
 

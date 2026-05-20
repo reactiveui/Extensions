@@ -27,7 +27,7 @@ internal sealed class SubscribeAsyncObservable<T> : IDisposable
     private readonly IDisposable _subscription;
 
     /// <summary>The asynchronous element handler.</summary>
-    private readonly Func<T, Task> _onNext;
+    private readonly Func<T, ValueTask> _onNext;
 
     /// <summary>The error handler.</summary>
     private readonly Action<Exception>? _onError;
@@ -53,7 +53,7 @@ internal sealed class SubscribeAsyncObservable<T> : IDisposable
     /// <param name="onCompleted">The completion handler.</param>
     public SubscribeAsyncObservable(
         IObservable<T> source,
-        Func<T, Task> onNext,
+        Func<T, ValueTask> onNext,
         Action<Exception>? onError = null,
         Action? onCompleted = null)
     {

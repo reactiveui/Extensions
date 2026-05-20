@@ -26,10 +26,15 @@ internal abstract class CancelableTaskSubscription<T>(IObserverAsync<T> observer
     /// </summary>
     private readonly CancellationTokenSource _cts = new();
 
-    /// <summary>
-    /// An async-local flag that indicates whether the current call is reentrant, preventing deadlocks during disposal.
-    /// </summary>
-    private readonly AsyncLocal<bool> _reentrant = new();
+    /// <summary>Managed-thread ID of the thread currently inside <see cref="RunAsync"/>, or
+    /// <c>0</c> when no run is in flight. Replaces an <see cref="AsyncLocal{T}"/>-based
+    /// reentry flag — the AsyncLocal cloned <see cref="System.Threading.ExecutionContext"/>
+    /// on every set, costing ~80 B per Run. Thread-ID detection is exact for the
+    /// synchronous-reentry deadlock case (Dispose called from within the same call stack
+    /// as RunAsync); asynchronous reentry after a thread hop may return from Dispose
+    /// slightly before RunAsync's finally fires, but cancellation has already been
+    /// signalled so no observer notifications race the dispose.</summary>
+    private int _runningThreadId;
 
     /// <summary>
     /// Indicates whether disposal has already been initiated to prevent double-disposal.
@@ -60,7 +65,7 @@ internal abstract class CancelableTaskSubscription<T>(IObserverAsync<T> observer
         }
 
         await _cts.CancelAsync().ConfigureAwait(false);
-        if (!_reentrant.Value)
+        if (Volatile.Read(ref _runningThreadId) != Environment.CurrentManagedThreadId)
         {
             await _tcs.Task.ConfigureAwait(false);
         }
@@ -94,7 +99,7 @@ internal abstract class CancelableTaskSubscription<T>(IObserverAsync<T> observer
     /// <returns>A <see cref="ValueTask"/> representing the asynchronous operation.</returns>
     internal async ValueTask RunAsync(CancellationToken cancellationToken)
     {
-        _reentrant.Value = true;
+        Volatile.Write(ref _runningThreadId, Environment.CurrentManagedThreadId);
         try
         {
             await RunAsyncCore(observer, cancellationToken).ConfigureAwait(false);
@@ -105,6 +110,7 @@ internal abstract class CancelableTaskSubscription<T>(IObserverAsync<T> observer
         }
         finally
         {
+            Volatile.Write(ref _runningThreadId, 0);
             _tcs.SetResult(true);
         }
     }

@@ -33,7 +33,7 @@ public class SubscribeAsyncObservableTests
             x =>
             {
                 results.Add(x);
-                return Task.CompletedTask;
+                return default;
             },
             static _ => { },
             () => completed.TrySetResult(true));
@@ -58,7 +58,7 @@ public class SubscribeAsyncObservableTests
         var expected = new InvalidOperationException(HandlerFailedMessage);
 
         using var sub = subject.SubscribeSynchronous<int>(
-            _ => Task.FromException(expected),
+            _ => ValueTask.FromException(expected),
             ex => faulted.TrySetResult(ex));
 
         subject.OnNext(TriggerValue);
@@ -77,7 +77,7 @@ public class SubscribeAsyncObservableTests
         var expected = new InvalidOperationException(SourceErrorMessage);
 
         using var sub = subject.SubscribeSynchronous<int>(
-            static _ => Task.CompletedTask,
+            static _ => default,
             ex => caught = ex);
 
         subject.OnError(expected);
@@ -124,7 +124,7 @@ public class SubscribeAsyncObservableTests
         var sub = subject.SubscribeSynchronous<int>(_ =>
         {
             Interlocked.Increment(ref handlerRan);
-            return Task.CompletedTask;
+            return default;
         });
 
         sub.Dispose();
@@ -148,7 +148,7 @@ public class SubscribeAsyncObservableTests
             x =>
             {
                 values.Add(x);
-                return Task.CompletedTask;
+                return default;
             },
             ex => caught = ex,
             () => completedCount++);
@@ -175,7 +175,7 @@ public class SubscribeAsyncObservableTests
         var expected = new InvalidOperationException("first");
 
         using var sub = source.SubscribeSynchronous<int>(
-            static _ => Task.CompletedTask,
+            static _ => default,
             ex => caught = ex,
             () => completedCount++);
 
