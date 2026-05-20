@@ -43,6 +43,17 @@ public class ToHotTaskBenchmarks : IDisposable
         }
     }
 
+    /// <summary>Resolves the pooled-source <see cref="ValueTask{T}"/> variant the same number of times.</summary>
+    /// <returns>A task that completes when every value task has been consumed.</returns>
+    [Benchmark]
+    public async Task ToHotValueTask_ResolveFirstValue()
+    {
+        for (var i = 0; i < ResolveCount; i++)
+        {
+            _ = await _source.ToHotValueTask().ConfigureAwait(false);
+        }
+    }
+
     /// <inheritdoc/>
     public void Dispose()
     {

@@ -231,7 +231,7 @@ public class OperatorAfterTerminalGuardTests
         var values = new List<int>();
         var completedCount = 0;
 
-        using var sub = source.DropIfBusy(static _ => Task.CompletedTask)
+        using var sub = source.DropIfBusy(static _ => default)
             .Subscribe(values.Add, () => completedCount++);
 
         source.Observer.OnCompleted();
@@ -522,7 +522,7 @@ public class OperatorAfterTerminalGuardTests
         using var sub = subject.SubscribeSynchronous<int>(_ =>
         {
             processed.TrySetResult();
-            return Task.CompletedTask;
+            return default;
         });
 
         subject.OnNext(1);
@@ -532,7 +532,7 @@ public class OperatorAfterTerminalGuardTests
         subject.OnError(new InvalidOperationException("ignored"));
 
         var second = new Subject<int>();
-        using var sub2 = second.SubscribeSynchronous<int>(static _ => Task.CompletedTask);
+        using var sub2 = second.SubscribeSynchronous<int>(static _ => default);
         second.OnCompleted();
     }
 }

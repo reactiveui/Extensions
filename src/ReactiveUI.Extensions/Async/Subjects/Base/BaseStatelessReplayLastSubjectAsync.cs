@@ -73,18 +73,39 @@ public abstract class BaseStatelessReplayLastSubjectAsync<T>(Optional<T> startVa
     /// <returns>A task that represents the asynchronous notification operation.</returns>
     public async ValueTask OnNextAsync(T value, CancellationToken cancellationToken)
     {
-        using var linkedCts =
-            CancellationTokenSource.CreateLinkedTokenSource(DisposedCancellationToken, cancellationToken);
-        var token = linkedCts.Token;
-
-        ImmutableArray<IObserverAsync<T>> observers;
-        using (await _gate.LockAsync(token).ConfigureAwait(false))
+        // Fast path: when the caller passes our own dispose token (or no token at all), the
+        // per-emission linked CTS is pure waste — DisposedCancellationToken already covers
+        // disposal-driven cancellation, so reuse it directly.
+        CancellationTokenSource? linkedCts = null;
+        CancellationToken token;
+        if (cancellationToken == DisposedCancellationToken || !cancellationToken.CanBeCanceled)
         {
-            _value = new(value);
-            observers = _observers;
+            token = DisposedCancellationToken;
+        }
+        else
+        {
+            linkedCts = CancellationTokenSource.CreateLinkedTokenSource(DisposedCancellationToken, cancellationToken);
+            token = linkedCts.Token;
         }
 
-        await OnNextAsyncCore(observers, value, token).ConfigureAwait(false);
+        try
+        {
+            ImmutableArray<IObserverAsync<T>> observers;
+            using (await _gate.LockAsync(token).ConfigureAwait(false))
+            {
+                _value = new(value);
+                observers = _observers;
+            }
+
+            // Forward the caller's token (not the dispose-linked one) so downstream observers'
+            // fast-path equality check matches and they don't allocate a linked CTS per emission.
+            // The gate-protected snapshot above already isolates the broadcast from disposal.
+            await OnNextAsyncCore(observers, value, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            linkedCts?.Dispose();
+        }
     }
 
     /// <summary>

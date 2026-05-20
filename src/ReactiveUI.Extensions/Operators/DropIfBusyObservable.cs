@@ -16,7 +16,7 @@ namespace ReactiveUI.Extensions.Operators;
 /// <param name="asyncAction">The asynchronous action to execute for each forwarded element.</param>
 internal sealed class DropIfBusyObservable<T>(
     IObservable<T> source,
-    Func<T, Task> asyncAction) : IObservable<T>
+    Func<T, ValueTask> asyncAction) : IObservable<T>
 {
     /// <inheritdoc/>
     public IDisposable Subscribe(IObserver<T> observer)
@@ -36,7 +36,7 @@ internal sealed class DropIfBusyObservable<T>(
     /// <param name="asyncAction">The async action to run.</param>
     private sealed class DropIfBusySink(
         IObserver<T> downstream,
-        Func<T, Task> asyncAction) : IObserver<T>, IDisposable
+        Func<T, ValueTask> asyncAction) : IObserver<T>, IDisposable
     {
         /// <summary>0 = idle, 1 = busy.</summary>
         private int _isBusy;

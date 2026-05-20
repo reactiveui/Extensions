@@ -28,9 +28,9 @@ internal sealed class DetectStaleObservable<T>(
         ArgumentExceptionHelper.ThrowIfNull(observer);
 
         var sink = new DetectStaleSink(observer, stalenessPeriod, scheduler);
-        var sub = source.Subscribe(sink);
+        sink.AttachSourceSubscription(source.Subscribe(sink));
         sink.Initialize();
-        return new DisposableBag(sub, sink);
+        return sink;
     }
 
     /// <summary>
@@ -47,6 +47,26 @@ internal sealed class DetectStaleObservable<T>(
     {
         /// <summary>Shared gate / timer / done-flag plumbing.</summary>
         private readonly TimerSinkState<Stale<T>> _state = new(downstream);
+
+        /// <summary>Upstream subscription handle, set once via <see cref="AttachSourceSubscription"/>
+        /// so the sink can tear it down on dispose without a wrapper bag.</summary>
+        private IDisposable? _sourceSubscription;
+
+        /// <summary>Records the upstream subscription for disposal.</summary>
+        /// <param name="subscription">The upstream subscription handle.</param>
+        public void AttachSourceSubscription(IDisposable subscription)
+        {
+            lock (_state.Gate)
+            {
+                if (_state.Done)
+                {
+                    subscription.Dispose();
+                    return;
+                }
+
+                _sourceSubscription = subscription;
+            }
+        }
 
         /// <summary>Initializes the staleness timer.</summary>
         public void Initialize() => ScheduleStale();
@@ -73,19 +93,31 @@ internal sealed class DetectStaleObservable<T>(
         public void OnCompleted() => _state.HandleCompleted();
 
         /// <inheritdoc/>
-        public void Dispose() => _state.HandleDispose();
+        public void Dispose()
+        {
+            _state.HandleDispose();
+            Interlocked.Exchange(ref _sourceSubscription, null)?.Dispose();
+        }
 
-        /// <summary>Schedules the staleness notification.</summary>
+        /// <summary>Schedules the staleness notification. Uses the state-carrying scheduler
+        /// overload with a static lambda so no per-reschedule closure capturing <c>this</c> is
+        /// allocated (the timer re-arms on every upstream emission).</summary>
         private void ScheduleStale() =>
-            _state.Timer.Disposable = scheduler.Schedule(stalenessPeriod, () =>
+            _state.Timer.Disposable = scheduler.Schedule(this, stalenessPeriod, static (_, self) => self.OnStaleTimer());
+
+        /// <summary>Fires the stale marker downstream when the staleness window elapses.</summary>
+        /// <returns>The singleton empty disposable for the scheduler contract.</returns>
+        private EmptyDisposable OnStaleTimer()
+        {
+            lock (_state.Gate)
             {
-                lock (_state.Gate)
+                if (!_state.Done)
                 {
-                    if (!_state.Done)
-                    {
-                        downstream.OnNext(new Stale<T>());
-                    }
+                    downstream.OnNext(new Stale<T>());
                 }
-            });
+            }
+
+            return EmptyDisposable.Instance;
+        }
     }
 }

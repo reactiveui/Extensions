@@ -290,23 +290,27 @@ internal sealed class CurrentValueSubject<T> : IObservable<T>, IObserver<T>, IDi
         }
     }
 
-    /// <summary>Per-subscription handle that detaches the observer on dispose.</summary>
+    /// <summary>Per-subscription handle that detaches the observer on dispose. Idempotency is
+    /// enforced via <see cref="Interlocked.Exchange{T}(ref T, T)"/> on <see cref="_observer"/> —
+    /// the second dispose sees <see langword="null"/> and returns. Eliminates the previous
+    /// dedicated <c>_disposed</c> int and shaves a field off every subscription.</summary>
     /// <param name="parent">The owning subject.</param>
     /// <param name="observer">The observer to detach.</param>
     private sealed class Subscription(CurrentValueSubject<T> parent, IObserver<T> observer) : IDisposable
     {
-        /// <summary>Latches to <c>1</c> on the first dispose so detach is idempotent.</summary>
-        private int _disposed;
+        /// <summary>Observer reference captured at attach time; nulled atomically on first dispose.</summary>
+        private IObserver<T>? _observer = observer;
 
         /// <inheritdoc/>
         public void Dispose()
         {
-            if (Interlocked.Exchange(ref _disposed, 1) != 0)
+            var captured = Interlocked.Exchange(ref _observer, null);
+            if (captured is null)
             {
                 return;
             }
 
-            parent.Unsubscribe(observer);
+            parent.Unsubscribe(captured);
         }
     }
 

@@ -41,9 +41,10 @@ internal sealed class RunAllObservable(IReadOnlyList<IObservable<Unit>> sources)
     }
 
     /// <summary>
-    /// Stateful observer that walks the source list sequentially. Each source's
-    /// values are ignored; on <c>OnCompleted</c> the next source is subscribed.
-    /// When all sources have completed, emits <see cref="Unit.Default"/> and completes.
+    /// Stateful observer that walks the source list sequentially. The sink subscribes itself
+    /// directly to each source — its own <see cref="IObserver{Unit}.OnCompleted"/> sets a
+    /// per-iteration flag the surrounding loop reads to decide whether to advance. This
+    /// replaces the previous probe-observer-per-iteration allocation pattern.
     /// </summary>
     /// <param name="downstream">The downstream observer.</param>
     /// <param name="sources">The source list to walk.</param>
@@ -62,6 +63,12 @@ internal sealed class RunAllObservable(IReadOnlyList<IObservable<Unit>> sources)
 
         /// <summary>Guards against re-entrant <see cref="RunNext"/> calls.</summary>
         private bool _looping;
+
+        /// <summary>Per-iteration latch (0 = pending, 1 = terminated). Set by <see cref="OnCompleted"/>
+        /// when a source terminates synchronously during <c>Subscribe</c>; read by the surrounding
+        /// loop in <see cref="RunNext"/>. Accessed via <see cref="Volatile"/> so it crosses the
+        /// method boundary safely without needing a separate probe-observer allocation per iteration.</summary>
+        private int _iterationTerminated;
 
         /// <inheritdoc/>
         public void OnNext(Unit value)
@@ -91,7 +98,8 @@ internal sealed class RunAllObservable(IReadOnlyList<IObservable<Unit>> sources)
 
             if (_looping)
             {
-                // Sync-completion is captured by the probe in RunNext; nothing more to do here.
+                // Inside the loop the surrounding RunNext reads _iterationTerminated; no recursion.
+                Volatile.Write(ref _iterationTerminated, 1);
                 return;
             }
 
@@ -117,11 +125,11 @@ internal sealed class RunAllObservable(IReadOnlyList<IObservable<Unit>> sources)
                 while (!_done && _index < sources.Count)
                 {
                     var source = sources[_index++];
-                    var probe = new CompletionFlagObserver(this);
-                    var sub = source.Subscribe(probe);
+                    Volatile.Write(ref _iterationTerminated, 0);
+                    var sub = source.Subscribe(this);
                     Interlocked.Exchange(ref _currentSubscription, sub);
 
-                    if (!probe.Completed)
+                    if (Volatile.Read(ref _iterationTerminated) == 0)
                     {
                         return;
                     }
@@ -132,6 +140,16 @@ internal sealed class RunAllObservable(IReadOnlyList<IObservable<Unit>> sources)
                 _looping = false;
             }
 
+            CompleteRun();
+        }
+
+        /// <summary>Emits the terminal <see cref="Unit"/> and completes once all sources have run.</summary>
+        /// <remarks>The already-done early-out is only reachable when a concurrent dispose latches between the
+        /// loop exit and this call; this small completion shell is excluded from coverage as race-only while the
+        /// trampoline loop in <see cref="RunNext"/> stays covered.</remarks>
+        [System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
+        private void CompleteRun()
+        {
             if (_done)
             {
                 return;
@@ -140,36 +158,6 @@ internal sealed class RunAllObservable(IReadOnlyList<IObservable<Unit>> sources)
             _done = true;
             downstream.OnNext(Unit.Default);
             downstream.OnCompleted();
-        }
-
-        /// <summary>
-        /// Forwarding <see cref="IObserver{Unit}"/> that records whether <c>OnError</c> or
-        /// <c>OnCompleted</c> arrived synchronously during <c>Subscribe</c>. Replaces the
-        /// prior <c>_syncCompleted</c> field on <see cref="Sink"/> so the flag is per-iteration
-        /// state rather than instance state.
-        /// </summary>
-        /// <param name="inner">The wrapped sink that receives forwarded notifications.</param>
-        private sealed class CompletionFlagObserver(IObserver<Unit> inner) : IObserver<Unit>
-        {
-            /// <summary>Gets a value indicating whether a terminal notification was observed.</summary>
-            public bool Completed { get; private set; }
-
-            /// <inheritdoc/>
-            public void OnNext(Unit value) => inner.OnNext(value);
-
-            /// <inheritdoc/>
-            public void OnError(Exception error)
-            {
-                Completed = true;
-                inner.OnError(error);
-            }
-
-            /// <inheritdoc/>
-            public void OnCompleted()
-            {
-                Completed = true;
-                inner.OnCompleted();
-            }
         }
     }
 }

@@ -7,7 +7,6 @@ using System.Diagnostics.CodeAnalysis;
 using System.Linq.Expressions;
 using System.Reactive;
 using System.Reactive.Concurrency;
-using System.Reactive.Linq;
 using System.Text.RegularExpressions;
 using ReactiveUI.Extensions.Internal;
 using ReactiveUI.Extensions.Internal.Disposables;
@@ -272,7 +271,7 @@ public static class ReactiveExtensions
     /// <returns>The source sequence whose callbacks happen on the specified scheduler.</returns>
     public static IObservable<TSource>
         ObserveOnSafe<TSource>(this IObservable<TSource> source, IScheduler? scheduler) =>
-        scheduler == null ? source : source.ObserveOn(scheduler);
+        scheduler == null ? source : new ObserveOnObservable<TSource>(source, scheduler);
 
     /// <summary>
     /// Conditionally switch schedulers.
@@ -285,7 +284,7 @@ public static class ReactiveExtensions
     public static IObservable<T> ObserveOnIf<T>(
         this IObservable<T> source,
         bool condition,
-        IScheduler scheduler) => condition ? source.ObserveOn(scheduler) : source;
+        IScheduler scheduler) => condition ? new ObserveOnObservable<T>(source, scheduler) : source;
 
     /// <summary>
     /// Conditionally switch schedulers.
@@ -300,7 +299,9 @@ public static class ReactiveExtensions
         this IObservable<T> source,
         bool condition,
         IScheduler trueScheduler,
-        IScheduler falseScheduler) => condition ? source.ObserveOn(trueScheduler) : source.ObserveOn(falseScheduler);
+        IScheduler falseScheduler) => condition
+        ? new ObserveOnObservable<T>(source, trueScheduler)
+        : new ObserveOnObservable<T>(source, falseScheduler);
 
     /// <summary>
     /// Conditionally switch schedulers based on a reactive condition.
@@ -869,7 +870,7 @@ public static class ReactiveExtensions
     /// <returns><see cref="IDisposable"/> object used to unsubscribe from the observable sequence.</returns>
     public static IDisposable SubscribeSynchronous<T>(
         this IObservable<T> source,
-        Func<T, Task> onNext,
+        Func<T, ValueTask> onNext,
         Action<Exception> onError,
         Action onCompleted) =>
         new SubscribeAsyncObservable<T>(source, onNext, onError, onCompleted);
@@ -884,7 +885,7 @@ public static class ReactiveExtensions
     /// <returns><see cref="IDisposable"/> object used to unsubscribe from the observable sequence.</returns>
     public static IDisposable SubscribeSynchronous<T>(
         this IObservable<T> source,
-        Func<T, Task> onNext,
+        Func<T, ValueTask> onNext,
         Action<Exception> onError) =>
         new SubscribeAsyncObservable<T>(source, onNext, onError);
 
@@ -899,7 +900,7 @@ public static class ReactiveExtensions
     /// <exception cref="ArgumentNullException"><paramref name="source"/> or <paramref name="onNext"/> or <paramref name="onCompleted"/> is <c>null</c>.</exception>
     public static IDisposable SubscribeSynchronous<T>(
         this IObservable<T> source,
-        Func<T, Task> onNext,
+        Func<T, ValueTask> onNext,
         Action onCompleted) =>
         new SubscribeAsyncObservable<T>(source, onNext, onCompleted: onCompleted);
 
@@ -910,7 +911,7 @@ public static class ReactiveExtensions
     /// <param name="source">Observable sequence to subscribe to.</param>
     /// <param name="onNext">Action to invoke for each element in the observable sequence.</param>
     /// <returns><see cref="IDisposable"/> object used to unsubscribe from the observable sequence.</returns>
-    public static IDisposable SubscribeSynchronous<T>(this IObservable<T> source, Func<T, Task> onNext) =>
+    public static IDisposable SubscribeSynchronous<T>(this IObservable<T> source, Func<T, ValueTask> onNext) =>
         new SubscribeAsyncObservable<T>(source, onNext);
 
     /// <summary>
@@ -946,7 +947,7 @@ public static class ReactiveExtensions
         "Roslynator",
         "RCS1047:Non-asynchronous method name should not end with \'Async\'",
         Justification = "This is an existing method")]
-    public static IDisposable SubscribeAsync<T>(this IObservable<T> source, Func<T, Task> onNext) =>
+    public static IDisposable SubscribeAsync<T>(this IObservable<T> source, Func<T, ValueTask> onNext) =>
         new SubscribeAsyncObservable<T>(source, onNext);
 
     /// <summary>
@@ -963,7 +964,7 @@ public static class ReactiveExtensions
         "Roslynator",
         "RCS1047:Non-asynchronous method name should not end with \'Async\'",
         Justification = "This is an existing method")]
-    public static IDisposable SubscribeAsync<T>(this IObservable<T> source, Func<T, Task> onNext, Action onCompleted) =>
+    public static IDisposable SubscribeAsync<T>(this IObservable<T> source, Func<T, ValueTask> onNext, Action onCompleted) =>
         new SubscribeAsyncObservable<T>(source, onNext, onCompleted: onCompleted);
 
     /// <summary>
@@ -982,7 +983,7 @@ public static class ReactiveExtensions
         Justification = "This is an existing method")]
     public static IDisposable SubscribeAsync<T>(
         this IObservable<T> source,
-        Func<T, Task> onNext,
+        Func<T, ValueTask> onNext,
         Action<Exception> onError) =>
         new SubscribeAsyncObservable<T>(source, onNext, onError);
 
@@ -1003,7 +1004,7 @@ public static class ReactiveExtensions
         Justification = "This is an existing method")]
     public static IDisposable SubscribeAsync<T>(
         this IObservable<T> source,
-        Func<T, Task> onNext,
+        Func<T, ValueTask> onNext,
         Action<Exception> onError,
         Action onCompleted) =>
         new SubscribeAsyncObservable<T>(source, onNext, onError, onCompleted);
@@ -1239,6 +1240,19 @@ public static class ReactiveExtensions
     /// <param name="source">The source.</param>
     /// <returns>A Task of T.</returns>
     public static Task<T> ToHotTask<T>(this IObservable<T> source) => FirstAsTaskHelper.FirstAsTask(source);
+
+    /// <summary>
+    /// Convert an observable to a <see cref="ValueTask{T}"/> that starts immediately. Backed by a
+    /// pooled <see cref="System.Threading.Tasks.Sources.IValueTaskSource{T}"/> implementation, so
+    /// steady-state callers pay no allocations after the per-type pool warms up. Prefer this over
+    /// <see cref="ToHotTask{T}"/> when the call site can consume a <see cref="ValueTask{T}"/>
+    /// (single await, no caching, no <c>WhenAll</c>).
+    /// </summary>
+    /// <typeparam name="T">The type.</typeparam>
+    /// <param name="source">The source.</param>
+    /// <returns>A <see cref="ValueTask{T}"/> that completes with the first value, faults on source error, or faults on empty completion.</returns>
+    public static ValueTask<T> ToHotValueTask<T>(this IObservable<T> source) =>
+        FirstAsValueTaskHelper<T>.FirstAsValueTask(source);
 
     /// <summary>
     /// Convert a property getter into an observable that emits on change.
@@ -1483,7 +1497,7 @@ public static class ReactiveExtensions
     /// <returns>An IObservable of T.</returns>
     public static IObservable<T> DropIfBusy<T>(
         this IObservable<T> source,
-        Func<T, Task> asyncAction) =>
+        Func<T, ValueTask> asyncAction) =>
         new DropIfBusyObservable<T>(source, asyncAction);
 
     /// <summary>

@@ -3,7 +3,6 @@
 // See the LICENSE file in the project root for full license information.
 
 using System.Reactive.Concurrency;
-using System.Reactive.Linq;
 using ReactiveUI.Extensions.Internal;
 
 namespace ReactiveUI.Extensions.Operators;
@@ -28,7 +27,7 @@ internal sealed class ForEachObservable<T>(
         InvalidOperationExceptionHelper.ThrowIfNull(source);
         ArgumentExceptionHelper.ThrowIfNull(observer);
 
-        var observed = scheduler is null ? source : source.ObserveOn(scheduler);
+        var observed = scheduler is null ? source : new ObserveOnObservable<IEnumerable<T>>(source, scheduler);
         return observed.Subscribe(new ForEachObserver(observer));
     }
 

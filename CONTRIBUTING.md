@@ -39,6 +39,14 @@ but keep the style and pattern-matching rules.
   our own implementation** — `Select`, `Where`, `CombineLatest`,
   `Merge`, `Throttle`, `Scan`, etc. No `System.Reactive.Linq.Observable`
   in production code paths outside thin bridges.
+- **`IScheduler` and `Unit` are unavoidable parts of Rx — never replace
+  them.** `IScheduler` is the scheduling abstraction the whole Rx
+  ecosystem interops through, and `Unit` is the standard "no value" token
+  for signal streams. Authoring parallel substitutes would fragment the
+  contract our `IObservable<T>` consumers rely on, for no gain. Depend on
+  both directly and pass them through. This is the deliberate exception to
+  the "don't rebadge" rule below: for these two types the correct move is
+  to reuse the `System.Reactive` type, not reinvent it.
 - **Don't rebadge `System.Reactive` types 1:1.** Our replacements must
   be tailored, low-allocation, perf-focused, and only as
   thread-aware-as-needed. A `SubjectAsync<T>` that mirrors `Subject<T>`

@@ -34,36 +34,56 @@ internal sealed class SelectManyThenObservable<TSource, TMid, TResult>(
         return source.Subscribe(new SourceObserver(observer, first, second));
     }
 
-    /// <summary>Receives the source value and subscribes to the first projection.</summary>
-    /// <param name="downstream">The downstream observer.</param>
-    /// <param name="first">First projection delegate.</param>
-    /// <param name="second">Second projection delegate.</param>
-    private sealed class SourceObserver(
-        IObserver<TResult> downstream,
-        Func<TSource, IObservable<TMid>> first,
-        Func<TMid, IObservable<TResult>> second) : IObserver<TSource>
+    /// <summary>Receives the source value and subscribes to the first projection. Holds a single
+    /// reusable <see cref="MidObserver"/> created at subscribe time — the mid observer captures
+    /// only <c>downstream</c> and <c>second</c>, so the same instance handles every source emission.</summary>
+    private sealed class SourceObserver : IObserver<TSource>
     {
+        /// <summary>The downstream observer that ultimately receives <typeparamref name="TResult"/> values.</summary>
+        private readonly IObserver<TResult> _downstream;
+
+        /// <summary>First projection delegate.</summary>
+        private readonly Func<TSource, IObservable<TMid>> _first;
+
+        /// <summary>Pre-allocated intermediate observer shared across every source emission.</summary>
+        private readonly MidObserver _midObserver;
+
+        /// <summary>Initializes a new instance of the <see cref="SourceObserver"/> class and primes the reusable mid observer.</summary>
+        /// <param name="downstream">The downstream observer.</param>
+        /// <param name="first">First projection delegate.</param>
+        /// <param name="second">Second projection delegate.</param>
+        public SourceObserver(
+            IObserver<TResult> downstream,
+            Func<TSource, IObservable<TMid>> first,
+            Func<TMid, IObservable<TResult>> second)
+        {
+            _downstream = downstream;
+            _first = first;
+            _midObserver = new MidObserver(downstream, second);
+        }
+
         /// <inheritdoc/>
         public void OnNext(TSource value)
         {
             try
             {
-                first(value).Subscribe(new MidObserver(downstream, second));
+                _first(value).Subscribe(_midObserver);
             }
             catch (Exception ex)
             {
-                downstream.OnError(ex);
+                _downstream.OnError(ex);
             }
         }
 
         /// <inheritdoc/>
-        public void OnError(Exception error) => downstream.OnError(error);
+        public void OnError(Exception error) => _downstream.OnError(error);
 
         /// <inheritdoc/>
-        public void OnCompleted() => downstream.OnCompleted();
+        public void OnCompleted() => _downstream.OnCompleted();
     }
 
-    /// <summary>Receives the intermediate value and subscribes to the second projection.</summary>
+    /// <summary>Receives the intermediate value, applies <c>second</c>, and subscribes the resulting
+    /// observable directly to <c>downstream</c> — no separate final-stage observer needed.</summary>
     /// <param name="downstream">The downstream observer.</param>
     /// <param name="second">Second projection delegate.</param>
     private sealed class MidObserver(
@@ -75,27 +95,13 @@ internal sealed class SelectManyThenObservable<TSource, TMid, TResult>(
         {
             try
             {
-                second(value).Subscribe(new FinalObserver(downstream));
+                second(value).Subscribe(downstream);
             }
             catch (Exception ex)
             {
                 downstream.OnError(ex);
             }
         }
-
-        /// <inheritdoc/>
-        public void OnError(Exception error) => downstream.OnError(error);
-
-        /// <inheritdoc/>
-        public void OnCompleted() => downstream.OnCompleted();
-    }
-
-    /// <summary>Forwards the final result to downstream.</summary>
-    /// <param name="downstream">The downstream observer.</param>
-    private sealed class FinalObserver(IObserver<TResult> downstream) : IObserver<TResult>
-    {
-        /// <inheritdoc/>
-        public void OnNext(TResult value) => downstream.OnNext(value);
 
         /// <inheritdoc/>
         public void OnError(Exception error) => downstream.OnError(error);

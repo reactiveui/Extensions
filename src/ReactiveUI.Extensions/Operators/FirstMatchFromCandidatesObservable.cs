@@ -63,7 +63,11 @@ internal sealed class FirstMatchFromCandidatesObservable<TKey, TRaw, TResult>(
     /// <returns>The subscription disposable.</returns>
     internal IDisposable TrySyncLoop(IObserver<TResult> observer)
     {
-        var probe = new SyncProbe();
+        // Reuse the SyncProbe across subscribes on the current thread — it carries no
+        // per-call state once Reset, so per-cycle allocation drops to zero on the fast path.
+        // Race-free because the field is [ThreadStatic]; only one TrySyncLoop call can be
+        // active per thread.
+        var probe = SyncProbe.RentForCurrentThread();
 
         for (var i = 0; i < candidates.Count; i++)
         {
@@ -80,6 +84,7 @@ internal sealed class FirstMatchFromCandidatesObservable<TKey, TRaw, TResult>(
                     sub.Dispose();
                     var sink = new AsyncSink(observer, candidates, project, transform, predicate, fallback, i);
                     sink.TryNext();
+                    SyncProbe.ReturnToCurrentThread(probe);
                     return sink;
                 }
 
@@ -101,12 +106,14 @@ internal sealed class FirstMatchFromCandidatesObservable<TKey, TRaw, TResult>(
             {
                 observer.OnNext(transformed);
                 observer.OnCompleted();
+                SyncProbe.ReturnToCurrentThread(probe);
                 return EmptyDisposable.Instance;
             }
         }
 
         observer.OnNext(fallback);
         observer.OnCompleted();
+        SyncProbe.ReturnToCurrentThread(probe);
         return EmptyDisposable.Instance;
     }
 
@@ -117,6 +124,11 @@ internal sealed class FirstMatchFromCandidatesObservable<TKey, TRaw, TResult>(
     /// </summary>
     internal sealed class SyncProbe : IObserver<TRaw>
     {
+        /// <summary>Per-thread cached instance; rented on entry to <c>TrySyncLoop</c> and returned
+        /// on exit. Eliminates the per-subscribe allocation on the fast path.</summary>
+        [ThreadStatic]
+        private static SyncProbe? _cached;
+
         /// <summary>Gets a value indicating whether <c>OnNext</c> was called.</summary>
         internal bool HasValue { get; private set; }
 
@@ -128,6 +140,25 @@ internal sealed class FirstMatchFromCandidatesObservable<TKey, TRaw, TResult>(
 
         /// <summary>Gets the value received via <c>OnNext</c>.</summary>
         internal TRaw? Value { get; private set; }
+
+        /// <summary>Rents a probe from the current-thread cache, allocating only if the slot is empty.</summary>
+        /// <returns>A fresh-reset probe ready for use.</returns>
+        public static SyncProbe RentForCurrentThread()
+        {
+            var rented = _cached;
+            if (rented is null)
+            {
+                return new SyncProbe();
+            }
+
+            _cached = null;
+            rented.Reset();
+            return rented;
+        }
+
+        /// <summary>Returns a probe to the current-thread cache for reuse on the next call.</summary>
+        /// <param name="probe">The probe instance to cache.</param>
+        public static void ReturnToCurrentThread(SyncProbe probe) => _cached = probe;
 
         /// <inheritdoc/>
         public void OnNext(TRaw value)

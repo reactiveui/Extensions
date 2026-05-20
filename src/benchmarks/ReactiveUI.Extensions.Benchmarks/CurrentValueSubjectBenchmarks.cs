@@ -11,7 +11,8 @@ namespace ReactiveUI.Extensions.Benchmarks;
 
 /// <summary>
 /// Per-emission broadcast cost of <see cref="CurrentValueSubject{T}"/> with one and four observers,
-/// and the subscribe+replay cost. Locks in the single-observer fast path and the immutable-array
+/// the subscribe+replay cost, and the <c>ToReadOnlyBehavior</c> factory that wraps a fresh subject as
+/// an (observable, observer) pair. Locks in the single-observer fast path and the immutable-array
 /// snapshot iteration.
 /// </summary>
 [SimpleJob(RuntimeMoniker.Net10_0)]
@@ -113,6 +114,16 @@ public class CurrentValueSubjectBenchmarks : IDisposable
         for (var i = 0; i < EmissionCount; i++)
         {
             using var subscription = _singleObserverSubject.Subscribe(_singleSink);
+        }
+    }
+
+    /// <summary>Constructs <see cref="EmissionCount"/> read-only behavior pairs via <c>ToReadOnlyBehavior</c>.</summary>
+    [Benchmark]
+    public void ToReadOnlyBehavior_Construct()
+    {
+        for (var i = 0; i < EmissionCount; i++)
+        {
+            _ = ReactiveExtensions.ToReadOnlyBehavior(Seed);
         }
     }
 

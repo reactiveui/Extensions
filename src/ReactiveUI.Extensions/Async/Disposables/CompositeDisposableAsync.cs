@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2019-2026 ReactiveUI Association Incorporated. All rights reserved.
+// Copyright (c) 2019-2026 ReactiveUI Association Incorporated. All rights reserved.
 // ReactiveUI Association Incorporated licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
@@ -16,13 +16,15 @@ namespace ReactiveUI.Extensions.Async.Disposables;
 /// items. This class is not read-only and is safe for concurrent access from multiple threads.</remarks>
 public sealed class CompositeDisposableAsync : IAsyncDisposable
 {
-    /// <summary>
-    /// The minimum list capacity before the list is eligible for shrinking on removal.
-    /// </summary>
-    private const int ShrinkThreshold = 64;
+    /// <summary>Capacity allocated on first <see cref="AddAsync"/>. Chosen as the typical upper bound
+    /// of subscriptions a composite holds, so most lifetimes never trigger a resize.</summary>
+    private const int DefaultCapacity = 8;
 
-    /// <summary>Divisor used to compute the shrink target capacity (half the current capacity).</summary>
-    private const int ShrinkDivisor = 2;
+    /// <summary>Length threshold below which Remove no longer compacts the array.</summary>
+    private const int ShrinkThreshold = 16;
+
+    /// <summary>Divisor used to decide whether a remove triggers compaction (count * 4 &lt; length).</summary>
+    private const int ShrinkOccupancyDivisor = 4;
 
     /// <summary>
     /// The synchronization gate protecting all mutable state in this collection.
@@ -34,24 +36,28 @@ public sealed class CompositeDisposableAsync : IAsyncDisposable
 #endif
 
     /// <summary>
-    /// The backing list of disposables. Entries may be null after removal to avoid shifting elements.
+    /// Backing array of disposables. Slots may be <see langword="null"/> after removal to avoid shifting elements;
+    /// <see cref="_length"/> tracks the high-water mark of used slots and <see cref="_count"/> tracks non-null slots.
+    /// <see langword="null"/> until the first <see cref="AddAsync"/>; the no-arg constructor leaves it unallocated.
     /// </summary>
-    private List<IAsyncDisposable?> _list;
+    private IAsyncDisposable?[]? _items;
 
-    /// <summary>
-    /// Indicates whether the collection has been disposed.
-    /// </summary>
+    /// <summary>High-water mark of used slots in <see cref="_items"/>. Includes slots zeroed by Remove.</summary>
+    private int _length;
+
+    /// <summary>The number of non-<see langword="null"/> disposables in the collection.</summary>
+    private int _count;
+
+    /// <summary>Indicates whether the collection has been disposed.</summary>
     private bool _isDisposed;
 
     /// <summary>
-    /// The number of non-null disposables currently in the collection.
+    /// Initializes a new instance of the <see cref="CompositeDisposableAsync"/> class. The backing array is allocated
+    /// lazily on the first <see cref="AddAsync"/> call; an unused composite costs only its instance header + gate.
     /// </summary>
-    private int _count;
-
-    /// <summary>
-    /// Initializes a new instance of the <see cref="CompositeDisposableAsync"/> class.
-    /// </summary>
-    public CompositeDisposableAsync() => _list = [];
+    public CompositeDisposableAsync()
+    {
+    }
 
     /// <summary>
     /// Initializes a new instance of the <see cref="CompositeDisposableAsync"/> class with the specified initial capacity.
@@ -69,35 +75,68 @@ public sealed class CompositeDisposableAsync : IAsyncDisposable
         }
 #endif
 
-        _list = new List<IAsyncDisposable?>(capacity);
+        _items = capacity == 0 ? null : new IAsyncDisposable?[capacity];
     }
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="CompositeDisposableAsync"/> class that contains the specified asynchronous.
-    /// disposables.
+    /// Initializes a new instance of the <see cref="CompositeDisposableAsync"/> class that contains the specified
+    /// disposables — the backing array is sized exactly so no resize occurs.
     /// </summary>
-    /// <remarks>Each disposable provided will be disposed asynchronously when the composite is disposed. The
-    /// order in which disposables are disposed is the same as the order in the array.</remarks>
-    /// <param name="disposables">An array of objects that implement IAsyncDisposable to be managed by the composite. Cannot be null, but may be
-    /// empty.</param>
+    /// <param name="disposables">An array of objects implementing <see cref="IAsyncDisposable"/>.</param>
     public CompositeDisposableAsync(params IAsyncDisposable[] disposables)
     {
-        _list = [.. disposables];
-        _count = _list.Count;
+        ArgumentExceptionHelper.ThrowIfNull(disposables);
+        if (disposables.Length == 0)
+        {
+            return;
+        }
+
+        _items = new IAsyncDisposable?[disposables.Length];
+        Array.Copy(disposables, _items, disposables.Length);
+        _length = disposables.Length;
+        _count = disposables.Length;
     }
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="CompositeDisposableAsync"/> class that contains the specified asynchronous.
-    /// disposables.
+    /// Initializes a new instance of the <see cref="CompositeDisposableAsync"/> class that contains the specified
+    /// disposables. The backing array is sized exactly when <paramref name="disposables"/> implements
+    /// <see cref="ICollection{T}"/>; otherwise it grows from the default capacity.
     /// </summary>
-    /// <remarks>Each disposable in the collection will be disposed asynchronously when the composite is
-    /// disposed. The order in which disposables are disposed is the same as the order in the provided
-    /// collection.</remarks>
-    /// <param name="disposables">The collection of IAsyncDisposable instances to include in the composite. Cannot be null.</param>
+    /// <param name="disposables">The collection of <see cref="IAsyncDisposable"/> instances to include.</param>
     public CompositeDisposableAsync(IEnumerable<IAsyncDisposable> disposables)
     {
-        _list = [.. disposables];
-        _count = _list.Count;
+        ArgumentExceptionHelper.ThrowIfNull(disposables);
+
+        if (disposables is ICollection<IAsyncDisposable> collection)
+        {
+            if (collection.Count == 0)
+            {
+                return;
+            }
+
+            _items = new IAsyncDisposable?[collection.Count];
+            var i = 0;
+            foreach (var d in collection)
+            {
+                _items[i++] = d;
+            }
+
+            _length = collection.Count;
+            _count = collection.Count;
+            return;
+        }
+
+        foreach (var d in disposables)
+        {
+            if (d is null)
+            {
+                continue;
+            }
+
+            EnsureCapacityForOneMore();
+            _items![_length++] = d;
+            _count++;
+        }
     }
 
     /// <summary>
@@ -135,8 +174,9 @@ public sealed class CompositeDisposableAsync : IAsyncDisposable
         {
             if (!_isDisposed)
             {
+                EnsureCapacityForOneMore();
+                _items![_length++] = item;
                 _count++;
-                _list.Add(item);
                 return default;
             }
         }
@@ -158,37 +198,29 @@ public sealed class CompositeDisposableAsync : IAsyncDisposable
 
         lock (_gate)
         {
-            if (_isDisposed)
+            if (_isDisposed || _items is null)
             {
                 return false;
             }
 
-            var current = _list;
-
-            var index = current.IndexOf(item);
-            if (index == -1)
+            var index = Array.IndexOf(_items, item, 0, _length);
+            if (index < 0)
             {
                 return false;
             }
 
-            current[index] = null;
-
-            if (current.Capacity > ShrinkThreshold && _count < current.Capacity / ShrinkDivisor)
-            {
-                var fresh = new List<IAsyncDisposable?>(current.Capacity / ShrinkDivisor);
-
-                foreach (var d in current)
-                {
-                    if (d != null)
-                    {
-                        fresh.Add(d);
-                    }
-                }
-
-                _list = fresh;
-            }
-
+            _items[index] = null;
             _count--;
+
+            if (_count == 0)
+            {
+                Array.Clear(_items, 0, _length);
+                _length = 0;
+            }
+            else if (_length > ShrinkThreshold && _count * ShrinkOccupancyDivisor < _length)
+            {
+                CompactInPlace();
+            }
         }
 
         await item.DisposeAsync().ConfigureAwait(false);
@@ -203,34 +235,28 @@ public sealed class CompositeDisposableAsync : IAsyncDisposable
     /// <returns>A task that represents the asynchronous clear operation.</returns>
     public async ValueTask Clear()
     {
-        IAsyncDisposable?[] targetDisposables;
-        int clearCount;
+        IAsyncDisposable?[] rented;
+        int clearLength;
         lock (_gate)
         {
-            if (_isDisposed)
+            if (_isDisposed || _count == 0 || _items is null)
             {
                 return;
             }
 
-            if (_count == 0)
-            {
-                return;
-            }
-
-            targetDisposables = ArrayPool<IAsyncDisposable?>.Shared.Rent(_list.Count);
-            clearCount = _list.Count;
-
-            _list.CopyTo(targetDisposables);
-
-            _list.Clear();
+            clearLength = _length;
+            rented = ArrayPool<IAsyncDisposable?>.Shared.Rent(clearLength);
+            Array.Copy(_items, rented, clearLength);
+            Array.Clear(_items, 0, clearLength);
+            _length = 0;
             _count = 0;
         }
 
         try
         {
-            for (var i = 0; i < clearCount; i++)
+            for (var i = 0; i < clearLength; i++)
             {
-                if (targetDisposables[i] is { } item)
+                if (rented[i] is { } item)
                 {
                     await item.DisposeAsync().ConfigureAwait(false);
                 }
@@ -238,7 +264,7 @@ public sealed class CompositeDisposableAsync : IAsyncDisposable
         }
         finally
         {
-            ArrayPool<IAsyncDisposable?>.Shared.Return(targetDisposables, true);
+            ArrayPool<IAsyncDisposable?>.Shared.Return(rented, true);
         }
     }
 
@@ -253,12 +279,12 @@ public sealed class CompositeDisposableAsync : IAsyncDisposable
     {
         lock (_gate)
         {
-            if (_isDisposed)
+            if (_isDisposed || _items is null)
             {
                 return false;
             }
 
-            return _list.Contains(item);
+            return Array.IndexOf(_items, item, 0, _length) >= 0;
         }
     }
 
@@ -280,7 +306,7 @@ public sealed class CompositeDisposableAsync : IAsyncDisposable
 
         lock (_gate)
         {
-            if (_isDisposed)
+            if (_isDisposed || _items is null)
             {
                 return;
             }
@@ -290,21 +316,12 @@ public sealed class CompositeDisposableAsync : IAsyncDisposable
                 throw new ArgumentOutOfRangeException(nameof(arrayIndex));
             }
 
-            var i = 0;
-            foreach (var item in _list)
+            if (array is null)
             {
-                if (item is null)
-                {
-                    continue;
-                }
-
-                if (array is not null)
-                {
-                    array[arrayIndex + i] = item;
-                }
-
-                i++;
+                return;
             }
+
+            CopyToCore(array, arrayIndex);
         }
     }
 
@@ -318,7 +335,8 @@ public sealed class CompositeDisposableAsync : IAsyncDisposable
     /// <returns>A task that represents the asynchronous dispose operation.</returns>
     public async ValueTask DisposeAsync()
     {
-        List<IAsyncDisposable?> disposables;
+        IAsyncDisposable?[]? snapshot;
+        int snapshotLength;
 
         lock (_gate)
         {
@@ -327,58 +345,116 @@ public sealed class CompositeDisposableAsync : IAsyncDisposable
                 return;
             }
 
-            _count = 0;
             _isDisposed = true;
-            disposables = _list;
-            _list = null!; // dereference.
+            snapshot = _items;
+            snapshotLength = _length;
+            _items = null;
+            _length = 0;
+            _count = 0;
         }
 
-        foreach (var item in disposables)
+        if (snapshot is null)
         {
-            if (item is not null)
+            return;
+        }
+
+        for (var i = 0; i < snapshotLength; i++)
+        {
+            if (snapshot[i] is { } item)
             {
                 await item.DisposeAsync().ConfigureAwait(false);
             }
         }
-
-        disposables.Clear();
     }
 
     /// <summary>
-    /// Returns an enumerator that iterates through a snapshot of the collection and clears its contents.
+    /// Returns an enumerator that iterates a snapshot of the non-null disposables in the collection.
+    /// The snapshot is taken under the gate; subsequent mutations do not affect the enumerator.
     /// </summary>
-    /// <remarks>The enumerator operates on a snapshot of the collection taken at the time of the call. After
-    /// enumeration, the original collection is cleared. This method is thread-safe.</remarks>
-    /// <returns>An enumerator for the collection of <see cref="IAsyncDisposable"/> items present at the time of enumeration.</returns>
+    /// <returns>An enumerator over a snapshot of the collection's disposables.</returns>
     public IEnumerator<IAsyncDisposable> GetEnumerator()
     {
+        IAsyncDisposable[] snapshot;
         lock (_gate)
         {
-            // make snapshot
-            return EnumerateAndClear([.. _list]).GetEnumerator();
-        }
-    }
-
-    /// <summary>
-    /// Enumerates the non-null disposables in the array and clears the array when enumeration completes.
-    /// </summary>
-    /// <param name="disposables">The snapshot array of disposables to enumerate and clear.</param>
-    /// <returns>An enumerable sequence of non-null disposables from the array.</returns>
-    private static IEnumerable<IAsyncDisposable> EnumerateAndClear(IAsyncDisposable?[] disposables)
-    {
-        try
-        {
-            foreach (var item in disposables)
+            if (_items is null || _count == 0)
             {
-                if (item != null)
+                return EmptyEnumerator();
+            }
+
+            snapshot = new IAsyncDisposable[_count];
+            var dst = 0;
+            for (var src = 0; src < _length; src++)
+            {
+                if (_items[src] is { } item)
                 {
-                    yield return item;
+                    snapshot[dst++] = item;
                 }
             }
         }
-        finally
+
+        return ((IEnumerable<IAsyncDisposable>)snapshot).GetEnumerator();
+    }
+
+    /// <summary>Returns an empty enumerator used when the composite holds nothing.</summary>
+    /// <returns>An empty enumerator.</returns>
+    private static IEnumerator<IAsyncDisposable> EmptyEnumerator()
+    {
+        yield break;
+    }
+
+    /// <summary>Performs the actual copy under the assumption that bounds have been validated.</summary>
+    /// <param name="array">Destination array, guaranteed non-null by the caller.</param>
+    /// <param name="arrayIndex">Destination starting index.</param>
+    private void CopyToCore(IAsyncDisposable[] array, int arrayIndex)
+    {
+        var dst = arrayIndex;
+        var src = _items!;
+        for (var i = 0; i < _length; i++)
         {
-            disposables.AsSpan().Clear();
+            if (src[i] is { } item)
+            {
+                array[dst++] = item;
+            }
         }
+    }
+
+    /// <summary>Ensures <see cref="_items"/> has at least one free slot at index <see cref="_length"/>.
+    /// Allocates the default-capacity array on first use; doubles on subsequent overflow.</summary>
+    private void EnsureCapacityForOneMore()
+    {
+        if (_items is null)
+        {
+            _items = new IAsyncDisposable?[DefaultCapacity];
+            return;
+        }
+
+        if (_length < _items.Length)
+        {
+            return;
+        }
+
+        var grown = new IAsyncDisposable?[_items.Length * 2];
+        Array.Copy(_items, grown, _length);
+        _items = grown;
+    }
+
+    /// <summary>Removes null gaps inside <see cref="_items"/> and shrinks the backing array
+    /// to half its capacity. Caller must hold <see cref="_gate"/>.</summary>
+    private void CompactInPlace()
+    {
+        var src = _items!;
+        var fresh = new IAsyncDisposable?[src.Length / 2];
+        var dst = 0;
+        for (var i = 0; i < _length; i++)
+        {
+            if (src[i] is { } item)
+            {
+                fresh[dst++] = item;
+            }
+        }
+
+        _items = fresh;
+        _length = dst;
     }
 }
