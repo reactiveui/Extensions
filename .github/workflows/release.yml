@@ -2,6 +2,15 @@ name: Release
 
 on:
   workflow_dispatch:
+    inputs:
+      bump:
+        description: 'Release level'
+        required: true
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
 
 permissions:
   contents: write
@@ -15,6 +24,7 @@ jobs:
       installWorkloads: true
       versioningTool: minver
       minverMinimumMajorMinor: '2.3'
+      bump: ${{ inputs.bump }}
     secrets:
       CERTUM_USER_ID: ${{ secrets.CERTUM_USER_ID }}
       CERTUM_OTP_URI: ${{ secrets.CERTUM_OTP_URI }}
@@ -54,3 +64,4 @@ jobs:
     uses: reactiveui/actions-common/.github/workflows/workflow-common-create-release.yml@main
     with:
       version: ${{ needs.release.outputs.semver2 }}
+      tag: ${{ needs.release.outputs.tag }}
