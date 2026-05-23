@@ -67,6 +67,7 @@ jobs:
           {
             echo "SS_DIST=$DIST"
             echo "SS_EXE=$(find "$HOME/certum" -name 'SimplySignDesktop' -type f | head -1)"
+            echo "SS_START=$(find "$HOME/certum" -name 'SimplySignDesktop_start' -type f | head -1)"
             echo "SS_PKCS11=$(find "$HOME/certum" -name 'SimplySignPKCS*.so' | head -1)"
           } >> "$GITHUB_ENV"
 
@@ -82,12 +83,21 @@ jobs:
       - name: Launch SimplySign Desktop
         run: |
           set -euxo pipefail
-          test -n "${SS_EXE:-}" || { echo "SimplySignDesktop binary not found"; exit 1; }
-          echo "Launching $SS_EXE"
-          "$SS_EXE" >"$RUNNER_TEMP/simplysign.log" 2>&1 &
+          # The raw binary can't find its bundled Qt libs; the *_start wrapper sets
+          # LD_LIBRARY_PATH + Qt plugin paths. Prefer it, and set LD_LIBRARY_PATH too.
+          export LD_LIBRARY_PATH="$SS_DIST:${LD_LIBRARY_PATH:-}"
+          if [ -n "${SS_START:-}" ]; then
+            echo "Launching via wrapper $SS_START"
+            "$SS_START" >"$RUNNER_TEMP/simplysign.log" 2>&1 &
+          else
+            echo "Launching binary $SS_EXE (LD_LIBRARY_PATH=$SS_DIST)"
+            "$SS_EXE" >"$RUNNER_TEMP/simplysign.log" 2>&1 &
+          fi
           echo "SS_PID=$!" >> "$GITHUB_ENV"
           sleep "${LAUNCH_SECONDS}"
           import -window root "$RUNNER_TEMP/01-after-launch.png" || true
+          echo "--- simplysign.log so far ---"; cat "$RUNNER_TEMP/simplysign.log" || true
+          echo "--- still running? ---"; ps -p "$!" >/dev/null 2>&1 && echo "yes" || ps aux | grep -i simplysign | grep -v grep || echo "process gone"
 
       - name: Diagnose windows / processes
         run: |
