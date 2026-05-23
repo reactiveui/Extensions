@@ -23,7 +23,6 @@ jobs:
     with:
       solutionFile: ReactiveUI.Extensions.slnx
       installWorkloads: true
-      versioningTool: minver
       minverMinimumMajorMinor: '2.3'
       bump: ${{ inputs.bump }}
     secrets:

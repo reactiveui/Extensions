@@ -15,7 +15,6 @@ jobs:
         with:
             productNamespacePrefix: ReactiveUI.Extensions
             installWorkloads: true
-            versioningTool: minver
             minverMinimumMajorMinor: '2.3'
             sonarProjectKey: reactiveui_Extensions
             sonarOrganization: reactiveui

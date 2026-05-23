@@ -20,7 +20,6 @@ jobs:
         with:
             productNamespacePrefix: ReactiveUI.Extensions
             installWorkloads: true
-            versioningTool: minver
             minverMinimumMajorMinor: '2.3'
             # 15m, not 8m: the entire test assembly is serialized via
             # [assembly: NotInParallel(nameof(UnhandledExceptionHandler))] because the
