@@ -48,6 +48,19 @@ jobs:
             libx11-6 libxext6 libxcomposite1 libxi6 libice6 libsm6 libxrender1 \
             libxcb1 libxau6 libpcsclite1 libglx-mesa0 libgl1 libxslt1.1 \
             libxkbcommon0 libxcb-xinerama0 libfontconfig1 libdbus-1-3 procps curl
+          # SimplySign bundles Qt5/WebKit but still needs these SYSTEM libs.
+          # Install each independently so a name that differs on this Ubuntu
+          # release can't abort the rest (apt is atomic per invocation).
+          for p in \
+            libpulse-mainloop-glib0 libpulse0 libasound2t64 libasound2 \
+            libqt5webkit5 libqt5multimedia5 libqt5multimediawidgets5 libqt5quick5 \
+            libqt5printsupport5 libqt5positioning5 libqt5sensors5 libqt5opengl5 \
+            libgstreamer1.0-0 libgstreamer-plugins-base1.0-0 \
+            libwoff1 libharfbuzz0b libhyphen0 libwebp7 libwebpdemux2 \
+            libnss3 libxtst6 libxss1 libxrandr2 libxdamage1 libxfixes3 libxcursor1 \
+            libegl1 libgbm1 libxkbcommon-x11-0; do
+            sudo apt-get install -y --no-install-recommends "$p" || echo "::warning::could not install $p"
+          done
 
       - name: Download + install SimplySign Desktop
         run: |
@@ -82,10 +95,15 @@ jobs:
 
       - name: Launch SimplySign Desktop
         run: |
-          set -euxo pipefail
+          set -uxo pipefail
           # The raw binary can't find its bundled Qt libs; the *_start wrapper sets
           # LD_LIBRARY_PATH + Qt plugin paths. Prefer it, and set LD_LIBRARY_PATH too.
           export LD_LIBRARY_PATH="$SS_DIST:${LD_LIBRARY_PATH:-}"
+          # Enumerate any still-missing system libs up front (the wrapper runs the
+          # /opt copy, so check that one if present).
+          BIN="/opt/SimplySignDesktop/SimplySignDesktop"; [ -x "$BIN" ] || BIN="$SS_EXE"
+          echo "--- ldd not-found for $BIN ---"
+          LD_LIBRARY_PATH="$(dirname "$BIN"):$SS_DIST" ldd "$BIN" 2>&1 | grep -i "not found" || echo "no missing libs for $BIN"
           if [ -n "${SS_START:-}" ]; then
             echo "Launching via wrapper $SS_START"
             "$SS_START" >"$RUNNER_TEMP/simplysign.log" 2>&1 &
