@@ -16,7 +16,7 @@
   </ItemGroup>
   <ItemGroup>
     <PackageVersion Include="BenchmarkDotNet" Version="0.15.8" />
-    <PackageVersion Include="Microsoft.Diagnostics.Tracing.TraceEvent" Version="3.2.2" />
+    <PackageVersion Include="Microsoft.Diagnostics.Tracing.TraceEvent" Version="3.2.3" />
   </ItemGroup>
   <ItemGroup>
     <PackageVersion Include="System.Reactive" Version="6.1.0" />
