@@ -1,3 +1,7 @@
+## Replacement
+
+See https://github.com/reactiveui/primitives for a replacement for this library, which contains all the extensions plus much more.
+
 [![Build](https://github.com/reactiveui/Extensions/actions/workflows/ci-build.yml/badge.svg)](https://github.com/reactiveui/Extensions/actions/workflows/ci-build.yml)
 [![codecov](https://codecov.io/gh/reactiveui/Extensions/graph/badge.svg?token=7u1lNF5imh)](https://codecov.io/gh/reactiveui/Extensions)
 [![Coverage](https://sonarcloud.io/api/project_badges/measure?project=reactiveui_Extensions&metric=coverage)](https://sonarcloud.io/summary/new_code?id=reactiveui_Extensions)
